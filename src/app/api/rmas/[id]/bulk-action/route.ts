@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { enqueueRmaItem } from "@/lib/queue";
 import { inArray, eq, and, sql } from "drizzle-orm";
 import { z } from "zod";
+import { hasIntakeCustomer, CUSTOMER_REQUIRED } from "@/lib/intake-customer";
 
 const BulkActionSchema = z.object({
   action: z.enum(["bulk_confirm", "bulk_reprocess"]),
@@ -91,6 +92,9 @@ export async function POST(
   }
 
   if (action === "bulk_reprocess") {
+    if (!await hasIntakeCustomer(rmaId)) {
+      return NextResponse.json({ error: CUSTOMER_REQUIRED }, { status: 400 });
+    }
     const items = await db
       .select({ id: rmaItems.id })
       .from(rmaItems)

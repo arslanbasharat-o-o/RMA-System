@@ -1,47 +1,24 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "motion/react";
-import {
-  Camera,
-  RotateCcw,
-  FlipHorizontal,
-  Upload,
-  Plus,
-  Check,
-  AlertCircle,
-  Image as ImageIcon,
-  ChevronRight,
-  Loader2,
-  Trash2,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
+import { Camera, SwitchCamera, Images, Check, AlertCircle, Loader2, ArrowRight, RotateCcw, ScanLine } from "lucide-react";
 
 interface CapturedPhoto {
-  id: string; // local temporary id
+  id: string;
   blob: Blob;
   previewUrl: string;
-  imageType: "primary" | "front" | "back" | "stamp_closeup" | "sticker_closeup";
-  uploading: boolean;
-  uploaded: boolean;
+  imageType: "primary" | "back" | "stamp_closeup";
+  status: "uploading" | "saved" | "error";
   error?: string;
-  serverImageId?: string;
 }
 
-interface CurrentDisplayDraft {
-  itemNumber: number;
-  serverItemId?: string;
-  photos: CapturedPhoto[];
-}
+const angles = [
+  { type: "primary", label: "Front", hint: "Fit the entire front of the display inside the guide." },
+  { type: "back", label: "Back", hint: "Turn the display over. Keep connectors and labels in focus." },
+  { type: "stamp_closeup", label: "Label", hint: "Move closer to the stamp or sticker. Avoid glare." },
+] as const;
 
-export function CameraScanner({
-  rmaId,
-  rmaNumber,
-  customerName,
-  onComplete,
-}: {
+export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   rmaId: string;
   rmaNumber: string;
   customerName: string;
@@ -51,544 +28,266 @@ export function CameraScanner({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-
+  const cameraRequest = useRef(0);
+  const previewUrls = useRef(new Set<string>());
+  const itemIdRef = useRef<string | null>(null);
+  const pendingItem = useRef<Promise<string> | null>(null);
+  const captureLock = useRef(false);
   const [cameraActive, setCameraActive] = useState(false);
-  const [facingMode, setFacingMode] = useState<"environment" | "user">(
-    "environment"
-  );
   const [cameraError, setCameraError] = useState<string | null>(null);
-  const [isCapturing, setIsCapturing] = useState(false);
-  const [isFlashing, setIsFlashing] = useState(false);
-  const [isDragging, setIsDragging] = useState(false);
-
-  // Display counters and queue
+  const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
+  const [capturing, setCapturing] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [displayNumber, setDisplayNumber] = useState(1);
-  const [currentPhotos, setCurrentPhotos] = useState<CapturedPhoto[]>([]);
-  const [currentServerItemId, setCurrentServerItemId] = useState<string | null>(
-    null
-  );
-  const [totalDisplaysCompleted, setTotalDisplaysCompleted] = useState(0);
-  const [isCreatingItem, setIsCreatingItem] = useState(false);
+  const [completed, setCompleted] = useState(0);
+  const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
+  const [angle, setAngle] = useState<CapturedPhoto["imageType"]>("primary");
+  const [intakeError, setIntakeError] = useState<string | null>(null);
+  const customerReady = Boolean(customerName?.trim());
+  const saving = capturing || photos.some((photo) => photo.status === "uploading");
+  const failed = photos.some((photo) => photo.status === "error");
+  const canAdvance = photos.length > 0 && !saving && !failed;
+  const selectedAngle = angles.find((entry) => entry.type === angle)!;
 
-  // Stop all active camera tracks reliably
   const stopTracks = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        try {
-          track.stop();
-        } catch {
-          // ignore
-        }
-      });
-      streamRef.current = null;
-    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
   }, []);
 
-  // Initialize camera
   const startCamera = useCallback(async () => {
+    const request = ++cameraRequest.current;
+    stopTracks();
+    setCameraActive(false);
+    setCameraError(null);
+    if (!customerReady) return;
     try {
-      setCameraError(null);
-      stopTracks();
-
-      if (!navigator?.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API not supported on this browser/insecure context.");
-      }
-
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { ideal: facingMode },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 },
-        },
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("unsupported");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facingMode }, width: { ideal: 1920 }, height: { ideal: 1080 } },
         audio: false,
       });
-
-      streamRef.current = mediaStream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+      // A permission prompt can resolve after navigation or a camera switch.
+      if (request !== cameraRequest.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
       }
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+      if (request !== cameraRequest.current) return;
       setCameraActive(true);
-    } catch (err: unknown) {
-      console.warn("Camera access failed:", err);
+    } catch (error) {
+      if (request !== cameraRequest.current) return;
       stopTracks();
-      setCameraError(
-        "Camera access denied or unavailable. You can use gallery upload or drag-and-drop images below."
-      );
-      setCameraActive(false);
+      const name = error instanceof Error ? error.name : "";
+      setCameraError(name === "NotAllowedError"
+        ? "Allow camera access in your browser settings, then try again."
+        : "No camera is available. Connect a camera or choose photos from your device.");
     }
-  }, [facingMode, stopTracks]);
+  }, [customerReady, facingMode, stopTracks]);
 
   useEffect(() => {
-    startCamera();
-    return () => {
-      stopTracks();
-    };
-  }, [facingMode, startCamera, stopTracks]);
+    void startCamera();
+    return () => { ++cameraRequest.current; stopTracks(); };
+  }, [startCamera, stopTracks]);
 
-  // Flip front / back camera
-  const toggleFacingMode = () => {
-    setFacingMode((prev) => (prev === "environment" ? "user" : "environment"));
-  };
+  useEffect(() => () => { previewUrls.current.forEach((url) => URL.revokeObjectURL(url)); }, []);
+  useEffect(() => {
+    if (!flashing) return;
+    const timer = window.setTimeout(() => setFlashing(false), 150);
+    return () => window.clearTimeout(timer);
+  }, [flashing]);
+  useEffect(() => {
+    if (!saving && !failed) return;
+    const protectUpload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
+    window.addEventListener("beforeunload", protectUpload);
+    return () => window.removeEventListener("beforeunload", protectUpload);
+  }, [saving, failed]);
 
-  const pendingItemPromise = useRef<Promise<string> | null>(null);
-  const currentServerItemIdRef = useRef<string | null>(null);
-
-  // Ensure an RMA Item exists on backend for current display
-  const ensureServerItem = async (): Promise<string> => {
-    if (currentServerItemIdRef.current) return currentServerItemIdRef.current;
-    if (pendingItemPromise.current) return await pendingItemPromise.current;
-
-    setIsCreatingItem(true);
-    const promise = (async () => {
-      try {
-        const res = await fetch(`/api/rmas/${rmaId}/items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Failed to create display line item");
-
-        currentServerItemIdRef.current = data.item.id;
-        setCurrentServerItemId(data.item.id);
-        setDisplayNumber(data.item.itemNumber);
-        return data.item.id as string;
-      } finally {
-        setIsCreatingItem(false);
-        pendingItemPromise.current = null;
-      }
+  const ensureItem = async (): Promise<string> => {
+    if (!customerReady) throw new Error("Add customer information before starting intake.");
+    if (itemIdRef.current) return itemIdRef.current;
+    if (pendingItem.current) return pendingItem.current;
+    pendingItem.current = (async () => {
+      const response = await fetch(`/api/rmas/${rmaId}/items`, { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not create the display. Try again.");
+      itemIdRef.current = data.item.id;
+      setDisplayNumber(data.item.itemNumber);
+      return data.item.id as string;
     })();
-
-    pendingItemPromise.current = promise;
-    return await promise;
+    try { return await pendingItem.current; }
+    finally { pendingItem.current = null; }
   };
 
-  // Fast background upload of an individual photo to server item
-  const uploadPhotoInBackground = async (
-    serverItemId: string,
-    photoId: string,
-    blob: Blob,
-    imageType: string
-  ) => {
-    const formData = new FormData();
-    formData.append("file", blob, `display_${displayNumber}_${photoId}.jpg`);
-    formData.append("imageType", imageType);
-
+  const uploadPhoto = async (photo: CapturedPhoto) => {
+    setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "uploading", error: undefined } : entry));
     try {
-      const res = await fetch(`/api/rma-items/${serverItemId}/upload`, {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      setCurrentPhotos((prev) =>
-        prev.map((p) =>
-          p.id === photoId
-            ? {
-                ...p,
-                uploading: false,
-                uploaded: res.ok,
-                serverImageId: data.image?.id,
-                error: res.ok ? undefined : data.error,
-              }
-            : p
-        )
-      );
-    } catch {
-      setCurrentPhotos((prev) =>
-        prev.map((p) =>
-          p.id === photoId
-            ? { ...p, uploading: false, uploaded: false, error: "Network error" }
-            : p
-        )
-      );
+      const itemId = await ensureItem();
+      const form = new FormData();
+      const filename = photo.blob instanceof File ? photo.blob.name : `${photo.id}.jpg`;
+      form.append("file", photo.blob, filename);
+      form.append("imageType", photo.imageType);
+      const response = await fetch(`/api/rma-items/${itemId}/upload`, { method: "POST", body: form });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Upload failed. Try again.");
+      setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "saved" } : entry));
+    } catch (error) {
+      setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
+        ...entry, status: "error", error: error instanceof Error ? error.message : "Connection lost. Try again.",
+      } : entry));
     }
   };
 
-  // Process a list of files (from file input or desktop drag-and-drop)
-  const processFiles = async (files: File[]) => {
-    if (!files || files.length === 0) return;
+  const addPhoto = (blob: Blob, imageType: CapturedPhoto["imageType"]) => {
+    const previewUrl = URL.createObjectURL(blob);
+    previewUrls.current.add(previewUrl);
+    const photo: CapturedPhoto = { id: crypto.randomUUID(), blob, previewUrl, imageType, status: "uploading" };
+    setPhotos((previous) => [...previous, photo]);
+    void uploadPhoto(photo);
+    setAngle(imageType === "primary" ? "back" : "stamp_closeup");
+  };
 
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const photoId = Math.random().toString(36).substring(2, 9);
-      const previewUrl = URL.createObjectURL(file);
-      const imageType =
-        i === 0 && currentPhotos.length === 0 ? "primary" : "stamp_closeup";
-
-      const newPhoto: CapturedPhoto = {
-        id: photoId,
-        blob: file,
-        previewUrl,
-        imageType,
-        uploading: true,
-        uploaded: false,
-      };
-
-      setCurrentPhotos((prev) => [...prev, newPhoto]);
-
-      try {
-        const itemId = await ensureServerItem();
-        uploadPhotoInBackground(itemId, photoId, file, imageType);
-      } catch (err) {
-        console.error("Item creation error:", err);
+  const processFiles = (files: File[]) => {
+    if (!customerReady) return;
+    setIntakeError(null);
+    files.forEach((file, index) => {
+      if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
+        setIntakeError("Choose image files smaller than 25 MB.");
+        return;
       }
-    }
+      addPhoto(file, index === 0 ? angle : "stamp_closeup");
+    });
   };
 
-  // Drag and drop handlers for desktop
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setIsDragging(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const files = Array.from(e.dataTransfer.files).filter((f) =>
-        f.type.startsWith("image/")
-      );
-      if (files.length > 0) {
-        await processFiles(files);
-      }
-    }
-  };
-
-  // Capture photo from video stream with debouncing and shutter acknowledgment
-  const capturePhoto = async (
-    imageType: CapturedPhoto["imageType"] = "primary"
-  ) => {
-    if (!videoRef.current || !canvasRef.current || isCapturing || !cameraActive || isCreatingItem) {
-      return;
-    }
-
-    setIsCapturing(true);
-    setIsFlashing(true);
-    setTimeout(() => setIsFlashing(false), 120);
-
+  const capture = async () => {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!customerReady || !cameraActive || captureLock.current || !video?.videoWidth || !canvas) return;
+    captureLock.current = true;
+    setCapturing(true);
     try {
-      const video = videoRef.current;
-      const canvas = canvasRef.current;
-      canvas.width = video.videoWidth || 1280;
-      canvas.height = video.videoHeight || 720;
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob(
-        async (blob) => {
-          if (!blob) {
-            setIsCapturing(false);
-            return;
-          }
-
-          const photoId = Math.random().toString(36).substring(2, 9);
-          const previewUrl = URL.createObjectURL(blob);
-
-          const newPhoto: CapturedPhoto = {
-            id: photoId,
-            blob,
-            previewUrl,
-            imageType,
-            uploading: true,
-            uploaded: false,
-          };
-
-          // 1. Immediately show local preview thumbnail
-          setCurrentPhotos((prev) => [...prev, newPhoto]);
-
-          // 2. Immediate shutter unlock so operator can rapidly capture back/stickers
-          setIsCapturing(false);
-
-          // 3. Ensure item exists and trigger non-blocking async upload
-          (async () => {
-            try {
-              const itemId = await ensureServerItem();
-              uploadPhotoInBackground(itemId, photoId, blob, imageType);
-            } catch (err) {
-              console.error("Item creation error:", err);
-            }
-          })();
-        },
-        "image/jpeg",
-        0.9
-      );
-    } catch (err) {
-      console.error("Capture failed:", err);
-      setIsCapturing(false);
-    }
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Could not capture this photo. Try again.");
+      context.drawImage(video, 0, 0);
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("Could not capture this photo. Try again.");
+      setFlashing(true);
+      setIntakeError(null);
+      addPhoto(blob, angle);
+    } catch (error) {
+      setIntakeError(error instanceof Error ? error.message : "Capture failed. Try again.");
+    } finally { captureLock.current = false; setCapturing(false); }
   };
 
-  // Handle file input / gallery upload
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
-    await processFiles(Array.from(files));
-    if (fileInputRef.current) fileInputRef.current.value = "";
+  const nextDisplay = () => {
+    if (!canAdvance) return;
+    photos.forEach((photo) => { URL.revokeObjectURL(photo.previewUrl); previewUrls.current.delete(photo.previewUrl); });
+    setPhotos([]);
+    itemIdRef.current = null;
+    setCompleted((previous) => previous + 1);
+    setDisplayNumber((previous) => previous + 1);
+    setAngle("primary");
+    setIntakeError(null);
   };
 
-  // Finish current display line item and move to next display
-  const finishCurrentDisplay = () => {
-    if (currentPhotos.length === 0) return;
-
-    setTotalDisplaysCompleted((prev) => prev + 1);
-    setCurrentPhotos([]);
-    currentServerItemIdRef.current = null;
-    setCurrentServerItemId(null);
-    setDisplayNumber((prev) => prev + 1);
+  const finish = () => {
+    if (saving || failed) return;
+    stopTracks();
+    onComplete?.();
   };
-
-  const removePhoto = (photoId: string) => {
-    setCurrentPhotos((prev) => prev.filter((p) => p.id !== photoId));
-  };
+  const buttonStyle = "inline-flex items-center justify-center gap-2 rounded-xl min-h-11 px-3 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:opacity-40 disabled:cursor-not-allowed";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-8rem)] max-w-4xl mx-auto bg-neutral-950 rounded-xl overflow-hidden shadow-2xl border border-neutral-800 text-white">
-      {/* Top Scanner Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-neutral-900 border-b border-neutral-800">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-sm font-mono">{rmaNumber}</span>
-            <Badge variant="outline" className="text-neutral-300 border-neutral-700">
-              {customerName}
-            </Badge>
-          </div>
-          <div className="text-xs text-neutral-400 mt-0.5 flex items-center gap-1.5 font-mono">
-            <span>Display #<AnimatedNumber value={displayNumber} /></span>
-            <span>·</span>
-            <span>Captured: <AnimatedNumber value={totalDisplaysCompleted} /> screens</span>
-          </div>
+    <section aria-label="Display camera intake" className="flex min-h-0 flex-1 flex-col overflow-hidden bg-neutral-950 text-white sm:rounded-2xl sm:border sm:border-neutral-800 [&_button]:touch-manipulation [&_button]:select-none">
+      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-neutral-800 px-4 pb-3 pt-[max(12px,env(safe-area-inset-top))] sm:px-5">
+        <div className="min-w-0">
+          <p className="text-xs font-mono text-neutral-400">{rmaNumber}</p>
+          <h1 className="truncate text-sm font-semibold sm:text-base">{customerName}</h1>
         </div>
+        <button type="button" onClick={finish} disabled={saving || failed} className={`${buttonStyle} bg-neutral-800 hover:bg-neutral-700`}>
+          <Check className="size-4" /> Finish <span className="sr-only">intake</span>
+        </button>
+      </header>
 
-        <div className="flex items-center gap-2">
-          {onComplete && (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={onComplete}
-              className="bg-neutral-800 text-neutral-200 hover:bg-neutral-700 h-9 font-medium"
-            >
-              Finish Intake (<AnimatedNumber value={totalDisplaysCompleted} />)
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Viewport Area with Drag & Drop */}
-      <div
-        className={`relative flex-1 bg-black flex items-center justify-center overflow-hidden transition-colors ${
-          isDragging ? "ring-4 ring-cyan-500 ring-inset bg-cyan-950/20" : ""
-        }`}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {cameraActive ? (
-          <video
-            ref={videoRef}
-            autoPlay
-            playsInline
-            muted
-            className="w-full h-full object-contain"
-          />
-        ) : (
-          <div className="flex flex-col items-center justify-center p-6 text-center max-w-sm">
-            <Camera className="h-12 w-12 text-neutral-600 mb-3" />
-            <p className="text-sm text-neutral-400 mb-4">
-              {cameraError || "Camera inactive. Enable permissions or upload files."}
-            </p>
-            <div className="flex items-center gap-3">
-              <Button variant="outline" size="sm" onClick={startCamera}>
-                Retry Camera
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-                className="bg-neutral-800 hover:bg-neutral-700 text-white"
-              >
-                Choose Files
-              </Button>
+      {!customerReady ? <div role="alert" className="p-6 text-amber-200">Add customer information on the RMA before using the scanner.</div> : <>
+        <div className="flex min-h-0 flex-1 flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex shrink-0 items-center justify-between gap-3 px-4 py-2.5 text-xs">
+              <span className="font-semibold">Display {displayNumber}</span>
+              <span className="text-neutral-400">{completed + (canAdvance ? 1 : 0)} saved this session</span>
+            </div>
+            <div data-testid="camera-viewfinder" className={`relative min-h-40 flex-1 overflow-hidden bg-black ${dragging ? "ring-2 ring-inset ring-emerald-400" : ""}`}
+              onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+              onDragLeave={() => setDragging(false)}
+              onDrop={(event) => { event.preventDefault(); setDragging(false); processFiles(Array.from(event.dataTransfer.files)); }}>
+              {/* Keep mounted so the stream always attaches to a real video element. */}
+              <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 h-full w-full object-contain ${facingMode === "user" ? "-scale-x-100" : ""}`} />
+              {cameraActive && <div className="pointer-events-none absolute left-1/2 top-[8%] h-[84%] aspect-[9/16] max-w-[80%] -translate-x-1/2 rounded-2xl border border-white/25">
+                {['top-0 left-0 border-t-2 border-l-2 rounded-tl-2xl', 'top-0 right-0 border-t-2 border-r-2 rounded-tr-2xl', 'bottom-0 left-0 border-b-2 border-l-2 rounded-bl-2xl', 'bottom-0 right-0 border-b-2 border-r-2 rounded-br-2xl'].map((corner) => <span key={corner} className={`absolute size-8 border-white/80 ${corner}`} />)}
+              </div>}
+              {!cameraActive && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 px-6 text-center">
+                <Camera className="size-9 text-neutral-500" />
+                <h2 className="text-base font-semibold">{cameraError ? "Camera unavailable" : "Opening camera…"}</h2>
+                <p className="max-w-xs text-sm leading-relaxed text-neutral-400">{cameraError || "Allow camera access to photograph this display."}</p>
+                {cameraError && <button type="button" onClick={() => void startCamera()} className={`${buttonStyle} border border-neutral-600 hover:bg-neutral-800`}><RotateCcw className="size-4" /> Try camera again</button>}
+              </div>}
+              {flashing && <div className="pointer-events-none absolute inset-0 bg-white/30 motion-reduce:bg-white/10" />}
+              {dragging && <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-neutral-950/90 text-sm font-medium">Drop photos for display {displayNumber}</div>}
+              <canvas ref={canvasRef} className="hidden" />
             </div>
           </div>
-        )}
 
-        <canvas ref={canvasRef} className="hidden" />
-
-        {/* Shutter feedback border flash */}
-        <AnimatePresence>
-          {isFlashing && (
-            <motion.div
-              initial={{ opacity: 0.6 }}
-              animate={{ opacity: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.12 }}
-              className="absolute inset-0 bg-white/20 pointer-events-none z-30 ring-4 ring-white"
-            />
-          )}
-        </AnimatePresence>
-
-        {/* Drag and Drop Visual Feedback Overlay */}
-        {isDragging && (
-          <div className="absolute inset-0 bg-cyan-950/80 backdrop-blur-xs flex flex-col items-center justify-center pointer-events-none z-30">
-            <Upload className="h-12 w-12 text-cyan-400 animate-bounce mb-2" />
-            <span className="text-base font-bold text-white">Drop images to upload</span>
-            <span className="text-xs text-cyan-300">Adding photos to Display #{displayNumber}</span>
-          </div>
-        )}
-
-        {/* Framing guide overlay */}
-        <div className="absolute inset-8 pointer-events-none border border-white/20 rounded-lg flex items-center justify-center">
-          <div className="w-16 h-16 border-t-2 border-l-2 border-white/60 absolute top-0 left-0" />
-          <div className="w-16 h-16 border-t-2 border-r-2 border-white/60 absolute top-0 right-0" />
-          <div className="w-16 h-16 border-b-2 border-l-2 border-white/60 absolute bottom-0 left-0" />
-          <div className="w-16 h-16 border-b-2 border-r-2 border-white/60 absolute bottom-0 right-0" />
+          <aside className="hidden overflow-y-auto border-l border-neutral-800 p-5 lg:block">
+            <ScanLine className="mb-4 size-6 text-neutral-400" />
+            <h2 className="font-semibold">Capture each display</h2>
+            <ol className="mt-4 space-y-4 text-sm text-neutral-400">
+              <li><span className="block font-medium text-white">1. Front</span>Keep the full display in frame.</li>
+              <li><span className="block font-medium text-white">2. Back</span>Photograph connectors and markings.</li>
+              <li><span className="block font-medium text-white">3. Label, if needed</span>Add a close-up of stamps or stickers.</li>
+            </ol>
+            <p className="mt-6 border-t border-neutral-800 pt-4 text-xs leading-relaxed text-neutral-500">Use even lighting and avoid reflections. You can also drag photos into the viewfinder.</p>
+          </aside>
         </div>
 
-        {/* Current display photo strip overlay */}
-        {currentPhotos.length > 0 && (
-          <div className="absolute top-3 left-3 right-3 flex items-center gap-2 overflow-x-auto p-2 bg-neutral-950/80 backdrop-blur-md rounded-lg border border-neutral-800 z-20">
-            <span className="text-xs font-mono text-neutral-400 pl-1 shrink-0">
-              #{displayNumber} photos:
-            </span>
-            <div className="flex items-center gap-2">
-              {currentPhotos.map((photo, idx) => (
-                <motion.div
-                  key={photo.id}
-                  initial={{ opacity: 0, scale: 0.85 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ duration: 0.16 }}
-                  className="relative group shrink-0 w-12 h-12 rounded border border-neutral-700 overflow-hidden bg-neutral-900 shadow-sm"
-                >
-                  <img
-                    src={photo.previewUrl}
-                    alt={`Angle ${idx + 1}`}
-                    className="w-full h-full object-cover"
-                  />
-                  {photo.uploading && (
-                    <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
-                      <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    </div>
-                  )}
-                  {photo.uploaded && (
-                    <motion.div
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      className="absolute bottom-0 right-0 p-0.5 bg-emerald-500 rounded-tl"
-                    >
-                      <Check className="h-2.5 w-2.5 text-white" />
-                    </motion.div>
-                  )}
-                  {photo.error && (
-                    <div className="absolute bottom-0 right-0 p-0.5 bg-rose-500 rounded-tl" title={photo.error}>
-                      <AlertCircle className="h-2.5 w-2.5 text-white" />
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => removePhoto(photo.id)}
-                    className="absolute top-0 right-0 p-1 bg-rose-600/90 text-white opacity-0 group-hover:opacity-100 transition-opacity rounded-bl cursor-pointer"
-                    title="Remove this photo"
-                    aria-label="Remove photo"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
-                </motion.div>
-              ))}
+        <footer className="shrink-0 border-t border-neutral-800 bg-neutral-900 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
+          <div className="mx-auto max-w-3xl">
+            <div className="flex gap-1 rounded-xl bg-neutral-950 p-1" role="group" aria-label="Photo angle">
+              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} aria-pressed={angle === entry.type}
+                className={`min-h-10 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-white ${angle === entry.type ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}>{entry.label}</button>)}
             </div>
-          </div>
-        )}
-      </div>
-
-      {/* Bottom Controls Bar */}
-      <div className="bg-neutral-900 p-4 border-t border-neutral-800 shrink-0">
-        <div className="flex items-center justify-between gap-4 max-w-lg mx-auto">
-          {/* Flip camera */}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={toggleFacingMode}
-            className="text-neutral-400 hover:text-white hover:bg-neutral-800 rounded-full h-11 w-11 min-h-[44px] min-w-[44px]"
-            title="Switch Camera"
-            aria-label="Switch Camera Facing Mode"
-          >
-            <FlipHorizontal className="h-5 w-5" />
-          </Button>
-
-          {/* Primary Big Shutter Button */}
-          <button
-            type="button"
-            onClick={() => capturePhoto(currentPhotos.length === 0 ? "primary" : "stamp_closeup")}
-            disabled={!cameraActive || isCapturing}
-            className="h-16 w-16 rounded-full border-4 border-white/80 flex items-center justify-center bg-white/20 active:scale-92 transition-transform disabled:opacity-40 min-h-[44px] min-w-[44px] cursor-pointer"
-            title="Capture Photo"
-            aria-label="Capture Photo"
-          >
-            <div
-              className={`h-12 w-12 rounded-full bg-white shadow-lg transition-all duration-100 ${
-                isCapturing ? "scale-90 opacity-70" : ""
-              }`}
-            />
-          </button>
-
-          {/* Gallery file upload */}
-          <label className="cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center">
-            <input
-              type="file"
-              ref={fileInputRef}
-              accept="image/*"
-              multiple
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-            <div
-              className="h-11 w-11 rounded-full flex items-center justify-center text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
-              title="Upload Photos from Device"
-              aria-label="Upload Photos from Device"
-            >
-              <Upload className="h-5 w-5" />
+            <p className="mt-2 text-center text-xs leading-5 text-neutral-400">{selectedAngle.hint}</p>
+            <div className="mt-2 grid grid-cols-3 items-center justify-items-center">
+              <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
+              <button type="button" onClick={() => void capture()} disabled={!cameraActive || capturing} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
+                <span className="flex h-full w-full items-center justify-center rounded-full bg-white">{capturing && <Loader2 className="size-5 animate-spin text-neutral-900" />}</span>
+              </button>
+              <button type="button" onClick={() => fileInputRef.current?.click()} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
+              <input type="file" ref={fileInputRef} accept="image/*" multiple aria-label="Choose display photos" className="hidden" onChange={(event) => { processFiles(Array.from(event.target.files || [])); event.target.value = ""; }} />
             </div>
-          </label>
-        </div>
-
-        {/* Step progression actions */}
-        <div className="mt-4 pt-3 border-t border-neutral-800 flex items-center justify-between text-xs">
-          <div className="text-neutral-400">
-            {currentPhotos.length === 0 ? (
-              <span>Take front photo of screen #{displayNumber}</span>
-            ) : (
-              <span>
-                {currentPhotos.length} photo(s) captured for Screen #{displayNumber}
-              </span>
-            )}
+            {photos.length > 0 && <div className="mt-3 flex items-center gap-3 border-t border-neutral-800 pt-3">
+              <div aria-label="Captured photos" className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
+                {photos.map((photo, index) => <div key={photo.id} className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-neutral-700">
+                  <img src={photo.previewUrl} alt={`${angles.find((entry) => entry.type === photo.imageType)?.label} angle ${index + 1}`} className="size-full object-cover" />
+                  {photo.status === "uploading" && <span aria-label="Saving photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><Loader2 className="size-4 animate-spin" /></span>}
+                  {photo.status === "saved" && <span aria-label="Photo saved" className="absolute bottom-0 right-0 rounded-tl bg-emerald-700 p-1"><Check className="size-3" /></span>}
+                  {photo.status === "error" && <button type="button" aria-label={`Retry photo ${index + 1}`} title={photo.error} onClick={() => void uploadPhoto(photo)} className="absolute inset-0 flex items-center justify-center bg-red-950/90"><RotateCcw className="size-5" /></button>}
+                </div>)}
+              </div>
+              <button type="button" onClick={nextDisplay} disabled={!canAdvance} className={`${buttonStyle} shrink-0 bg-white text-neutral-950 hover:bg-neutral-200`}>Next display <ArrowRight className="size-4" /></button>
+            </div>}
+            <div role="status" aria-live="polite" className="mt-2 text-center text-xs text-neutral-400">
+              {saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} photos saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
+            </div>
+            {intakeError && <p role="alert" className="mt-2 flex items-center justify-center gap-2 text-xs text-red-300"><AlertCircle className="size-4" />{intakeError}</p>}
           </div>
-
-          <div className="flex items-center gap-2">
-            {currentPhotos.length > 0 && (
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={finishCurrentDisplay}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white h-9 px-3"
-              >
-                <span>Save & Next Screen</span>
-                <ChevronRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-    </div>
+        </footer>
+      </>}
+    </section>
   );
 }

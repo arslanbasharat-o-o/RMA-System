@@ -56,9 +56,6 @@ export default function CreateRmaPage() {
         setCustomers(cJson.customers || []);
         setReturnReasons(rJson.returnReasons || []);
 
-        if (cJson.customers?.length > 0) {
-          setCustomerId(cJson.customers[0].id);
-        }
         if (rJson.returnReasons?.length > 0) {
           setReturnReasonId(rJson.returnReasons[0].id);
         }
@@ -209,7 +206,7 @@ export default function CreateRmaPage() {
                   {/* Customer Selector */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
+                      <label htmlFor="rma-customer" className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
                         Customer / Business Name *
                       </label>
                       <button
@@ -222,16 +219,20 @@ export default function CreateRmaPage() {
                       </button>
                     </div>
                     <Select
+                      id="rma-customer"
+                      aria-describedby="customer-help"
                       value={customerId}
                       onChange={(e) => setCustomerId(e.target.value)}
                       required
                     >
-                      {customers.map((c) => (
+                      <option value="" disabled>Select a customer or add a new one</option>
+                      {customers.filter((c) => c.name?.trim() && c.active).map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} {c.contactName ? `(${c.contactName})` : ""}
                         </option>
                       ))}
                     </Select>
+                    <p id="customer-help" className="mt-2 text-xs text-neutral-500">Choose the customer for this shipment before opening the scanner.</p>
                   </div>
 
                   {/* Return Reason Selector */}
@@ -338,6 +339,7 @@ export default function CreateRmaPage() {
                     type="submit"
                     variant="primary"
                     loading={submitting}
+                    disabled={!customerId || !returnReasonId}
                     className="gap-2 shrink-0 w-full sm:w-auto h-10 px-5 text-xs sm:text-sm font-medium"
                   >
                     <Camera className="h-4 w-4 shrink-0" />

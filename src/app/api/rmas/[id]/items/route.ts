@@ -1,3 +1,4 @@
+import { hasIntakeCustomer, CUSTOMER_REQUIRED } from "@/lib/intake-customer";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { rmaItems, rmas, itemImages } from "@/db/schema";
@@ -30,6 +31,10 @@ export async function POST(
   if (auth instanceof NextResponse) return auth;
 
   const { id: rmaId } = await params;
+
+  if (!await hasIntakeCustomer(rmaId)) {
+    return NextResponse.json({ error: CUSTOMER_REQUIRED }, { status: 400 });
+  }
 
   // Verify RMA exists
   const newItem = await db.transaction(async (tx) => {

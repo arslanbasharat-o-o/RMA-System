@@ -8,9 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { APP_VERSION } from "@/lib/version";
 import {
   KeyRound,
-  GitBranch,
-  GitCommit,
-  Server,
   LogOut,
   CheckCircle2,
   AlertCircle,
@@ -287,48 +284,9 @@ export function UserProfileModal({
           </div>
         </form>
 
-        {/* Version & GitHub Release Tracker */}
-        <div className="pt-4 border-t border-neutral-200/80 dark:border-neutral-800 space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-              Release & Version Tracker
-            </span>
-            <Badge variant="outline" className="text-[10px] font-mono">
-              v{APP_VERSION.version}
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-            <div className="p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
-                <GitCommit className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-                <span>Git Commit</span>
-              </span>
-              <span className="font-bold text-neutral-900 dark:text-neutral-100">
-                #{APP_VERSION.commit}
-              </span>
-            </div>
-
-            <div className="p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 flex items-center justify-between">
-              <span className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400">
-                <GitBranch className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-                <span>Branch</span>
-              </span>
-              <span className="font-medium text-neutral-700 dark:text-neutral-300 truncate max-w-[90px]" title={APP_VERSION.branch}>
-                {APP_VERSION.branch}
-              </span>
-            </div>
-          </div>
-
-          <div className="p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/70 dark:border-neutral-800 flex items-center justify-between text-xs">
-            <span className="flex items-center gap-1.5 text-neutral-500 dark:text-neutral-400 font-mono">
-              <Server className="h-3.5 w-3.5 shrink-0 text-neutral-400" />
-              <span>Target Host</span>
-            </span>
-            <span className="font-medium text-neutral-800 dark:text-neutral-200 text-[11px]">
-              {APP_VERSION.buildTarget} (Next.js 16 / Turbopack)
-            </span>
-          </div>
+        <div className="pt-4 border-t border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
+          <span>App version</span>
+          <Badge variant="outline">v{APP_VERSION.version}</Badge>
         </div>
 
         {/* Explicit Prominent Log Out Section */}

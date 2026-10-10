@@ -59,3 +59,7 @@ jobs:
       - run: npm run build
         env:
           NODE_ENV: production
+      - name: Install browser for offline intake checks
+        run: npx playwright install --with-deps chromium
+      - name: Verify camera and customer intake on desktop and mobile
+        run: npx playwright test e2e/camera-intake.spec.ts --project=chromium --project=mobile-chrome

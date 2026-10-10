@@ -1,65 +1,40 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CameraScanner } from "@/components/scanner/CameraScanner";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 
-export default function RmaCapturePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+interface CaptureRma { rmaNumber: string; customerName: string | null }
+
+export default function RmaCapturePage({ params }: { params: Promise<{ id: string }> }) {
   const { id: rmaId } = use(params);
   const router = useRouter();
-  const [rma, setRma] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
+  const [rma, setRma] = useState<CaptureRma | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadRma() {
+    const controller = new AbortController();
+    void (async () => {
       try {
-        const res = await fetch(`/api/rmas/${rmaId}`);
-        if (res.ok) {
-          const json = await res.json();
-          setRma(json.rma);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+        const response = await fetch(`/api/rmas/${rmaId}`, { signal: controller.signal });
+        if (!response.ok) throw new Error("Could not load this RMA. Return to its details and try again.");
+        const data = await response.json();
+        setRma(data.rma);
+      } catch (cause) {
+        if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Could not load this RMA.");
       }
-    }
-    loadRma();
+    })();
+    return () => controller.abort();
   }, [rmaId]);
 
-  if (loading || !rma) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center p-4">
-        <div className="text-xs text-neutral-400 animate-pulse">
-          Initializing Camera Scanner...
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen bg-neutral-950 p-2 sm:p-4 flex flex-col justify-center">
-      <div className="max-w-4xl mx-auto w-full mb-2 flex items-center justify-between text-neutral-400">
-        <button
-          onClick={() => router.push(`/rmas/${rmaId}`)}
-          className="inline-flex items-center text-xs hover:text-white transition-colors"
-        >
-          <ArrowLeft className="h-3.5 w-3.5 mr-1" />
-          <span>Return to RMA Details</span>
-        </button>
-      </div>
-
-      <CameraScanner
-        rmaId={rmaId}
-        rmaNumber={rma.rmaNumber}
-        customerName={rma.customerName}
-        onComplete={() => router.push(`/rmas/${rmaId}`)}
-      />
-    </div>
+    <main className="flex h-dvh min-h-[560px] flex-col bg-neutral-950 text-white sm:p-4 lg:mx-auto lg:max-w-6xl">
+      {error || (rma && !rma.customerName?.trim()) ? <div className="m-auto max-w-sm space-y-4 p-6 text-center">
+        <p role="alert">{error || "Add customer information to this RMA before uploading or processing images."}</p>
+        <Link href={`/rmas/${rmaId}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-800 px-4 text-sm"><ArrowLeft className="size-4" /> Return to RMA details</Link>
+      </div> : rma ? <CameraScanner rmaId={rmaId} rmaNumber={rma.rmaNumber} customerName={rma.customerName!} onComplete={() => router.push(`/rmas/${rmaId}`)} /> : <div role="status" className="m-auto flex items-center gap-3 text-sm text-neutral-400"><Loader2 className="size-5 animate-spin" /> Loading intake…</div>}
+    </main>
   );
 }
