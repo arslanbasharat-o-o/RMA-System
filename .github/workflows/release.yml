@@ -66,3 +66,43 @@ jobs:
             --verify-tag \
             --title "RMA System $GITHUB_REF_NAME" \
             --generate-notes
+
+  publish-container:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Log in to GitHub Container Registry
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "$GH_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Build and publish application image
+        env:
+          IMAGE: ghcr.io/arslanbasharat-o-o/rma-system
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          APP_VERSION="${APP_VERSION#v}"
+          docker build --target runner \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg NEXT_PUBLIC_APP_COMMIT="$GITHUB_SHA" \
+            --tag "$IMAGE:$APP_VERSION" \
+            --tag "$IMAGE:latest" .
+          docker push "$IMAGE:$APP_VERSION"
+          docker push "$IMAGE:latest"
+      - name: Build and publish worker image
+        env:
+          IMAGE: ghcr.io/arslanbasharat-o-o/rma-system
+          APP_VERSION: ${{ github.ref_name }}
+        run: |
+          APP_VERSION="${APP_VERSION#v}"
+          docker build --target worker \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag "$IMAGE:worker-$APP_VERSION" \
+            --tag "$IMAGE:worker-latest" .
+          docker push "$IMAGE:worker-$APP_VERSION"
+          docker push "$IMAGE:worker-latest"

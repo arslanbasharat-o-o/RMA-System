@@ -15,7 +15,12 @@ The tag-triggered workflow re-runs validation, checks the tag against both versi
 
 ## Container distribution
 
-CI builds and checks the production runtime image without publishing it. GHCR publication is not enabled because the repository currently has no project license; publishing a public runnable image would distribute the application without an explicit licensing decision. Do not add a license or enable registry publication until the project owner selects the intended terms. No PostgreSQL data, uploaded images, or runtime secrets belong in an image.
+The project is distributed under the MIT License. After the full release validation passes, the tag workflow publishes the application and worker images to GitHub Container Registry:
+
+- `ghcr.io/arslanbasharat-o-o/rma-system:<version>` and `:latest` for the web application
+- `ghcr.io/arslanbasharat-o-o/rma-system:worker-<version>` and `:worker-latest` for the queue worker
+
+The package must be set to public in GitHub Packages after its first successful publication. Compose can use the published images by setting `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the desired tags, then running `docker compose pull` followed by `docker compose up -d --no-build`. No PostgreSQL data, uploaded images, or runtime secrets belong in an image.
 
 ## Production deployment
 
