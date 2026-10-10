@@ -99,7 +99,7 @@ export default function CustomersPage() {
           </div>
 
           <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)}>
-            <Plus className="h-3.5 w-3.5 mr-1" />
+            <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
             <span>Add Customer</span>
           </Button>
         </div>

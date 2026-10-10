@@ -122,9 +122,9 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
               size="sm"
               variant="primary"
               onClick={() => setShowAddModal(true)}
-              className="gap-1.5 self-start sm:self-auto"
+              className="gap-1.5 self-start sm:self-auto shrink-0"
             >
-              <UserPlus className="h-3.5 w-3.5" />
+              <UserPlus className="h-3.5 w-3.5 shrink-0" />
               <span>Add Staff Account</span>
             </Button>
           </div>

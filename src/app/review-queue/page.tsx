@@ -240,7 +240,7 @@ export default function ReviewQueuePage() {
 
               <CardContent className="p-5 pt-0 space-y-4 flex-1">
                 {/* 1. Quick Accept */}
-                <div className="p-3.5 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/40 flex items-center justify-between">
+                <div className="p-3.5 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
                     <span className="font-semibold text-xs text-emerald-950 dark:text-emerald-200 block">
                       Accept Suggested Match
@@ -254,9 +254,9 @@ export default function ReviewQueuePage() {
                     size="sm"
                     loading={actionLoading}
                     onClick={() => handleAction("accept_suggestion")}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white"
+                    className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0"
                   >
-                    <Check className="h-4 w-4 mr-1" />
+                    <Check className="h-4 w-4 mr-1 shrink-0" />
                     <span>Accept (Y)</span>
                   </Button>
                 </div>

@@ -137,11 +137,11 @@ export default function DisplayCatalogPage() {
 
           <div className="flex flex-wrap gap-2">
             <Button size="sm" variant="outline" onClick={() => { setImportErrors([]); setShowImportModal(true); }}>
-              <Upload className="h-3.5 w-3.5 mr-1" />
+              <Upload className="h-3.5 w-3.5 mr-1 shrink-0" />
               <span>Import XLSX</span>
             </Button>
             <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)}>
-              <Plus className="h-3.5 w-3.5 mr-1" />
+              <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
               <span>Add Display Model</span>
             </Button>
           </div>

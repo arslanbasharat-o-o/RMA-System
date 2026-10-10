@@ -67,7 +67,7 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2">
             <Link href="/rmas/new">
               <Button size="sm" variant="primary" className="gap-1.5">
-                <Plus className="h-3.5 w-3.5" />
+                <Plus className="h-3.5 w-3.5 shrink-0" />
                 <span>New RMA Intake</span>
               </Button>
             </Link>

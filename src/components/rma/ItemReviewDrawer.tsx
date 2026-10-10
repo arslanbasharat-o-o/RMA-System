@@ -226,10 +226,10 @@ export function ItemReviewDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
             aria-label="Close drawer"
           >
-            <X className="h-4 w-4" />
+            <X className="h-4 w-4 shrink-0" />
           </button>
         </div>
 
@@ -452,9 +452,9 @@ export function ItemReviewDrawer({
                 size="sm"
                 loading={saving}
                 onClick={() => handleApplyCorrection("manual_verify")}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white"
+                className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0"
               >
-                <Check className="h-3.5 w-3.5 mr-1" />
+                <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>Confirm & Verify</span>
               </Button>
 
@@ -463,6 +463,7 @@ export function ItemReviewDrawer({
                 size="sm"
                 loading={saving}
                 onClick={() => handleApplyCorrection("manual_verify")}
+                className="shrink-0"
               >
                 Save Overrides
               </Button>
@@ -473,8 +474,9 @@ export function ItemReviewDrawer({
                 loading={saving}
                 onClick={() => handleRetryRecognition("visual")}
                 title="Re-run visual search"
+                className="shrink-0"
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>Retry Visual</span>
               </Button>
 
@@ -484,8 +486,9 @@ export function ItemReviewDrawer({
                 loading={saving}
                 onClick={() => handleRetryRecognition("vendor_ocr")}
                 title="Re-run OCR markings analysis"
+                className="shrink-0"
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>Retry OCR</span>
               </Button>
 
@@ -494,8 +497,9 @@ export function ItemReviewDrawer({
                 size="sm"
                 loading={saving}
                 onClick={() => handleRetryRecognition("all")}
+                className="shrink-0"
               >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>Retry All</span>
               </Button>
 
@@ -505,9 +509,9 @@ export function ItemReviewDrawer({
                 loading={saving}
                 onClick={() => setShowDeleteConfirm(true)}
                 title="Remove this display item from RMA"
-                className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900"
+                className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900 shrink-0"
               >
-                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                <Trash2 className="h-3.5 w-3.5 mr-1 shrink-0" />
                 <span>Delete Item</span>
               </Button>
             </div>
