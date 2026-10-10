@@ -1,5 +1,5 @@
 export const APP_VERSION = {
-  version: "unreleased",
+  version: "0.01",
   releaseName: "Public main build",
   commit: process.env.NEXT_PUBLIC_APP_COMMIT || "unknown",
   branch: "main",

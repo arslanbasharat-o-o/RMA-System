@@ -72,9 +72,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Real KPI Cards */}
-        <MotionCardGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <MotionCardItem>
-            <Card>
+        <MotionCardGrid className="grid grid-cols-2 lg:grid-cols-4 auto-rows-fr items-stretch gap-4">
+          <MotionCardItem className="h-full">
+            <Card className="h-full flex flex-col">
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
@@ -93,8 +93,8 @@ export default function DashboardPage() {
             </Card>
           </MotionCardItem>
 
-          <MotionCardItem>
-            <Card>
+          <MotionCardItem className="h-full">
+            <Card className="h-full flex flex-col">
               <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
@@ -113,8 +113,8 @@ export default function DashboardPage() {
             </Card>
           </MotionCardItem>
 
-          <MotionCardItem>
-            <Card>
+          <MotionCardItem className="h-full">
+            <Card className="h-full flex flex-col">
               <CardHeader className="p-4 pb-2">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
@@ -147,8 +147,8 @@ export default function DashboardPage() {
             </Card>
           </MotionCardItem>
 
-          <MotionCardItem>
-            <Card>
+          <MotionCardItem className="h-full">
+            <Card className="h-full flex flex-col">
               <CardHeader className="p-4 pb-2">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">

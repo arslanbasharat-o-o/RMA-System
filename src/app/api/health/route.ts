@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/db";
+import { APP_VERSION } from "@/lib/version";
 
 export async function GET() {
   const startTime = Date.now();
@@ -18,7 +19,7 @@ export async function GET() {
       timestamp: new Date().toISOString(),
       database: isHealthy ? "healthy" : "unhealthy",
       durationMs: Date.now() - startTime,
-      version: "1.0.0",
+      version: APP_VERSION.version,
     },
     { status: isHealthy ? 200 : 503 }
   );

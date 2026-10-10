@@ -17,15 +17,16 @@ import {
   Menu,
   X,
   Plus,
+  PanelLeftClose,
+  PanelLeftOpen,
+  GitCommit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
-import { EnvironmentBadge } from "@/components/layout/EnvironmentBadge";
 import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import { APP_VERSION } from "@/lib/version";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { useScrollLock, useEscapeKey } from "@/lib/utils/scroll-lock";
-import { GitCommit } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -56,10 +57,23 @@ export function AppShell({
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState(user || null);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  useEffect(() => {
+    setSidebarCollapsed(window.localStorage.getItem("rma-sidebar-collapsed") === "true");
+  }, []);
+
+  const toggleSidebar = () => {
+    const nextCollapsed = !sidebarCollapsed;
+    window.localStorage.setItem("rma-sidebar-collapsed", String(nextCollapsed));
+    setSidebarCollapsed(nextCollapsed);
+  };
+
+  const shortCommit = APP_VERSION.commit.slice(0, 7);
 
   // Fetch current user and verify authentication
   useEffect(() => {
@@ -138,7 +152,6 @@ export function AppShell({
                   </span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <EnvironmentBadge />
                   <button
                     onClick={() => setMobileOpen(false)}
                     className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -231,10 +244,10 @@ export function AppShell({
                   }}
                   className="flex items-center justify-between w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 cursor-pointer"
                 >
-                  <span>v{APP_VERSION.version}</span>
-                  <span className="flex items-center gap-1 font-semibold">
+                  <span>Version {APP_VERSION.version}</span>
+                  <span className="flex items-center gap-1 font-semibold" title={`Build ${APP_VERSION.commit}`}>
                     <GitCommit className="h-3 w-3 shrink-0" />
-                    <span>#{APP_VERSION.commit}</span>
+                    <span>#{shortCommit}</span>
                   </span>
                 </button>
               </div>
@@ -244,33 +257,44 @@ export function AppShell({
       </AnimatePresence>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex lg:w-64 flex-col border-r border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#121215] select-none transition-colors">
+      <aside className={`hidden lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-64"} shrink-0 flex-col border-r border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#121215] select-none transition-[width] duration-200 ease-in-out`}>
         {/* Brand header */}
-        <div className="flex items-center justify-between h-14 px-5 border-b border-neutral-200/80 dark:border-neutral-800">
-          <div className="flex items-center gap-2.5">
+        <div className={`flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-5"} h-14 border-b border-neutral-200/80 dark:border-neutral-800`}>
+          {!sidebarCollapsed && <div className="flex items-center gap-2.5">
             <div className="h-6 w-6 rounded bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 font-semibold text-xs tracking-wider">
               R
             </div>
             <span className="font-semibold text-sm tracking-tight text-neutral-900 dark:text-white">
               RMA Platform
             </span>
-          </div>
-          <EnvironmentBadge />
+          </div>}
+          <button
+            type="button"
+            onClick={toggleSidebar}
+            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            aria-expanded={!sidebarCollapsed}
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className="rounded-md p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          >
+            {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+          </button>
         </div>
 
         {/* Quick action button */}
-        <div className="p-3">
+        <div className={`p-3 ${sidebarCollapsed ? "px-2" : ""}`}>
           <Link
             href="/rmas/new"
+            aria-label="Create RMA"
+            title={sidebarCollapsed ? "Create RMA" : undefined}
             className="flex items-center justify-center gap-2 w-full h-8 px-3 rounded-md bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shadow-xs"
           >
             <Plus className="h-3.5 w-3.5" />
-            <span>Create RMA</span>
+            {!sidebarCollapsed && <span>Create RMA</span>}
           </Link>
         </div>
 
         {/* Navigation list */}
-        <nav className="flex-1 px-3 py-1 space-y-0.5 overflow-y-auto">
+        <nav className={`flex-1 ${sidebarCollapsed ? "px-2" : "px-3"} py-1 space-y-0.5 overflow-y-auto`}>
           {navItems.map((item) => {
             const Icon = item.icon;
             const active =
@@ -281,7 +305,9 @@ export function AppShell({
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                aria-label={item.label}
+                title={sidebarCollapsed ? item.label : undefined}
+                className={`relative flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-2.5"} py-1.5 rounded-md text-xs font-medium transition-colors ${
                   active
                     ? "text-neutral-950 dark:text-white font-semibold"
                     : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-850/60"
@@ -298,7 +324,7 @@ export function AppShell({
                     }}
                   />
                 )}
-                <div className="relative z-10 flex items-center gap-2.5">
+                <div className={`relative z-10 flex items-center ${sidebarCollapsed ? "justify-center" : "gap-2.5"}`}>
                   <Icon
                     className={`h-4 w-4 transition-colors ${
                       active
@@ -306,9 +332,9 @@ export function AppShell({
                         : "text-neutral-400 dark:text-neutral-500"
                     }`}
                   />
-                  <span>{item.label}</span>
+                  {!sidebarCollapsed && <span>{item.label}</span>}
                 </div>
-                {item.badge ? (
+                {!sidebarCollapsed && item.badge ? (
                   <span className="relative z-10 px-1.5 py-0.2 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 rounded text-[10px] font-mono">
                     {item.badge}
                   </span>
@@ -319,12 +345,13 @@ export function AppShell({
         </nav>
 
         {/* User footer with Profile trigger and Version tracker */}
-        <div className="p-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
-          <div className="flex items-center justify-between gap-2">
+        <div className={`p-3 ${sidebarCollapsed ? "px-2" : ""} border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2`}>
+          <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between gap-2"}`}>
             <button
               type="button"
               onClick={() => setShowProfileModal(true)}
-              className="flex items-center gap-2.5 min-w-0 flex-1 p-1 -m-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left cursor-pointer group"
+              aria-label="View and edit profile"
+              className={`flex items-center ${sidebarCollapsed ? "justify-center" : "gap-2.5 min-w-0 flex-1 p-1 -m-1"} rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left cursor-pointer group`}
               title="Click to view and edit profile"
             >
               <div className="h-7 w-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs">
@@ -335,14 +362,14 @@ export function AppShell({
                   .join("")
                   .toUpperCase()}
               </div>
-              <div className="min-w-0 flex-1">
+              {!sidebarCollapsed && <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate group-hover:text-neutral-950 dark:group-hover:text-white">
                   {(currentUser || user)?.name || "Operator"}
                 </p>
                 <p className="text-[10px] text-neutral-500 dark:text-neutral-400 capitalize truncate">
                   {(currentUser || user)?.role || "operator"} · Profile
                 </p>
-              </div>
+              </div>}
             </button>
             <button
               onClick={handleLogout}
@@ -359,14 +386,14 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setShowProfileModal(true)}
-            className="flex items-center justify-between w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer"
-            title="App version & Git build info"
+            className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"} w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer`}
+            title={`Version ${APP_VERSION.version} · Build ${APP_VERSION.commit}`}
           >
-            <span>v{APP_VERSION.version}</span>
-            <span className="flex items-center gap-1 font-semibold">
+            <span>{sidebarCollapsed ? `v${APP_VERSION.version}` : `Version ${APP_VERSION.version}`}</span>
+            {!sidebarCollapsed && <span className="flex items-center gap-1 font-semibold">
               <GitCommit className="h-3 w-3 shrink-0" />
-              <span>#{APP_VERSION.commit}</span>
-            </span>
+              <span>#{shortCommit}</span>
+            </span>}
           </button>
         </div>
       </aside>
