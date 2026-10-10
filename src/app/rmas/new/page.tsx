@@ -162,9 +162,6 @@ export default function CreateRmaPage() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
             Create RMA Intake
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Register a new return shipment and begin item intake.
-          </p>
         </div>
 
         {/* Intake Form */}
@@ -336,15 +333,12 @@ export default function CreateRmaPage() {
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <span className="text-xs text-neutral-500 dark:text-neutral-400">
-                    RMA sequence identifier assigned automatically upon creation.
-                  </span>
+                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">
                   <Button
                     type="submit"
                     variant="primary"
                     loading={submitting}
-                    className="gap-2 shrink-0 w-full sm:w-auto h-10 px-4 text-xs sm:text-sm font-medium"
+                    className="gap-2 shrink-0 w-full sm:w-auto h-10 px-5 text-xs sm:text-sm font-medium"
                   >
                     <Camera className="h-4 w-4 shrink-0" />
                     <span>Create RMA & Open Scanner</span>
@@ -361,7 +355,6 @@ export default function CreateRmaPage() {
           isOpen={showQuickCustomer}
           onClose={() => setShowQuickCustomer(false)}
           title="Quick Add Customer"
-          description="Add a customer record without losing current intake form progress."
           maxWidth="max-w-sm"
         >
           <form onSubmit={handleQuickAddCustomer} className="space-y-3">

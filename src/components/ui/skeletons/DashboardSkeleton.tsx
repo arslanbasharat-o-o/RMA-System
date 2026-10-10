@@ -11,9 +11,6 @@ export function DashboardSkeleton() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
             Operations Dashboard
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Intake throughput, operational metrics, and verification queue.
-          </p>
         </div>
         <Skeleton className="h-9 w-36 rounded-md" />
       </div>

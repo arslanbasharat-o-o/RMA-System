@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -114,9 +114,6 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
                 <Users className="h-4 w-4 text-neutral-500" />
                 <span>Staff & Access Management</span>
               </CardTitle>
-              <CardDescription className="text-xs">
-                Manage operator credentials, administrative privileges, and system access.
-              </CardDescription>
             </div>
             <Button
               size="sm"
@@ -247,7 +244,6 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
         isOpen={showAddModal}
         onClose={() => setShowAddModal(false)}
         title="Add Staff Account"
-        description="Provision access credentials for operations or administrative team members."
         maxWidth="max-w-md"
       >
         <form onSubmit={handleCreateUser} className="space-y-4">

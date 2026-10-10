@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -207,9 +206,6 @@ export function ProvidersTab({
           <CardTitle className="text-base font-semibold">
             Recognition Engine Parameters
           </CardTitle>
-          <CardDescription className="text-xs">
-            Tune adapters, models, and query filtering for display recognition.
-          </CardDescription>
         </CardHeader>
         <CardContent className="p-5 sm:p-6 pt-4">
           <form onSubmit={onSave} className="space-y-5">
@@ -225,9 +221,6 @@ export function ProvidersTab({
                 <option value="mock">Local Deterministic Provider (Offline / Dev)</option>
                 <option value="serpapi_lens">SerpApi Visual Search (Direct Image Upload)</option>
               </Select>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                The local provider simulates visual matches without consuming external API quotas.
-              </p>
             </div>
 
             {/* Filter Query */}
@@ -269,9 +262,6 @@ export function ProvidersTab({
                 <option value="gpt-4o">gpt-4o (Standard Flagship Multimodal Vision)</option>
                 <option value="gpt-4o-mini">gpt-4o-mini (Lightweight High-Speed OCR)</option>
               </Select>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                Used to parse alphanumeric flex cable markings and vendor stamps.
-              </p>
             </div>
 
             <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">

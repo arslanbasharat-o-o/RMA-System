@@ -9,9 +9,6 @@ export default function Loading() {
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
             System Settings
           </h1>
-          <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-1">
-            Manage system configuration, recognition adapters, staff permissions, and appearance.
-          </p>
         </div>
         <div className="flex gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
           <Skeleton className="h-8 w-24 rounded-md" />

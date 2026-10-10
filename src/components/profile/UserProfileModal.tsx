@@ -140,7 +140,6 @@ export function UserProfileModal({
       isOpen={isOpen}
       onClose={onClose}
       title="User Profile & Account"
-      description="Manage your account credentials, security, and view system release information."
       maxWidth="max-w-lg"
     >
       <div className="space-y-5">

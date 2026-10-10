@@ -40,9 +40,6 @@ export default function ReportsPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Operations & Inventory Reports
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Intake analytics, vendor distributions, and operational audit reports.
-            </p>
           </div>
 
           <a href="/api/reports?format=csv">

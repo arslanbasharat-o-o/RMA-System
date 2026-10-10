@@ -130,9 +130,6 @@ export default function DisplayCatalogPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Display Model Catalog
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Display assembly specifications, model numbers, and catalog aliases.
-            </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -237,7 +234,6 @@ export default function DisplayCatalogPage() {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           title="Add Display Model to Catalog"
-          description="Define smartphone display specifications for visual identification and part matching."
           maxWidth="max-w-md"
         >
           <form onSubmit={handleCreate} className="space-y-3">
@@ -342,7 +338,6 @@ export default function DisplayCatalogPage() {
           isOpen={showImportModal}
           onClose={() => !importing && setShowImportModal(false)}
           title="Import Display Catalog"
-          description="Add multiple display models from an Excel workbook. Existing products are never overwritten."
           maxWidth="max-w-xl"
         >
           <form onSubmit={handleImport} className="space-y-4">
