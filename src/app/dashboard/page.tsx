@@ -54,21 +54,18 @@ export default function DashboardPage() {
     <AppShell>
       <div className="space-y-6">
         {/* Page Title & Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Operations Dashboard
-            </h1>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            Operations Dashboard
+          </h1>
 
-          <div className="flex items-center gap-2">
-            <Link href="/rmas/new">
-              <Button size="sm" variant="primary" className="gap-1.5">
-                <Plus className="h-3.5 w-3.5 shrink-0" />
-                <span>New RMA Intake</span>
-              </Button>
-            </Link>
-          </div>
+          <Link href="/rmas/new" className="shrink-0">
+            <Button size="sm" variant="primary" className="gap-1.5 h-8.5 sm:h-9 text-xs">
+              <Plus className="h-3.5 w-3.5 shrink-0" />
+              <span className="sm:hidden">New RMA</span>
+              <span className="hidden sm:inline">New RMA Intake</span>
+            </Button>
+          </Link>
         </div>
 
         {/* Real KPI Cards */}
