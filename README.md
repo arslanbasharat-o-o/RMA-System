@@ -13,6 +13,7 @@ The application separates visual model identification from printed-marking OCR. 
 - Read labels and markings with OpenAI Vision, then match results against vendor and variant rules.
 - Process recognition in a background worker and review ambiguous results in a staff queue.
 - Enforce admin, operator, and viewer access at API boundaries.
+- Let staff update their profile and password; password changes revoke active sessions.
 - Store uploads in a private Docker volume and serve them through authenticated routes.
 - Run on Docker Compose with PostgreSQL and an optional Caddy reverse proxy.
 

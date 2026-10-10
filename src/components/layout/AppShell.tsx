@@ -19,10 +19,13 @@ import {
   Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
+import { EnvironmentBadge } from "@/components/layout/EnvironmentBadge";
+import { UserProfileModal } from "@/components/profile/UserProfileModal";
+import { APP_VERSION } from "@/lib/version";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { useScrollLock, useEscapeKey } from "@/lib/utils/scroll-lock";
+import { GitCommit } from "lucide-react";
 
 interface NavItem {
   label: string;
@@ -54,6 +57,7 @@ export function AppShell({
   const [currentUser, setCurrentUser] = useState(user || null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -133,13 +137,16 @@ export function AppShell({
                     RMA Platform
                   </span>
                 </div>
-                <button
-                  onClick={() => setMobileOpen(false)}
-                  className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-                  aria-label="Close navigation menu"
-                >
-                  <X className="h-5 w-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  <EnvironmentBadge />
+                  <button
+                    onClick={() => setMobileOpen(false)}
+                    className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    aria-label="Close navigation menu"
+                  >
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
               </div>
 
               <div className="p-3">
@@ -177,24 +184,59 @@ export function AppShell({
                 })}
               </nav>
 
-              <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between bg-neutral-50/50 dark:bg-neutral-900/40">
-                <div>
-                  <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
-                    {(currentUser || user)?.name || "Staff"}
-                  </p>
-                  <p className="text-[11px] text-neutral-500 dark:text-neutral-400 capitalize">
-                    {(currentUser || user)?.role || "operator"}
-                  </p>
+              <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      setShowProfileModal(true);
+                    }}
+                    className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1 mr-2"
+                  >
+                    <div className="h-8 w-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-xs font-bold shrink-0">
+                      {((currentUser || user)?.name || "O")
+                        .split(" ")
+                        .map((n: string) => n[0])
+                        .slice(0, 2)
+                        .join("")
+                        .toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate">
+                        {(currentUser || user)?.name || "Staff"}
+                      </p>
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 capitalize">
+                        {(currentUser || user)?.role || "operator"} · Profile
+                      </p>
+                    </div>
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label="Sign out"
+                    onClick={handleLogout}
+                    loading={loggingOut}
+                    className="text-rose-600 dark:text-rose-400 shrink-0"
+                  >
+                    Logout
+                  </Button>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="Sign out"
-                  onClick={handleLogout}
-                  loading={loggingOut}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileOpen(false);
+                    setShowProfileModal(true);
+                  }}
+                  className="flex items-center justify-between w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 cursor-pointer"
                 >
-                  Logout
-                </Button>
+                  <span>v{APP_VERSION.version}</span>
+                  <span className="flex items-center gap-1 font-semibold">
+                    <GitCommit className="h-3 w-3 shrink-0" />
+                    <span>#{APP_VERSION.commit}</span>
+                  </span>
+                </button>
               </div>
             </motion.div>
           </div>
@@ -213,9 +255,7 @@ export function AppShell({
               RMA Platform
             </span>
           </div>
-          <Badge variant="outline" className="text-[10px] uppercase font-mono px-1.5 py-0">
-            {process.env.NODE_ENV === "production" ? "PROD" : "DEV"}
-          </Badge>
+          <EnvironmentBadge />
         </div>
 
         {/* Quick action button */}
@@ -278,27 +318,56 @@ export function AppShell({
           })}
         </nav>
 
-        {/* User footer */}
-        <div className="p-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
-          <div className="flex items-center justify-between">
-            <div className="min-w-0 pr-2">
-              <p className="text-xs font-medium text-neutral-900 dark:text-white truncate">
-                {(currentUser || user)?.name || "Operator"}
-              </p>
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 capitalize">
-                {(currentUser || user)?.role || "operator"}
-              </p>
-            </div>
+        {/* User footer with Profile trigger and Version tracker */}
+        <div className="p-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              className="flex items-center gap-2.5 min-w-0 flex-1 p-1 -m-1 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left cursor-pointer group"
+              title="Click to view and edit profile"
+            >
+              <div className="h-7 w-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs">
+                {((currentUser || user)?.name || "O")
+                  .split(" ")
+                  .map((n: string) => n[0])
+                  .slice(0, 2)
+                  .join("")
+                  .toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate group-hover:text-neutral-950 dark:group-hover:text-white">
+                  {(currentUser || user)?.name || "Operator"}
+                </p>
+                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 capitalize truncate">
+                  {(currentUser || user)?.role || "operator"} · Profile
+                </p>
+              </div>
+            </button>
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              title="Sign out"
+              title="Sign out of RMA system"
               aria-label="Sign out"
-              className="p-1.5 text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              className="p-1.5 text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
             >
               <LogOut className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Release and Git Version Tracker bar */}
+          <button
+            type="button"
+            onClick={() => setShowProfileModal(true)}
+            className="flex items-center justify-between w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer"
+            title="App version & Git build info"
+          >
+            <span>v{APP_VERSION.version}</span>
+            <span className="flex items-center gap-1 font-semibold">
+              <GitCommit className="h-3 w-3 shrink-0" />
+              <span>#{APP_VERSION.commit}</span>
+            </span>
+          </button>
         </div>
       </aside>
 
@@ -335,6 +404,17 @@ export function AppShell({
           </div>
         </main>
       </div>
+
+      {/* User Profile and Account Management Modal */}
+      <UserProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        currentUser={currentUser || user || null}
+        onProfileUpdated={(updated) => {
+          setCurrentUser((prev: any) => ({ ...prev, ...updated }));
+        }}
+        onLogout={handleLogout}
+      />
     </div>
   );
 }
