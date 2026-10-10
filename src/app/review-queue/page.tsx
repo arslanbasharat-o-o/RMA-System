@@ -108,9 +108,6 @@ export default function ReviewQueuePage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Sequential Review Queue
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Queue of items requiring manual verification and exception handling.
-            </p>
           </div>
 
           <Badge variant="outline" className="font-mono">
@@ -147,9 +144,6 @@ export default function ReviewQueuePage() {
                 <div className="absolute top-3 left-3 flex items-center gap-2">
                   <Badge variant="default" className="bg-black/70 backdrop-blur-md text-white border-0">
                     Display #{currentItem.itemNumber}
-                  </Badge>
-                  <Badge variant="warning">
-                    {currentItem.matchStatus}
                   </Badge>
                 </div>
               </div>

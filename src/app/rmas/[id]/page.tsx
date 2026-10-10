@@ -156,6 +156,15 @@ export default function RmaDetailPage({
     );
   }
 
+  const rmaShipmentStatus =
+    rma?.status === "completed"
+      ? "completed"
+      : rma?.status === "archived"
+      ? "archived"
+      : rma?.status === "draft"
+      ? "draft"
+      : "receiving";
+
   return (
     <AppShell>
       <div className="space-y-6">
@@ -206,7 +215,7 @@ export default function RmaDetailPage({
                   <h1 className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
                     {rma?.rmaNumber}
                   </h1>
-                  <StatusTransition status={rma?.status} />
+                  <StatusTransition status={rmaShipmentStatus} />
                 </div>
                 <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1">
                   Customer: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{rma?.customerName}</span> · Reason:{" "}
@@ -301,9 +310,6 @@ export default function RmaDetailPage({
                   <span className="font-mono font-bold text-xs text-neutral-700 dark:text-neutral-300">#{item.itemNumber}</span>
                   <StatusTransition status={item.status} />
                 </div>
-                <Badge variant="outline" className="text-[10px] font-mono">
-                  {item.matchStatus}
-                </Badge>
               </div>
 
               <div className="flex gap-3">
@@ -414,8 +420,7 @@ export default function RmaDetailPage({
                     <th className="px-4 py-3 w-16">Image</th>
                     <th className="px-4 py-3">Identified Model</th>
                     <th className="px-4 py-3">Vendor / Variant</th>
-                    <th className="px-4 py-3">Match Status</th>
-                    <th className="px-4 py-3">Pipeline Status</th>
+                    <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3 text-right">Inspect</th>
                   </tr>
                 </thead>
@@ -486,20 +491,6 @@ export default function RmaDetailPage({
                         ) : (
                           <span className="text-neutral-400 dark:text-neutral-500 italic">Unidentified Vendor</span>
                         )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge
-                          variant={
-                            item.matchStatus === "exact_match" ||
-                            item.matchStatus === "manually_verified"
-                              ? "success"
-                              : item.matchStatus === "ambiguous"
-                              ? "danger"
-                              : "warning"
-                          }
-                        >
-                          {item.matchStatus}
-                        </Badge>
                       </td>
                       <td className="px-4 py-3">
                         <StatusTransition status={item.status} />
