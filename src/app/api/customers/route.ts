@@ -6,7 +6,7 @@ import { ilike, or, desc } from "drizzle-orm";
 import { z } from "zod";
 
 const CreateCustomerSchema = z.object({
-  name: z.string().min(2, "Customer name is required"),
+  name: z.string().trim().min(2, "Customer name is required"),
   contactName: z.string().optional(),
   email: z.string().email().optional().or(z.literal("")),
   phone: z.string().optional(),

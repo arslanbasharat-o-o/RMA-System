@@ -88,6 +88,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const [customer] = await db.select().from(customers).where(eq(customers.id, parsed.data.customerId));
+    if (!customer?.name.trim() || !customer.active) {
+      return NextResponse.json({ error: "Select a customer with a name before starting intake." }, { status: 400 });
+    }
+
     // Atomic, concurrency-safe sequential RMA number generation
     const rmaNumber = await generateNextRmaNumber();
 

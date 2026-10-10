@@ -19,7 +19,6 @@ import {
   Plus,
   PanelLeftClose,
   PanelLeftOpen,
-  GitCommit,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -72,8 +71,6 @@ export function AppShell({
     window.localStorage.setItem("rma-sidebar-collapsed", String(nextCollapsed));
     setSidebarCollapsed(nextCollapsed);
   };
-
-  const shortCommit = APP_VERSION.commit.slice(0, 7);
 
   // Fetch current user and verify authentication
   useEffect(() => {
@@ -245,10 +242,6 @@ export function AppShell({
                   className="flex items-center justify-between w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 cursor-pointer"
                 >
                   <span>Version {APP_VERSION.version}</span>
-                  <span className="flex items-center gap-1 font-semibold" title={`Build ${APP_VERSION.commit}`}>
-                    <GitCommit className="h-3 w-3 shrink-0" />
-                    <span>#{shortCommit}</span>
-                  </span>
                 </button>
               </div>
             </motion.div>
@@ -382,18 +375,14 @@ export function AppShell({
             </button>
           </div>
 
-          {/* Release and Git Version Tracker bar */}
+          {/* App version */}
           <button
             type="button"
             onClick={() => setShowProfileModal(true)}
             className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"} w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer`}
-            title={`Version ${APP_VERSION.version} · Build ${APP_VERSION.commit}`}
+            title={`Version ${APP_VERSION.version}`}
           >
             <span>{sidebarCollapsed ? `v${APP_VERSION.version}` : `Version ${APP_VERSION.version}`}</span>
-            {!sidebarCollapsed && <span className="flex items-center gap-1 font-semibold">
-              <GitCommit className="h-3 w-3 shrink-0" />
-              <span>#{shortCommit}</span>
-            </span>}
           </button>
         </div>
       </aside>

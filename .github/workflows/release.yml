@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify release version
+        run: |
+          expected="v$(node -p "require('./release.json').version")"
+          test "$GITHUB_REF_NAME" = "$expected" || { echo "Tag must match release.json ($expected)"; exit 1; }
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

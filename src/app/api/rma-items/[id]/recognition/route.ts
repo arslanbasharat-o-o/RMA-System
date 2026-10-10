@@ -1,3 +1,4 @@
+import { hasIntakeCustomer, CUSTOMER_REQUIRED } from "@/lib/intake-customer";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { rmaItems } from "@/db/schema";
@@ -26,6 +27,10 @@ export async function POST(
 
   if (!item) {
     return NextResponse.json({ error: "Item not found." }, { status: 404 });
+  }
+
+  if (!await hasIntakeCustomer(item.rmaId)) {
+    return NextResponse.json({ error: CUSTOMER_REQUIRED }, { status: 400 });
   }
 
   const body = await req.json().catch(() => ({}));
