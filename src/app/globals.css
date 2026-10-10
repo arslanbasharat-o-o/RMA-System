@@ -134,32 +134,41 @@ select {
   -webkit-appearance: none;
   -moz-appearance: none;
   appearance: none;
+  background-image: none;
 }
 
 select option {
   background-color: #ffffff;
   color: #171717;
-  padding: 8px 12px;
+  padding: 10px 14px;
   font-size: 13px;
+  font-family: inherit;
+  font-weight: 500;
 }
 
 .dark select option {
-  background-color: #121215;
+  background-color: #18181b;
   color: #f4f4f5;
 }
 
-select option:hover,
-select option:focus,
 select option:checked {
   background-color: #f4f4f5;
   color: #171717;
+  font-weight: 600;
 }
 
-.dark select option:hover,
-.dark select option:focus,
 .dark select option:checked {
   background-color: #27272a;
   color: #ffffff;
+  font-weight: 600;
+}
+
+select option:disabled {
+  color: #a1a1aa;
+}
+
+.dark select option:disabled {
+  color: #71717a;
 }
 
 select:disabled {
