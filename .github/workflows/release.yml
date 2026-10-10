@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+    with:
+      full_browser_suite: true
+
+  publish-release:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - name: Validate semantic version metadata
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const tag = process.env.RELEASE_TAG;
+          const release = JSON.parse(fs.readFileSync('release.json', 'utf8')).version;
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')).version;
+          const lock = JSON.parse(fs.readFileSync('package-lock.json', 'utf8')).version;
+          const changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+          const semver = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
+          if (!semver.test(release) || tag !== `v${release}` || pkg !== release || lock !== release) {
+            throw new Error(`Tag ${tag}, release.json ${release}, package.json ${pkg}, and package-lock.json ${lock} must agree on MAJOR.MINOR.PATCH.`);
+          }
+          if (!changelog.includes(`## [${release}] - `)) {
+            throw new Error(`CHANGELOG.md must contain a dated section for ${release} before tagging.`);
+          }
+          NODE
+      - name: Ensure tag is on reviewed main history
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+      - name: Create release from verified history
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $GITHUB_REF_NAME already exists; skipping duplicate publication."
+            exit 0
+          fi
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "RMA System $GITHUB_REF_NAME" \
+            --generate-notes

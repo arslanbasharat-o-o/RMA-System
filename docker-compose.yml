@@ -1,0 +1,114 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Reverse Proxy (Caddy: Automatic TLS & HTTPS Termination)
+  # ----------------------------------------------------------------------------
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["standalone-proxy"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    networks:
+      - rma_network
+
+  # ----------------------------------------------------------------------------
+  # 2. Next.js Web Application
+  # ----------------------------------------------------------------------------
+  app:
+    build:
+      context: .
+      target: runner
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - APP_URL=${APP_URL:?Set APP_URL in .env}
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/rma_system
+      - SESSION_SECRET=${SESSION_SECRET:?Set SESSION_SECRET in .env}
+      - INITIAL_ADMIN_EMAIL=${INITIAL_ADMIN_EMAIL:-}
+      - INITIAL_ADMIN_PASSWORD=${INITIAL_ADMIN_PASSWORD:-}
+      - INITIAL_ADMIN_NAME=${INITIAL_ADMIN_NAME:-System Administrator}
+      - STORAGE_LOCAL_PATH=/app/data/storage
+      - LENS_PROVIDER=${LENS_PROVIDER:?Set LENS_PROVIDER in .env}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_VISION_MODEL=${OPENAI_VISION_MODEL:-gpt-4o-mini}
+      - BUSINESS_TIMEZONE=${BUSINESS_TIMEZONE:-UTC}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
+    ports:
+      - "127.0.0.1:23001:3000"
+    volumes:
+      - storage_data:/app/data/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rma_network
+
+  # ----------------------------------------------------------------------------
+  # 3. Dedicated Background Worker (pg-boss Queue Processor)
+  # ----------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      target: worker
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/rma_system
+      - STORAGE_LOCAL_PATH=/app/data/storage
+      - LENS_PROVIDER=${LENS_PROVIDER:?Set LENS_PROVIDER in .env}
+      - SERPAPI_API_KEY=${SERPAPI_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENAI_VISION_MODEL=${OPENAI_VISION_MODEL:-gpt-4o-mini}
+      - WORKER_CONCURRENCY=${WORKER_CONCURRENCY:-1}
+    volumes:
+      - storage_data:/app/data/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - rma_network
+
+  # ----------------------------------------------------------------------------
+  # 4. PostgreSQL Database (PostgreSQL 16)
+  # ----------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: rma_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d rma_system"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - rma_network
+
+volumes:
+  postgres_data:
+  storage_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  rma_network:
+    driver: bridge

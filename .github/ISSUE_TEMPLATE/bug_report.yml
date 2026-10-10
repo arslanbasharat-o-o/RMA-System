@@ -1,0 +1,46 @@
+name: Bug report
+description: Report a reproducible defect without including customer data or secrets.
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include customer names, contact details, display images, API keys, session cookies, or production database exports."
+  - type: input
+    id: version
+    attributes:
+      label: Application version or commit
+      description: Provide the release version or a short commit SHA.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the problem using synthetic examples.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Include the smallest safe set of steps.
+      placeholder: "1. Sign in with a local test account…"
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected and actual behavior
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Local development
+        - CI
+        - Self-hosted deployment
+    validations:
+      required: true
