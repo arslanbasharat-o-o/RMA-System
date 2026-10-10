@@ -12,8 +12,12 @@ data/postgres/
 uploads/
 backups/
 *.dump
+*.sql
 *.sql.gz
 *.tar.gz
+*.sqlite
+*.sqlite3
+*.db
 
 # Build and dependencies
 .next/
@@ -31,5 +35,10 @@ yarn-error.log*
 # OS and editor files
 .DS_Store
 *.pem
+*.key
+*.pub
+*.p12
+*.pfx
+.ssh/
 .vscode/
 .idea/

@@ -36,6 +36,13 @@ RUN npm run build
 FROM node:24-alpine AS runner
 WORKDIR /app
 
+ARG APP_VERSION=unknown
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
+      org.opencontainers.image.version="$APP_VERSION" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.title="RMA Display Identification System"
+
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
@@ -66,6 +73,13 @@ CMD ["npm", "run", "start"]
 # ------------------------------------------------------------------------------
 FROM node:24-alpine AS worker
 WORKDIR /app
+
+ARG APP_VERSION=unknown
+ARG VCS_REF=unknown
+LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
+      org.opencontainers.image.version="$APP_VERSION" \
+      org.opencontainers.image.revision="$VCS_REF" \
+      org.opencontainers.image.title="RMA Display Identification Worker"
 
 ENV NODE_ENV=production
 
