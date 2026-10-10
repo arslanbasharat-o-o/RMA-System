@@ -82,7 +82,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
     page,
   }) => {
     await page.goto("/vendor-catalog");
-    await expect(page.locator("h1")).toContainText("Vendor Catalog & Recognition Rules");
+    await expect(page.locator("h1")).toContainText("Vendor Catalog & Rules");
 
     // Add Vendor
     await page.click('button:has-text("Add Vendor")');

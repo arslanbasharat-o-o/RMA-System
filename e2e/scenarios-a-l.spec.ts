@@ -81,7 +81,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.fill('input[placeholder="e.g. 1Z9999999999999999"]', "TRACK-E2E-A-001");
 
     // 4. Submit
-    await page.click('button:has-text("Create & Launch Camera Scanner")');
+    await page.click('button:has-text("Create RMA & Open Scanner")');
 
     // 5. Verify redirection to camera capture screen
     await page.waitForURL(/\/rmas\/[a-f0-9-]+\/capture/);
