@@ -152,7 +152,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     // ------------------------------------------------------------------------
     // Step 10: Confirm RMA creation succeeds
     // ------------------------------------------------------------------------
-    await page.click('button:has-text("Create & Launch Camera Scanner")');
+    await page.getByRole("button", { name: "Create RMA & Open Scanner" }).click();
     await page.waitForURL(/\/rmas\/[a-f0-9-]+\/capture/, { waitUntil: "domcontentloaded" });
 
     const captureUrl = page.url();
