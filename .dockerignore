@@ -1,0 +1,16 @@
+.git
+.github
+.agents
+.next
+node_modules
+.env
+.env.*
+!.env.example
+data/*
+coverage
+test-results
+playwright-report
+backups
+*.dump
+*.sql.gz
+*.tar.gz

@@ -1,0 +1,23 @@
+# Caddy Reverse Proxy Configuration for RMA System
+# In production, replace :80 with your domain (e.g. rma.yourdomain.com) for automated Let's Encrypt TLS
+
+:80 {
+    reverse_proxy app:3000
+
+    # Production security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self)"
+    }
+
+    # Restrict maximum body size for batch photo uploads (30MB)
+    request_body {
+        max_size 30MB
+    }
+
+    # Gzip and Zstandard compression
+    encode zstd gzip
+}

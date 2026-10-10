@@ -1,0 +1,35 @@
+# Secrets and environment files
+.env
+.env.*
+!.env.example
+
+# Local and generated data
+.local/
+.*-storage/
+data/catalog.xlsx
+data/storage/
+data/postgres/
+uploads/
+backups/
+*.dump
+*.sql.gz
+*.tar.gz
+
+# Build and dependencies
+.next/
+out/
+node_modules/
+coverage/
+test-results/
+playwright-report/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# OS and editor files
+.DS_Store
+*.pem
+.vscode/
+.idea/

@@ -1,0 +1,61 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rma_ci
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: ci-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d rma_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:ci-only@127.0.0.1:5432/rma_ci
+      LENS_PROVIDER: mock
+      APP_URL: http://localhost:3000
+      INITIAL_ADMIN_EMAIL: admin@rma-system.local
+      BUSINESS_TIMEZONE: UTC
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Generate per-run test secrets
+        run: |
+          node -e "const c=require('node:crypto'); console.log('INITIAL_ADMIN_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('SESSION_SECRET='+c.randomBytes(32).toString('base64url'))" >> "$GITHUB_ENV"
+      - run: npm ci
+      - run: npm run db:migrate
+        env:
+          NODE_ENV: test
+      - run: npm run db:seed
+        env:
+          NODE_ENV: test
+      - run: npm run test:fixtures
+        env:
+          NODE_ENV: test
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+        env:
+          NODE_ENV: test
+      - run: npm run build
+        env:
+          NODE_ENV: production
