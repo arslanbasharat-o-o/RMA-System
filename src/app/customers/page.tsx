@@ -88,14 +88,12 @@ export default function CustomersPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Customer Directory
-            </h1>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            Customer Directory
+          </h1>
 
-          <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)}>
+          <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)} className="h-8.5 sm:h-9 text-xs shrink-0">
             <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
             <span>Add Customer</span>
           </Button>

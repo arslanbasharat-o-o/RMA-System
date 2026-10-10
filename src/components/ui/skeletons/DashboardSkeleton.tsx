@@ -6,13 +6,11 @@ export function DashboardSkeleton() {
   return (
     <div className="space-y-6">
       {/* Header Skeleton */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Operations Dashboard
-          </h1>
-        </div>
-        <Skeleton className="h-9 w-36 rounded-md" />
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+          Operations Dashboard
+        </h1>
+        <Skeleton className="h-8.5 sm:h-9 w-24 sm:w-36 rounded-md shrink-0" />
       </div>
 
       {/* KPI Cards Skeleton */}

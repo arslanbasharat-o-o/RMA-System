@@ -108,21 +108,20 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
     <div className="space-y-6">
       <Card>
         <CardHeader className="p-5 sm:p-6 pb-2">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <CardTitle className="text-base font-semibold flex items-center gap-2">
-                <Users className="h-4 w-4 text-neutral-500" />
-                <span>Staff & Access Management</span>
-              </CardTitle>
-            </div>
+          <div className="flex items-center justify-between gap-3">
+            <CardTitle className="text-base font-semibold flex items-center gap-2">
+              <Users className="h-4 w-4 text-neutral-500 shrink-0" />
+              <span>Staff & Access</span>
+            </CardTitle>
             <Button
               size="sm"
               variant="primary"
               onClick={() => setShowAddModal(true)}
-              className="gap-1.5 self-start sm:self-auto shrink-0"
+              className="gap-1.5 shrink-0 h-8.5 sm:h-9 text-xs"
             >
               <UserPlus className="h-3.5 w-3.5 shrink-0" />
-              <span>Add Staff Account</span>
+              <span className="sm:hidden">Add Staff</span>
+              <span className="hidden sm:inline">Add Staff Account</span>
             </Button>
           </div>
         </CardHeader>

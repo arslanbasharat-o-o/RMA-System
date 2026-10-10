@@ -125,21 +125,21 @@ export default function DisplayCatalogPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Display Model Catalog
-            </h1>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            Display Model Catalog
+          </h1>
 
-          <div className="flex flex-wrap gap-2">
-            <Button size="sm" variant="outline" onClick={() => { setImportErrors([]); setShowImportModal(true); }}>
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="outline" onClick={() => { setImportErrors([]); setShowImportModal(true); }} className="h-8.5 sm:h-9 text-xs justify-center">
               <Upload className="h-3.5 w-3.5 mr-1 shrink-0" />
-              <span>Import XLSX</span>
+              <span className="sm:hidden">Import</span>
+              <span className="hidden sm:inline">Import XLSX</span>
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)}>
+            <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)} className="h-8.5 sm:h-9 text-xs justify-center">
               <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
-              <span>Add Display Model</span>
+              <span className="sm:hidden">Add Model</span>
+              <span className="hidden sm:inline">Add Display Model</span>
             </Button>
           </div>
         </div>
