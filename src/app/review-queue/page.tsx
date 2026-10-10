@@ -103,15 +103,14 @@ export default function ReviewQueuePage() {
   return (
     <AppShell>
       <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Sequential Review Queue
-            </h1>
-          </div>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            Sequential Review Queue
+          </h1>
 
-          <Badge variant="outline" className="font-mono">
-            <AnimatedNumber value={queue.length} /> displays pending review
+          <Badge variant="outline" className="font-mono shrink-0">
+            <span className="sm:hidden">{queue.length} pending</span>
+            <span className="hidden sm:inline"><AnimatedNumber value={queue.length} /> displays pending review</span>
           </Badge>
         </div>
 
@@ -248,7 +247,7 @@ export default function ReviewQueuePage() {
                     size="sm"
                     loading={actionLoading}
                     onClick={() => handleAction("accept_suggestion")}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0"
+                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0 justify-center"
                   >
                     <Check className="h-4 w-4 mr-1 shrink-0" />
                     <span>Accept (Y)</span>

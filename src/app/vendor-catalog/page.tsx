@@ -183,22 +183,23 @@ export default function VendorCatalogPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-              Vendor Catalog & Recognition Rules
-            </h1>
-          </div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+            Vendor Catalog & Rules
+          </h1>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <Button size="sm" variant="outline" onClick={() => setShowAddRule(true)}>
-              + Add Rule
+          <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+            <Button size="sm" variant="outline" onClick={() => setShowAddRule(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+              <span className="sm:hidden">+ Rule</span>
+              <span className="hidden sm:inline">+ Add Rule</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAddVariant(true)}>
-              + Add Variant
+            <Button size="sm" variant="outline" onClick={() => setShowAddVariant(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+              <span className="sm:hidden">+ Variant</span>
+              <span className="hidden sm:inline">+ Add Variant</span>
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setShowAddVendor(true)}>
-              + Add Vendor
+            <Button size="sm" variant="primary" onClick={() => setShowAddVendor(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+              <span className="sm:hidden">+ Vendor</span>
+              <span className="hidden sm:inline">+ Add Vendor</span>
             </Button>
           </div>
         </div>
