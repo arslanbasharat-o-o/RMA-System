@@ -1,11 +1,10 @@
 # App version
 
-`release.json` is the single source for the version displayed in the sidebar,
-profile, and health response. Update its `version` in GitHub through a pull request.
-The production build automatically includes the number from the deployed commit;
-there is no browser override or separate production environment value to update.
+`release.json` is the source for the version displayed in the application sidebar,
+profile, and health response. Keep its semantic version in sync with `package.json`
+and the release tag (for example, `0.2.0` and `v0.2.0`). The release workflow checks
+the tag and both files before creating a GitHub Release.
 
-Release tags must match this file (for example, `v0.02`). The GitHub Release workflow
-checks the match before publishing release notes. Deploy the verified commit using
-the existing backup and application rollout procedure to make that version live.
-GitHub releases alone do not deploy the VPS.
+Changing version metadata in GitHub does not change a running installation. The
+verified commit must be deployed through the separately reviewed deployment process
+before its version appears in production. GitHub Releases do not deploy the VPS.

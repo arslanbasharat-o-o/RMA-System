@@ -3,10 +3,27 @@ updates:
   - package-ecosystem: npm
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Karachi
     open-pull-requests-limit: 5
+    groups:
+      npm-routine:
+        update-types:
+          - minor
+          - patch
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Karachi
     open-pull-requests-limit: 5
+    groups:
+      actions-routine:
+        update-types:
+          - minor
+          - patch

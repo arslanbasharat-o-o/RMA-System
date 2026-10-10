@@ -1,17 +1,20 @@
 # Security Policy
 
-## Reporting
+## Report a vulnerability
 
-Do not report vulnerabilities in public issues. Contact the repository owner privately through the GitHub profile with affected versions, impact, and safe reproduction steps. Do not attach customer records, images, provider keys, or production database exports.
+Please use [GitHub's private vulnerability reporting form](https://github.com/arslanbasharat-o-o/RMA-System/security/advisories/new) rather than opening a public issue. Include affected versions, impact, and safe reproduction steps. Do not attach customer records, display images, provider keys, or production database exports.
 
-## Secrets and environments
+If private reporting is unavailable to you, contact the repository owner through the GitHub profile and ask for a secure reporting channel.
 
-- Store production secrets only in a production secret store or root-owned runtime environment file.
-- Keep `.env*` files out of Git; `.env.example` contains placeholders only.
-- Use separate production, local, and CI databases and storage.
-- Keep mock providers disabled in production.
-- Rotate credentials that may have been exposed; removing them from a commit does not revoke them.
+## Supported releases
 
-## Scope
+No versioned GitHub Release has been published yet. Security fixes are made on the default branch; review the release page for published versions and advisories.
 
-This project processes customer and image data. Deploy behind HTTPS, restrict administrative access, preserve private storage boundaries, and maintain encrypted off-site backups with tested recovery procedures.
+## Handling data and credentials
+
+- Keep production secrets in a secret manager or a root-owned runtime environment file. Do not commit `.env` files or place secrets in `NEXT_PUBLIC_*` variables.
+- Keep production, local development, and CI databases and image storage separate.
+- Keep mock recognition providers disabled in production.
+- Store uploaded images and private catalog workbooks outside the public source repository.
+- Rotate credentials that may have been exposed. Removing a value from a later commit does not revoke it.
+- Deploy behind HTTPS, restrict administrative access, and maintain encrypted off-site backups with tested recovery procedures.
