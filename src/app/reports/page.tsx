@@ -47,7 +47,7 @@ export default function ReportsPage() {
 
           <a href="/api/reports?format=csv">
             <Button size="sm" variant="primary">
-              <Download className="h-3.5 w-3.5 mr-1.5" />
+              <Download className="h-3.5 w-3.5 mr-1.5 shrink-0" />
               <span>Export Full CSV</span>
             </Button>
           </a>

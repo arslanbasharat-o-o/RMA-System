@@ -193,7 +193,7 @@ export default function VendorCatalogPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => setShowAddRule(true)}>
               + Add Rule
             </Button>

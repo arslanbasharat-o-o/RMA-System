@@ -79,7 +79,7 @@ export default function RmaListPage() {
 
           <Link href="/rmas/new">
             <Button size="sm" variant="primary">
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              <Plus className="h-3.5 w-3.5 mr-1.5 shrink-0" />
               <span>Create RMA</span>
             </Button>
           </Link>

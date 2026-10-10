@@ -336,7 +336,7 @@ export default function CreateRmaPage() {
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <span className="text-xs text-neutral-500 dark:text-neutral-400">
                     RMA sequence identifier assigned automatically upon creation.
                   </span>
@@ -344,10 +344,10 @@ export default function CreateRmaPage() {
                     type="submit"
                     variant="primary"
                     loading={submitting}
-                    className="gap-2"
+                    className="gap-2 shrink-0 w-full sm:w-auto h-10 px-4 text-xs sm:text-sm font-medium"
                   >
-                    <Camera className="h-4 w-4" />
-                    <span>Create & Launch Camera Scanner</span>
+                    <Camera className="h-4 w-4 shrink-0" />
+                    <span>Create RMA & Open Scanner</span>
                   </Button>
                 </div>
               </form>

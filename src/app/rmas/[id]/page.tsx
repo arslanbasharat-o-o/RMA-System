@@ -18,7 +18,6 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
-import { AnimatedProgress } from "@/components/motion/AnimatedProgress";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { toast } from "sonner";
 
@@ -170,17 +169,17 @@ export default function RmaDetailPage({
             <span>All RMAs</span>
           </Link>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Link href={`/rmas/${rmaId}/capture`}>
               <Button size="sm" variant="outline" className="gap-1.5">
-                <Camera className="h-3.5 w-3.5" />
+                <Camera className="h-3.5 w-3.5 shrink-0" />
                 <span>Scan More Screens</span>
               </Button>
             </Link>
 
             <a href={`/api/rmas/${rmaId}/export`}>
               <Button size="sm" variant="outline" className="gap-1.5">
-                <Download className="h-3.5 w-3.5" />
+                <Download className="h-3.5 w-3.5 shrink-0" />
                 <span>Export CSV</span>
               </Button>
             </a>
@@ -249,48 +248,7 @@ export default function RmaDetailPage({
           </CardContent>
         </Card>
 
-        {/* Unified Processing Card (Section 8 requirement) */}
-        {stats.processing > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: -4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="p-4 rounded-xl border border-blue-200/80 dark:border-blue-900/60 bg-blue-50/40 dark:bg-blue-950/20 text-neutral-900 dark:text-neutral-100 space-y-2.5"
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
-                </span>
-                <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                  Analyzing received displays
-                </span>
-              </div>
-              <div className="text-xs font-mono text-neutral-500 dark:text-neutral-400">
-                <AnimatedNumber value={(stats.verified || 0) + (stats.reviewRequired || 0)} /> of{" "}
-                <AnimatedNumber value={stats.total || 0} /> display items processed
-              </div>
-            </div>
 
-            <AnimatedProgress
-              value={(stats.verified || 0) + (stats.reviewRequired || 0)}
-              max={stats.total || 1}
-              barClassName="bg-blue-600 dark:bg-blue-400"
-            />
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pt-1">
-              <div className="flex items-center justify-between px-2.5 py-1 rounded bg-white/70 dark:bg-neutral-900/60 border border-blue-100 dark:border-neutral-800">
-                <span className="text-neutral-500 dark:text-neutral-400">Display Identification</span>
-                <span className="font-mono text-blue-700 dark:text-blue-300 font-medium">Processing</span>
-              </div>
-              <div className="flex items-center justify-between px-2.5 py-1 rounded bg-white/70 dark:bg-neutral-900/60 border border-blue-100 dark:border-neutral-800">
-                <span className="text-neutral-500 dark:text-neutral-400">Vendor Recognition</span>
-                <span className="font-mono text-blue-700 dark:text-blue-300 font-medium">Reading Markings</span>
-              </div>
-            </div>
-          </motion.div>
-        )}
 
         {/* Bulk Actions Bar */}
         <AnimatePresence>
@@ -300,12 +258,12 @@ export default function RmaDetailPage({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 6 }}
               transition={{ duration: 0.16 }}
-              className="flex items-center justify-between p-3 rounded-lg bg-neutral-900 dark:bg-neutral-800 text-white text-xs shadow-md"
+              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-neutral-900 dark:bg-neutral-800 text-white text-xs shadow-md"
             >
               <span>
                 {selectedItemIds.length} display(s) selected
               </span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   variant="primary"
                   size="sm"
@@ -313,7 +271,7 @@ export default function RmaDetailPage({
                   onClick={handleBulkConfirm}
                   className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white"
                 >
-                  <Check className="h-3.5 w-3.5 mr-1" />
+                  <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
                   <span>Bulk Confirm Eligible</span>
                 </Button>
                 <Button
@@ -322,7 +280,7 @@ export default function RmaDetailPage({
                   loading={bulkActionLoading}
                   onClick={handleBulkReprocess}
                 >
-                  <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                  <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
                   <span>Reprocess Selected</span>
                 </Button>
               </div>
