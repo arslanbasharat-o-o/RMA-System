@@ -134,7 +134,7 @@ The application is self-hosted. This repository does not deploy to a production 
 
 ## Project status
 
-The public repository has CI and a tag-based release workflow. No GitHub Release has been published yet. Current application version metadata is `0.2.0`; this repository update does not deploy or change a running installation.
+The public repository has CI and a tag-based release workflow. No GitHub Release has been published yet. Current application/package metadata is `0.2.0`, a candidate version that has not been tagged or deployed. A local full desktop/mobile Playwright attempt found seven failures across settings, staff, dialogs, and RMA workflows; the run was stopped before the remaining cases finished. Release automation requires the full suite to pass before publication. This repository update does not deploy or change a running installation.
 
 ## Security, contributing, and license
 
