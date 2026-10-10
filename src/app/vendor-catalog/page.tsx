@@ -188,9 +188,6 @@ export default function VendorCatalogPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Vendor Catalog & Recognition Rules
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Parent vendors, screen variants, and OCR pattern rules.
-            </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
@@ -243,11 +240,7 @@ export default function VendorCatalogPage() {
                   {testResult.rule.priority})
                 </p>
               </div>
-            ) : testText && testResult === null && (
-              <div className="mt-2 text-[11px] text-neutral-400 dark:text-neutral-500">
-                Test pattern matching against configured vendor rules.
-              </div>
-            )}
+            ) : null}
           </CardContent>
         </Card>
 
@@ -319,7 +312,6 @@ export default function VendorCatalogPage() {
           isOpen={showAddVendor}
           onClose={() => setShowAddVendor(false)}
           title="Add Parent Vendor"
-          description="Register a display manufacturing or supply brand."
           maxWidth="max-w-sm"
         >
           <form onSubmit={handleCreateVendor} className="space-y-3">
@@ -372,7 +364,6 @@ export default function VendorCatalogPage() {
           isOpen={showAddVariant}
           onClose={() => setShowAddVariant(false)}
           title="Add Vendor Variant"
-          description="Register a child variant, factory grade, or display technology subtype."
           maxWidth="max-w-sm"
         >
           <form onSubmit={handleCreateVariant} className="space-y-3">
@@ -439,7 +430,6 @@ export default function VendorCatalogPage() {
           isOpen={showAddRule}
           onClose={() => setShowAddRule(false)}
           title="Add Recognition Rule"
-          description="Configure OCR pattern matching rules for automated variant attribution."
           maxWidth="max-w-md"
         >
           <form onSubmit={handleCreateRule} className="space-y-3">

@@ -1,7 +1,6 @@
 "use client";
 
-import React from "react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Clock, Database, HardDrive, CheckCircle2 } from "lucide-react";
@@ -33,9 +32,6 @@ export function GeneralTab({ timezone, setTimezone, onSave, saving }: GeneralTab
             <Clock className="h-4 w-4 text-neutral-500" />
             <span>Operational Timezone</span>
           </CardTitle>
-          <CardDescription className="text-xs">
-            Timestamps on intake batches, audit trails, and exported CSV manifests adhere to this timezone.
-          </CardDescription>
         </CardHeader>
         <CardContent className="p-5 sm:p-6 pt-4">
           <form onSubmit={onSave} className="space-y-4">
@@ -89,9 +85,6 @@ export function GeneralTab({ timezone, setTimezone, onSave, saving }: GeneralTab
             <HardDrive className="h-4 w-4 text-neutral-500" />
             <span>Storage & Runtime Environment</span>
           </CardTitle>
-          <CardDescription className="text-xs">
-            Active infrastructure drivers and persistent storage parameters.
-          </CardDescription>
         </CardHeader>
         <CardContent className="p-5 sm:p-6 pt-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

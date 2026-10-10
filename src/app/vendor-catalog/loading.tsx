@@ -11,9 +11,6 @@ export default function Loading() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Vendor Catalog & Recognition Rules
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Parent vendors, screen variants, and OCR pattern rules.
-            </p>
           </div>
           <div className="flex items-center gap-2">
             <Skeleton className="h-9 w-28 rounded-md" />

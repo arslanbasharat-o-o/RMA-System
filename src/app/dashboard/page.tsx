@@ -59,9 +59,6 @@ export default function DashboardPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Operations Dashboard
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Intake throughput, operational metrics, and verification queue.
-            </p>
           </div>
 
           <div className="flex items-center gap-2">
@@ -78,7 +75,7 @@ export default function DashboardPage() {
         <MotionCardGrid className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <MotionCardItem>
             <Card>
-              <CardHeader className="p-4 pb-2">
+              <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
                     Total RMAs
@@ -93,17 +90,12 @@ export default function DashboardPage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                  Total intake batches recorded
-                </span>
-              </CardContent>
             </Card>
           </MotionCardItem>
 
           <MotionCardItem>
             <Card>
-              <CardHeader className="p-4 pb-2">
+              <CardHeader className="p-4 pb-3">
                 <div className="flex items-center justify-between">
                   <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
                     Displays Received
@@ -118,11 +110,6 @@ export default function DashboardPage() {
                   )}
                 </CardTitle>
               </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                  Individual display panels
-                </span>
-              </CardContent>
             </Card>
           </MotionCardItem>
 
@@ -198,9 +185,6 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 Vendor Distribution
               </CardTitle>
-              <CardDescription className="text-xs">
-                Recognized display suppliers
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-5 pt-0 space-y-2.5">
               {loading ? (
@@ -235,9 +219,6 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 Top Returned Models
               </CardTitle>
-              <CardDescription className="text-xs">
-                Smartphone screen models
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-5 pt-0 space-y-2.5">
               {loading ? (
@@ -272,9 +253,6 @@ export default function DashboardPage() {
               <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                 Return Reasons
               </CardTitle>
-              <CardDescription className="text-xs">
-                Reported defect breakdown
-              </CardDescription>
             </CardHeader>
             <CardContent className="p-5 pt-0 space-y-2.5">
               {loading ? (
@@ -311,9 +289,6 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
                   Recent RMA Batches
                 </CardTitle>
-                <CardDescription className="text-xs">
-                  Most recent returned shipments
-                </CardDescription>
               </div>
               <Link
                 href="/rmas?view=all"

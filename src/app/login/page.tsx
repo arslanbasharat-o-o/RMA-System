@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Lock, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
 
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
@@ -64,17 +64,11 @@ export default function LoginPage() {
           <h1 className="text-xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
             RMA Identification Platform
           </h1>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
-            Internal Operations Portal (Authorized Access Only)
-          </p>
         </div>
 
         <Card className="border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900/90 shadow-sm">
           <CardHeader className="p-6 pb-2">
             <CardTitle className="text-base text-neutral-900 dark:text-neutral-100">Sign In</CardTitle>
-            <CardDescription className="text-xs text-neutral-500 dark:text-neutral-400">
-              Enter your corporate credentials to access the RMA scanner.
-            </CardDescription>
           </CardHeader>
           <CardContent className="p-6 pt-4">
             <form onSubmit={handleSubmit} className="space-y-4">

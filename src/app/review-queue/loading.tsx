@@ -11,9 +11,6 @@ export default function Loading() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Sequential Review Queue
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Queue of items requiring manual verification and exception handling.
-            </p>
           </div>
         </div>
         <TableSkeleton rows={8} cols={6} />

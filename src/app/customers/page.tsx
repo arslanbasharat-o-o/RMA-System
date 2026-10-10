@@ -93,9 +93,6 @@ export default function CustomersPage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
               Customer Directory
             </h1>
-            <p className="text-xs sm:text-sm text-neutral-500 dark:text-neutral-400 mt-0.5">
-              Client accounts, repair facilities, and wholesale partners.
-            </p>
           </div>
 
           <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)}>
@@ -195,7 +192,6 @@ export default function CustomersPage() {
           isOpen={showAddModal}
           onClose={() => setShowAddModal(false)}
           title="Add New Customer"
-          description="Register a business account for RMA returns."
           maxWidth="max-w-md"
         >
           <form onSubmit={handleCreateCustomer} className="space-y-3">

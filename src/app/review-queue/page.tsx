@@ -334,9 +334,6 @@ export default function ReviewQueuePage() {
               <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
                 Review Queue Empty
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-neutral-400 max-w-sm mx-auto">
-                All items have been verified. No pending exceptions in queue.
-              </p>
               <Link href="/dashboard">
                 <Button size="sm" variant="outline" className="mt-2">
                   Return to Dashboard
