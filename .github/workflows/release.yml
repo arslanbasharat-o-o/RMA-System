@@ -61,11 +61,20 @@ jobs:
             echo "Release $GITHUB_REF_NAME already exists; skipping duplicate publication."
             exit 0
           fi
-          gh release create "$GITHUB_REF_NAME" \
-            --repo "$GITHUB_REPOSITORY" \
-            --verify-tag \
-            --title "RMA System $GITHUB_REF_NAME" \
-            --generate-notes
+          notes_file="docs/releases/${GITHUB_REF_NAME}.md"
+          if [ -f "$notes_file" ]; then
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "RMA System $GITHUB_REF_NAME" \
+              --notes-file "$notes_file"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "RMA System $GITHUB_REF_NAME" \
+              --generate-notes
+          fi
 
   publish-container:
     needs: validate

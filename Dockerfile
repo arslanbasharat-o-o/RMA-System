@@ -41,7 +41,9 @@ ARG VCS_REF=unknown
 LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
       org.opencontainers.image.version="$APP_VERSION" \
       org.opencontainers.image.revision="$VCS_REF" \
-      org.opencontainers.image.title="RMA Display Identification System"
+      org.opencontainers.image.title="RMA System" \
+      org.opencontainers.image.description="RMA System supports returned mobile-display intake, inspection images, identification, and staff review through a web app and background worker." \
+      org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
@@ -79,7 +81,9 @@ ARG VCS_REF=unknown
 LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
       org.opencontainers.image.version="$APP_VERSION" \
       org.opencontainers.image.revision="$VCS_REF" \
-      org.opencontainers.image.title="RMA Display Identification Worker"
+      org.opencontainers.image.title="RMA System Worker" \
+      org.opencontainers.image.description="RMA System supports returned mobile-display intake, inspection images, identification, and staff review through a web app and background worker." \
+      org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production
 
