@@ -1,12 +1,37 @@
 import { eq } from "drizzle-orm";
 import { db, pool } from "../src/db";
-import { displayCatalog, vendorRecognitionRules, vendors, vendorVariants } from "../src/db/schema";
+import { customers, displayCatalog, users, vendorRecognitionRules, vendors, vendorVariants } from "../src/db/schema";
+import { hashPassword } from "../src/lib/auth/password";
 
 if (process.env.NODE_ENV !== "test") {
   throw new Error("Test fixtures may only be loaded when NODE_ENV=test.");
 }
 
 async function ensureFixtures() {
+  const e2ePassword = process.env.E2E_TEST_PASSWORD || "e2e-test-only-password-change-me-123";
+  const passwordHash = await hashPassword(e2ePassword);
+  for (const user of [
+    { email: "operator@rma-system.internal", name: "E2E Operator", role: "operator" as const },
+    { email: "viewer@rma-system.internal", name: "E2E Viewer", role: "viewer" as const },
+  ]) {
+    const [existing] = await db.select({ id: users.id }).from(users).where(eq(users.email, user.email));
+    if (existing) {
+      await db.update(users).set({ name: user.name, role: user.role, passwordHash, active: true }).where(eq(users.id, existing.id));
+    } else {
+      await db.insert(users).values({ ...user, passwordHash, active: true });
+    }
+  }
+
+  const [fixtureCustomer] = await db.select({ id: customers.id }).from(customers).where(eq(customers.email, "e2e-fixture@rma-system.internal"));
+  if (!fixtureCustomer) {
+    await db.insert(customers).values({
+      name: "E2E Fixture Customer",
+      contactName: "Test Contact",
+      email: "e2e-fixture@rma-system.internal",
+      notes: "Synthetic test fixture; do not use outside disposable test databases.",
+    });
+  }
+
   const catalogRows = [
     {
       manufacturer: "Apple",

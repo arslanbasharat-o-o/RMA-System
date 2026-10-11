@@ -276,9 +276,9 @@ test.describe("Tier 3 - Pairwise Combinations (Cross-Feature Matrix)", () => {
     }
 
     // 4. Verify Theme Preference Options
-    const lightOption = page.locator('button:has-text("Light Mode")');
-    const darkOption = page.locator('button:has-text("Dark Mode")');
-    const systemOption = page.locator('button:has-text("System Preference")');
+    const lightOption = page.getByRole("button", { name: "Light", exact: true });
+    const darkOption = page.getByRole("button", { name: "Dark", exact: true });
+    const systemOption = page.getByRole("button", { name: "System", exact: true });
 
     await expect(lightOption.first()).toBeVisible();
     await expect(darkOption.first()).toBeVisible();

@@ -291,7 +291,7 @@ test.describe("Tier 4 - Real-World Application Scenarios", () => {
     }
 
     // 3. Wait for lazy-loaded Appearance tab content and select Dark Mode
-    const darkBtn = page.locator('button:has-text("Dark Mode")').first();
+    const darkBtn = page.getByRole("button", { name: "Dark", exact: true });
     await expect(darkBtn).toBeVisible({ timeout: 10000 });
     await darkBtn.click();
     await expect(page.locator("html")).toHaveClass(/dark/);

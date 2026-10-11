@@ -54,7 +54,7 @@ jobs:
           cache: npm
       - name: Generate per-run test secrets
         run: |
-          node -e "const c=require('node:crypto'); console.log('INITIAL_ADMIN_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('SESSION_SECRET='+c.randomBytes(32).toString('base64url'))" >> "$GITHUB_ENV"
+          node -e "const c=require('node:crypto'); console.log('INITIAL_ADMIN_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('E2E_TEST_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('SESSION_SECRET='+c.randomBytes(32).toString('base64url'))" >> "$GITHUB_ENV"
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run db:migrate
@@ -86,6 +86,14 @@ jobs:
           test "$(docker image inspect rma-system:ci --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" = "$APP_VERSION"
           test "$(docker image inspect rma-system:ci --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = "https://github.com/arslanbasharat-o-o/RMA-System"
           docker run --rm --entrypoint sh rma-system:ci -c 'test ! -e /app/.env && test ! -e /app/.env.local && test -z "$(find /app/data/storage -mindepth 1 -print -quit)"'
+          docker build --target worker \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag rma-system-worker:ci .
+          test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" = "$APP_VERSION"
+          test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.source"}}')" = "https://github.com/arslanbasharat-o-o/RMA-System"
+          docker run --rm --entrypoint sh rma-system-worker:ci -c 'test ! -e /app/.env && test ! -e /app/.env.local && test -z "$(find /app/data/storage -mindepth 1 -print -quit)"'
       - name: Install browser for offline intake checks
         run: npx playwright install --with-deps chromium
       - name: Verify camera and customer intake on desktop and mobile

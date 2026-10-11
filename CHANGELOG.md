@@ -1,9 +1,8 @@
 # Changelog
 
-Changes to the public source are recorded here. No versioned GitHub Release has been
-published yet; this section describes the changes currently awaiting the first release.
+Changes to the public source are recorded here.
 
-## [Unreleased]
+## [0.2.0] - 2026-10-11
 
 ### Added
 
@@ -19,3 +18,5 @@ published yet; this section describes the changes currently awaiting the first r
 ### Security
 
 - Kept recognition providers mocked in CI and documented private-data boundaries for contributors.
+
+## [Unreleased]

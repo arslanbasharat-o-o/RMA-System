@@ -134,10 +134,10 @@ The application is self-hosted. This repository does not deploy to a production 
 
 ## Project status
 
-The public repository has CI and a tag-based release workflow. No GitHub Release has been published yet. Current application/package metadata is `0.2.0`, a candidate version that has not been tagged or deployed. A local full desktop/mobile Playwright attempt found seven failures across settings, staff, dialogs, and RMA workflows; the run was stopped before the remaining cases finished. Release automation requires the full suite to pass before publication. This repository update does not deploy or change a running installation.
+The application version is recorded in `release.json`. Version tags publish a GitHub Release and the web application and worker container images after the full release checks pass. Publishing these artifacts does not deploy or change a running installation; see [the release process](docs/release-process.md).
 
 ## Security, contributing, and license
 
 Read [SECURITY.md](SECURITY.md) to report a vulnerability privately. Contributions should follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
-This repository does not include a project license. Public visibility alone does not grant rights to use, modify, or redistribute the software. Third-party components remain under their respective licenses.
+This project is licensed under the [MIT License](LICENSE). Third-party components remain under their respective licenses.
