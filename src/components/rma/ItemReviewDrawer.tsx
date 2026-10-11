@@ -69,18 +69,22 @@ export function ItemReviewDrawer({
   }, [zoomedImage, showDeleteConfirm, onClose]);
 
   useEffect(() => {
+    const controller = new AbortController();
+
     async function loadData() {
       setLoading(true);
       try {
         const [itemRes, catRes, venRes] = await Promise.all([
-          fetch(`/api/rma-items/${itemId}`),
-          fetch(`/api/display-catalog`),
-          fetch(`/api/vendors`),
+          fetch(`/api/rma-items/${itemId}`, { signal: controller.signal }),
+          fetch(`/api/display-catalog`, { signal: controller.signal }),
+          fetch(`/api/vendors`, { signal: controller.signal }),
         ]);
 
         const itemJson = await itemRes.json();
         const catJson = await catRes.json();
         const venJson = await venRes.json();
+
+        if (controller.signal.aborted) return;
 
         setData(itemJson);
         setCatalogList(catJson.catalog || []);
@@ -91,12 +95,16 @@ export function ItemReviewDrawer({
         setSelectedVariantId(itemJson.item.identifiedVendorVariantId || "");
         setReviewNotes(itemJson.item.reviewNotes || "");
       } catch (err) {
-        console.error("Failed to load item review data:", err);
+        if (!controller.signal.aborted) {
+          console.error("Failed to load item review data:", err);
+        }
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
     loadData();
+
+    return () => controller.abort();
   }, [itemId]);
 
   const handleApplyCorrection = async (action: string) => {
