@@ -55,7 +55,7 @@ export default function DashboardPage() {
       <div className="space-y-6">
         {/* Page Title & Header */}
         <div className="flex items-center justify-between gap-3">
-          <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
+          <h1 data-testid="dashboard-title" className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
             Operations Dashboard
           </h1>
 
