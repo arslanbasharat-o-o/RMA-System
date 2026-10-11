@@ -23,6 +23,7 @@ services:
   # 2. Next.js Web Application
   # ----------------------------------------------------------------------------
   app:
+    image: ${RMA_APP_IMAGE:-ghcr.io/arslanbasharat-o-o/rma-system:latest}
     build:
       context: .
       target: runner
@@ -62,6 +63,7 @@ services:
   # 3. Dedicated Background Worker (pg-boss Queue Processor)
   # ----------------------------------------------------------------------------
   worker:
+    image: ${RMA_WORKER_IMAGE:-ghcr.io/arslanbasharat-o-o/rma-system:worker-latest}
     build:
       context: .
       target: worker

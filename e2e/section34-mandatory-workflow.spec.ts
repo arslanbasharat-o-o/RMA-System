@@ -152,7 +152,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     // ------------------------------------------------------------------------
     // Step 10: Confirm RMA creation succeeds
     // ------------------------------------------------------------------------
-    await page.click('button:has-text("Create & Launch Camera Scanner")');
+    await page.getByRole("button", { name: "Create RMA & Open Scanner" }).click();
     await page.waitForURL(/\/rmas\/[a-f0-9-]+\/capture/, { waitUntil: "domcontentloaded" });
 
     const captureUrl = page.url();
@@ -173,14 +173,14 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
       { name: "screen1_back.jpg", mimeType: "image/jpeg", buffer: sampleBackBuffer },
     ]);
 
-    // Verify both photos appear grouped under Display #1
-    await expect(page.locator("body")).toContainText("#1 photos:");
-    await expect(page.locator("body")).toContainText("2 photo(s) captured for Screen #1");
+    // Verify both captured angles and the current session photo count.
+    await expect(page.getByRole("img", { name: "Front angle 1" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Label angle 2" })).toBeVisible();
+    await expect(page.getByRole("status")).toContainText("2 photos saved");
 
     // Advance to next display in camera scanner
-    const saveNextBtn = page.locator('button:has-text("Save & Next Screen")').filter({ visible: true }).first();
-    await saveNextBtn.click({ force: true });
-    await expect(page.locator("body")).toContainText("Display #2");
+    await page.getByRole("button", { name: "Next display" }).click();
+    await expect(page.getByText("Display 2", { exact: true })).toBeVisible();
 
     // ------------------------------------------------------------------------
     // Step 15 & 16: Complete batch of 50 physical displays & verify count

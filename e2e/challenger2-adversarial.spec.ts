@@ -79,7 +79,7 @@ test.describe("Challenger 2: Settings Tabs Navigation & Rapid Interaction", () =
     await expect(page.locator("text=Google Lens Visual Recognition")).toBeVisible();
 
     await page.locator('[role="tab"]:has-text("Appearance")').click();
-    await expect(page.locator("text=Interface Theme & Appearance")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Theme", exact: true })).toBeVisible();
 
     // Navigate back to General tab
     await page.locator('[role="tab"]:has-text("General")').click();
@@ -204,7 +204,7 @@ test.describe("Challenger 2: Staff Administration & Security Guards", () => {
   test("C2.8: Adversarial search patterns and role filters do not cause errors", async ({
     page,
   }) => {
-    const searchInput = page.locator('input[placeholder*="Search staff"]').first();
+    const searchInput = page.getByPlaceholder("Search staff by name or email...");
     await expect(searchInput).toBeVisible();
 
     // Adversarial inputs (regex characters, long strings, symbols)
@@ -227,7 +227,7 @@ test.describe("Challenger 2: Staff Administration & Security Guards", () => {
 
     // Test role filter tabs
     for (const role of ["operator", "viewer", "admin", "all"]) {
-      const filterPill = page.locator(`button:has-text("${role}")`).first();
+      const filterPill = page.getByRole("button", { name: role, exact: true });
       await filterPill.click();
       await page.waitForTimeout(50);
     }
