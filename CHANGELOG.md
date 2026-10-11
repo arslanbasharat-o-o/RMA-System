@@ -2,6 +2,13 @@
 
 Changes to the public source are recorded here.
 
+## [0.2.1] - 2026-10-11
+
+### Changed
+
+- Added human-readable descriptions, MIT license metadata, and source details to the web and worker container images.
+- Added a release-notes file workflow and a clear package install section to the project README.
+
 ## [0.2.0] - 2026-10-11
 
 ### Added
