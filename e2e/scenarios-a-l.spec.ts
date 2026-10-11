@@ -583,14 +583,19 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await expect(page.locator("body")).toContainText("Manual Verification & Override");
 
     // Select manual override options
-    await page.fill('input[placeholder*="Verified genuine"]', "Verified via physical laser mark");
+    const correctionNotes = page.locator('input[placeholder*="Verified genuine"]');
+    await correctionNotes.fill("Verified via physical laser mark");
+    await expect(correctionNotes).toHaveValue("Verified via physical laser mark");
     const reviewResponsePromise = page.waitForResponse((response) =>
       response.url().endsWith(`/api/rma-items/${item.id}/review`) &&
       response.request().method() === "POST"
     );
     await page.click('button:has-text("Confirm & Verify")');
     const reviewResponse = await reviewResponsePromise;
-    expect(reviewResponse.ok()).toBeTruthy();
+    expect(
+      reviewResponse.ok(),
+      `Review request failed (${reviewResponse.status()}): ${await reviewResponse.text()}`
+    ).toBeTruthy();
 
     // Wait for drawer to close and check updated item in DB
     await expect(page.locator("body")).not.toContainText("Manual Verification & Override");

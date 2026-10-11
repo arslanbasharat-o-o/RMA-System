@@ -2,6 +2,13 @@
 
 Changes to the public source are recorded here.
 
+## [0.2.2] - 2026-10-11
+
+### Changed
+
+- Rewrote the repository introduction in plain language and made release, license, setup, and container links easy to find.
+- Added distinct, task-focused descriptions to the web and worker container packages.
+
 ## [0.2.1] - 2026-10-11
 
 ### Changed
