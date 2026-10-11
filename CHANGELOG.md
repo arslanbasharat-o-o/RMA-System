@@ -2,6 +2,13 @@
 
 Changes to the public source are recorded here.
 
+## [0.2.3] - 2026-10-11
+
+### Security
+
+- Key login throttling to the reverse proxy's trusted client address instead of the client-controlled forwarded-address chain.
+- Expire stale login-rate entries and cap tracked addresses to keep process memory bounded.
+
 ## [0.2.2] - 2026-10-11
 
 ### Changed
