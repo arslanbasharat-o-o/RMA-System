@@ -9,6 +9,10 @@ Changes to the public source are recorded here.
 - Key login throttling to the reverse proxy's trusted client address instead of the client-controlled forwarded-address chain.
 - Expire stale login-rate entries and cap tracked addresses to keep process memory bounded.
 
+### Fixed
+
+- Prevented stale review-drawer requests from replacing correction notes entered while item data loads.
+
 ## [0.2.2] - 2026-10-11
 
 ### Changed
