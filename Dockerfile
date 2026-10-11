@@ -42,7 +42,7 @@ LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA
       org.opencontainers.image.version="$APP_VERSION" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.title="RMA System" \
-      org.opencontainers.image.description="RMA System supports returned mobile-display intake, inspection images, identification, and staff review through a web app and background worker." \
+      org.opencontainers.image.description="The RMA System web app helps repair teams manage customer returns, display intake, inspection photos, and staff review." \
       org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production
@@ -82,7 +82,7 @@ LABEL org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA
       org.opencontainers.image.version="$APP_VERSION" \
       org.opencontainers.image.revision="$VCS_REF" \
       org.opencontainers.image.title="RMA System Worker" \
-      org.opencontainers.image.description="RMA System supports returned mobile-display intake, inspection images, identification, and staff review through a web app and background worker." \
+      org.opencontainers.image.description="The RMA System worker processes display photos and prepares model and vendor suggestions for staff review." \
       org.opencontainers.image.licenses="MIT"
 
 ENV NODE_ENV=production
