@@ -2,6 +2,18 @@
 
 Changes to the public source are recorded here.
 
+## [0.2.4] - 2026-10-11
+
+### Fixed
+
+- Retried recognition queue publication when an identical image had already been saved but the first queue attempt failed.
+- Kept a display in its upload-ready state until the durable queue transaction succeeds, so a temporary queue outage can recover on retry.
+
+### Verification
+
+- Added a regression test for a queue outage followed by an idempotent image-upload retry.
+- The full desktop and mobile browser suite passed with mock recognition providers; no paid recognition request was made.
+
 ## [0.2.3] - 2026-10-11
 
 ### Security
