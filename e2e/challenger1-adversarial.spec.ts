@@ -138,7 +138,8 @@ test.describe("Challenger 1 Axis 2: Theme System Resilience & Edge Cases", () =>
     page,
   }) => {
     await page.goto("/dashboard");
-    await expect(page.locator("h1")).toBeVisible();
+    const dashboardTitle = page.getByTestId("dashboard-title");
+    await expect(dashboardTitle).toBeVisible();
 
     const toggle = page.locator(
       'button[aria-label*="theme" i], button[data-testid="theme-toggle"], [data-theme-toggle]'
@@ -155,10 +156,11 @@ test.describe("Challenger 1 Axis 2: Theme System Resilience & Edge Cases", () =>
       // 2. Reload page to exercise ThemeProvider initialization with corrupted key
       await page.reload();
       await expect(page.locator("body")).toBeVisible();
-      await expect(page.locator("h1")).toBeVisible();
+      await expect(dashboardTitle).toBeVisible();
+      await expect(page.locator("h1")).toHaveCount(1);
 
       // Ensure page did not crash
-      const h1Text = await page.locator("h1").innerText();
+      const h1Text = await dashboardTitle.innerText();
       expect(h1Text, `Failed with ${label}`).toMatch(/Dashboard/i);
 
       // 3. Test interactive recovery via theme toggle
