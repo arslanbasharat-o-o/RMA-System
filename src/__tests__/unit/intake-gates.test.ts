@@ -2,12 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
-  customer: vi.fn(), select: vi.fn(), transaction: vi.fn(), insert: vi.fn(),
+  customer: vi.fn(), select: vi.fn(), transaction: vi.fn(), insert: vi.fn(), update: vi.fn(),
   enqueue: vi.fn(), saveImage: vi.fn(), sequence: vi.fn(),
 }));
 vi.mock("@/lib/auth/middleware", () => ({ requireAuth: vi.fn(async () => ({ user: { userId: "test-user" } })) }));
 vi.mock("@/lib/intake-customer", () => ({ hasIntakeCustomer: mocks.customer, CUSTOMER_REQUIRED: "Add customer information before uploading or processing images." }));
-vi.mock("@/db", () => ({ db: { select: mocks.select, transaction: mocks.transaction, insert: mocks.insert } }));
+vi.mock("@/db", () => ({ db: { select: mocks.select, transaction: mocks.transaction, insert: mocks.insert, update: mocks.update } }));
 vi.mock("@/lib/queue", () => ({ enqueueRmaItem: mocks.enqueue }));
 vi.mock("@/lib/storage", () => ({ storage: { saveImage: mocks.saveImage } }));
 vi.mock("@/lib/utils/rma-sequence", () => ({ generateNextRmaNumber: mocks.sequence }));
@@ -84,5 +84,52 @@ describe("Customer requirement protects intake before side effects", () => {
     expect(response.status).toBe(400);
     expect((await response.json()).error).toContain("No image file");
     expect(mocks.saveImage).not.toHaveBeenCalled();
+  });
+
+  it("retries queue publication when an image was saved but the first enqueue failed", async () => {
+    mocks.customer.mockResolvedValue(true);
+    const item = { id: "test-id", rmaId: "test-rma", status: "pending_upload" };
+    const existingImage = { id: "image-id", rmaItemId: "test-id" };
+    let imageAttached = false;
+    let selectCall = 0;
+    mocks.select.mockImplementation(() => {
+      selectCall += 1;
+      return {
+        from: () => selectCall === 3
+          ? { where: () => ({ orderBy: () => ({ limit: async () => [{ sortOrder: 0 }] }) }) }
+          : { where: async () => selectCall === 1 || selectCall === 4
+            ? [item]
+            : imageAttached ? [existingImage] : [] },
+      };
+    });
+    mocks.saveImage.mockResolvedValue({
+      storagePath: "private/image.png", thumbnailPath: null, previewPath: null,
+      originalFilename: "screen.png", mimeType: "image/png", fileSizeBytes: 8,
+      checksumSha256: "checksum", width: 1, height: 1,
+    });
+    mocks.insert.mockReturnValue({
+      values: () => ({ returning: async () => { imageAttached = true; return [existingImage]; } }),
+    });
+
+    const makeRequest = () => {
+      const form = new FormData();
+      form.set("file", new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], { type: "image/png" }), "screen.png");
+      return new NextRequest("http://localhost/api/test", { method: "POST", body: form });
+    };
+
+    mocks.enqueue.mockRejectedValueOnce(new Error("temporary queue outage"));
+    const first = await upload(makeRequest(), params);
+    expect(first.status).toBe(500);
+    expect(mocks.insert).toHaveBeenCalledTimes(1);
+    expect(mocks.update).not.toHaveBeenCalled();
+
+    mocks.enqueue.mockResolvedValueOnce(undefined);
+    const retryResponse = await upload(makeRequest(), params);
+    const retryBody = await retryResponse.json();
+    expect(retryResponse.status).toBe(200);
+    expect(retryBody.deduplicated).toBe(true);
+    expect(retryBody.itemStatus).toBe("queued");
+    expect(mocks.enqueue).toHaveBeenCalledTimes(2);
+    expect(mocks.insert).toHaveBeenCalledTimes(1);
   });
 });

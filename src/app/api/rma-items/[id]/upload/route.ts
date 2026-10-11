@@ -99,6 +99,20 @@ export async function POST(
       );
 
     if (existingImage) {
+      // A previous request may have stored the image but failed before the
+      // durable queue transaction committed. In that case the item remains
+      // upload-ready, so an identical retry must also retry queue publication.
+      if (item.status === "pending_upload" || item.status === "uploaded") {
+        await enqueueRmaItem(itemId);
+        return NextResponse.json({
+          success: true,
+          image: existingImage,
+          itemStatus: "queued",
+          deduplicated: true,
+          message: "Image was already attached and recognition has been queued.",
+        });
+      }
+
       return NextResponse.json({
         success: true,
         image: existingImage,
@@ -144,16 +158,9 @@ export async function POST(
       })
       .returning();
 
-    // Update item status to queued
-    await db
-      .update(rmaItems)
-      .set({
-        status: "queued",
-        updatedAt: new Date(),
-      })
-      .where(eq(rmaItems.id, itemId));
-
-    // Enqueue recognition asynchronously - HTTP response returns immediately!
+    // enqueueRmaItem atomically marks the item queued and publishes the job.
+    // Leave the item upload-ready until that transaction commits so retries
+    // can recover if the queue is temporarily unavailable.
     await enqueueRmaItem(itemId);
 
     return NextResponse.json({

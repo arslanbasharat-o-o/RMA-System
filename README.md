@@ -143,18 +143,18 @@ The application version is recorded in `release.json`. Version tags publish a Gi
 
 ## Releases and container images
 
-The current release is [RMA System v0.2.3](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.3). One public GitHub Container Registry package contains separately tagged web and background-worker images:
+The current release is [RMA System v0.2.4](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.4). The public GitHub Container Registry package contains separate web-app and background-worker tags:
 
 | Image | Purpose | Versioned tag | Current tag |
 | --- | --- | --- | --- |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.3` | `latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Background worker | `worker-0.2.3` | `worker-latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.4` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Background worker | `worker-0.2.4` | `worker-latest` |
 
 Pull both images with Docker:
 
 ```bash
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.3
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.3
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.4
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.4
 ```
 
 The [container package page](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system) lists available tags and image details. For an existing Compose installation, set `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the selected tags, then follow [the deployment guide](DEPLOYMENT.md). Releases do not roll out to a server automatically.
