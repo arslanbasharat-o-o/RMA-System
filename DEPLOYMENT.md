@@ -54,6 +54,8 @@ docker compose --profile standalone-proxy up -d caddy
 
 Otherwise, configure the existing reverse proxy to forward HTTPS to the app. Compose binds the app to loopback port 23001; PostgreSQL has no published host port.
 
+The proxy must overwrite `X-Real-IP` with the connecting client address. The login rate limiter trusts that header and deliberately ignores client-supplied `X-Forwarded-For` values. Do not expose the app port publicly or forward an untrusted `X-Real-IP` header from clients.
+
 ## Verify
 
 ```bash

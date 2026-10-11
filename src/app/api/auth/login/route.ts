@@ -4,6 +4,7 @@ import { users } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { verifyPassword } from "@/lib/auth/password";
 import { createSessionToken, getCookieOptions } from "@/lib/auth/session";
+import { getTrustedClientAddress, loginRateLimiter } from "@/lib/auth/login-rate-limiter";
 import { z } from "zod";
 
 const LoginSchema = z.object({
@@ -11,21 +12,11 @@ const LoginSchema = z.object({
   password: z.string().min(1),
 });
 
-// Simple in-memory rate limiter per IP for login
-const ipAttempts = new Map<string, { count: number; lastAttempt: number }>();
-
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for") || "local";
+    const ip = getTrustedClientAddress(req.headers);
     const now = Date.now();
-    const attempts = ipAttempts.get(ip) || { count: 0, lastAttempt: now };
-
-    // Reset after 1 minute
-    if (now - attempts.lastAttempt > 60000) {
-      attempts.count = 0;
-    }
-
-    if (attempts.count >= 10) {
+    if (loginRateLimiter.isLimited(ip, now)) {
       return NextResponse.json(
         { error: "Too many login attempts. Please wait a minute." },
         { status: 429 }
@@ -50,9 +41,7 @@ export async function POST(req: NextRequest) {
       .where(eq(users.email, email.toLowerCase().trim()));
 
     if (!user || !user.active) {
-      attempts.count++;
-      attempts.lastAttempt = now;
-      ipAttempts.set(ip, attempts);
+      loginRateLimiter.recordFailure(ip, now);
       return NextResponse.json(
         { error: "Invalid email or password." },
         { status: 401 }
@@ -61,9 +50,7 @@ export async function POST(req: NextRequest) {
 
     const valid = await verifyPassword(password, user.passwordHash);
     if (!valid) {
-      attempts.count++;
-      attempts.lastAttempt = now;
-      ipAttempts.set(ip, attempts);
+      loginRateLimiter.recordFailure(ip, now);
       return NextResponse.json(
         { error: "Invalid email or password." },
         { status: 401 }
@@ -71,7 +58,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Reset attempts on success
-    ipAttempts.delete(ip);
+    loginRateLimiter.clear(ip);
 
     const token = await createSessionToken({
       userId: user.id,
