@@ -1,8 +1,13 @@
-# RMA Display Identification System
+# RMA System
 
 [![CI](https://img.shields.io/github/actions/workflow/status/arslanbasharat-o-o/RMA-System/ci.yml?branch=main&label=CI)](https://github.com/arslanbasharat-o-o/RMA-System/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/arslanbasharat-o-o/RMA-System?label=release)](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest)
+[![License](https://img.shields.io/github/license/arslanbasharat-o-o/RMA-System)](LICENSE)
+[![Container images](https://img.shields.io/badge/GHCR-public%20images-2496ED?logo=docker&logoColor=white)](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system)
 
-A self-hosted application for receiving returned mobile display assemblies, recording inspection images, and reviewing display-model and vendor-identification results. Recognition runs in a PostgreSQL-backed worker; staff review uncertain matches before treating them as verified.
+RMA System helps repair teams manage returned mobile displays from intake through review. Keep customer and shipment details with each return, capture inspection photos from a phone or computer, and review model and vendor suggestions in one place. Staff can check uncertain results before marking them as verified.
+
+**Start here:** [Try the latest release](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest) · [Get the Docker images](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system) · [Set up a local copy](#quick-start) · [Deploy with Docker](DEPLOYMENT.md)
 
 ![Operations dashboard using synthetic example records](screenshots/dashboard.png)
 
@@ -138,18 +143,18 @@ The application version is recorded in `release.json`. Version tags publish a Gi
 
 ## Releases and container images
 
-The current release is [RMA System v0.2.1](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.1). It includes the application image and a separate background-worker image, published to GitHub Container Registry:
+The current release is [RMA System v0.2.2](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.2). One public GitHub Container Registry package contains separately tagged web and background-worker images:
 
 | Image | Purpose | Versioned tag | Current tag |
 | --- | --- | --- | --- |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.1` | `latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Background worker | `worker-0.2.1` | `worker-latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.2` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Background worker | `worker-0.2.2` | `worker-latest` |
 
 Pull both images with Docker:
 
 ```bash
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.1
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.1
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.2
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.2
 ```
 
 The [container package page](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system) lists available tags and image details. For an existing Compose installation, set `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the selected tags, then follow [the deployment guide](DEPLOYMENT.md). Releases do not roll out to a server automatically.
