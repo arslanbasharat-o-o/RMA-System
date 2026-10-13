@@ -166,16 +166,21 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     // ------------------------------------------------------------------------
     // Step 11, 12, 13 & 14: Real Camera Scanner UI intake & Multi-Image Grouping
     // ------------------------------------------------------------------------
-    // Attach multiple photos (front + back) to Display #1 through scanner file input
-    const fileInput = page.locator('input[type="file"][accept="image/*"]');
-    await fileInput.setInputFiles([
-      { name: "screen1_front.jpg", mimeType: "image/jpeg", buffer: sampleFrontBuffer },
-      { name: "screen1_back.jpg", mimeType: "image/jpeg", buffer: sampleBackBuffer },
-    ]);
+    // Select each side explicitly, just as an operator does in the phone picker.
+    const choosePhoto = async (name: string, buffer: Buffer) => {
+      const chooserPromise = page.waitForEvent("filechooser");
+      await page.getByRole("button", { name: "Photos", exact: true }).click();
+      const chooser = await chooserPromise;
+      await chooser.setFiles({ name, mimeType: "image/jpeg", buffer });
+    };
+    await choosePhoto("screen1_front.jpg", sampleFrontBuffer);
+    await expect(page.getByRole("status")).toContainText("1 photo saved");
+    await page.getByRole("button", { name: "Back", exact: true }).click();
+    await choosePhoto("screen1_back.jpg", sampleBackBuffer);
 
     // Verify both captured angles and the current session photo count.
     await expect(page.getByRole("img", { name: "Front angle 1" })).toBeVisible();
-    await expect(page.getByRole("img", { name: "Label angle 2" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "Back angle 2" })).toBeVisible();
     await expect(page.getByRole("status")).toContainText("2 photos saved");
 
     // Advance to next display in camera scanner
