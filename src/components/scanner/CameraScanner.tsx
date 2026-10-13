@@ -318,7 +318,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
               <button type="button" onClick={nextDisplay} disabled={!canAdvance} className={`${buttonStyle} shrink-0 bg-white text-neutral-950 hover:bg-neutral-200`}>Next display <ArrowRight className="size-4" /></button>
             </div>}
             <div role="status" aria-live="polite" className="mt-2 text-center text-xs text-neutral-400">
-              {saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} photos saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
+              {saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"} saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
             </div>
             {intakeError && <p role="alert" className="mt-2 flex items-center justify-center gap-2 text-xs text-red-300"><AlertCircle className="size-4" />{intakeError}</p>}
           </div>
