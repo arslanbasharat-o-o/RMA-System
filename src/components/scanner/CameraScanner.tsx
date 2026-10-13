@@ -10,6 +10,7 @@ interface CapturedPhoto {
   imageType: "primary" | "back" | "stamp_closeup";
   status: "uploading" | "saved" | "error";
   error?: string;
+  serverImageId?: string;
 }
 
 const angles = [
@@ -33,6 +34,10 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const itemIdRef = useRef<string | null>(null);
   const pendingItem = useRef<Promise<string> | null>(null);
   const captureLock = useRef(false);
+  const pickerAngle = useRef<CapturedPhoto["imageType"]>("primary");
+  const uploadQueue = useRef<Promise<void>>(Promise.resolve());
+  const uploadingPhotos = useRef(new Set<string>());
+  const savedPhotosByImageId = useRef(new Map<string, string>());
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
@@ -123,7 +128,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
     finally { pendingItem.current = null; }
   };
 
-  const uploadPhoto = async (photo: CapturedPhoto) => {
+  const performUpload = async (photo: CapturedPhoto) => {
     setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "uploading", error: undefined } : entry));
     try {
       const itemId = await ensureItem();
@@ -134,12 +139,41 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
       const response = await fetch(`/api/rma-items/${itemId}/upload`, { method: "POST", body: form });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Upload failed. Try again.");
-      setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "saved" } : entry));
+      const serverImageId = data.image?.id;
+      if (typeof serverImageId !== "string" || !serverImageId) {
+        throw new Error("The photo could not be confirmed as saved. Try again.");
+      }
+      const storedAngle = angles.find((entry) => entry.type === data.image?.imageType
+        || (entry.type === "primary" && data.image?.imageType === "front"));
+      if (data.deduplicated) {
+        setIntakeError(`This photo is already saved as ${storedAngle?.label || "an existing angle"}. No duplicate was added. Take a different photo for another side.`);
+      }
+      const existingPhotoId = savedPhotosByImageId.current.get(serverImageId);
+      if (existingPhotoId && existingPhotoId !== photo.id) {
+        URL.revokeObjectURL(photo.previewUrl);
+        previewUrls.current.delete(photo.previewUrl);
+        setPhotos((previous) => previous.filter((entry) => entry.id !== photo.id));
+        return;
+      }
+      savedPhotosByImageId.current.set(serverImageId, photo.id);
+      setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
+        ...entry, status: "saved", serverImageId,
+        imageType: storedAngle?.type || photo.imageType,
+      } : entry));
     } catch (error) {
       setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
         ...entry, status: "error", error: error instanceof Error ? error.message : "Connection lost. Try again.",
       } : entry));
     }
+  };
+
+  const uploadPhoto = (photo: CapturedPhoto) => {
+    if (uploadingPhotos.current.has(photo.id)) return;
+    uploadingPhotos.current.add(photo.id);
+    // Serialize uploads so two selected copies reach server deduplication in order.
+    uploadQueue.current = uploadQueue.current.then(() => performUpload(photo)).finally(() => {
+      uploadingPhotos.current.delete(photo.id);
+    });
   };
 
   const addPhoto = (blob: Blob, imageType: CapturedPhoto["imageType"]) => {
@@ -148,25 +182,25 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
     const photo: CapturedPhoto = { id: crypto.randomUUID(), blob, previewUrl, imageType, status: "uploading" };
     setPhotos((previous) => [...previous, photo]);
     void uploadPhoto(photo);
-    setAngle(imageType === "primary" ? "back" : "stamp_closeup");
   };
 
-  const processFiles = (files: File[]) => {
+  const processFiles = (files: File[], imageType: CapturedPhoto["imageType"]) => {
     if (!customerReady) return;
     setIntakeError(null);
-    files.forEach((file, index) => {
+    files.forEach((file) => {
       if (!file.type.startsWith("image/") || file.size > 25 * 1024 * 1024) {
         setIntakeError("Choose image files smaller than 25 MB.");
         return;
       }
-      addPhoto(file, index === 0 ? angle : "stamp_closeup");
+      addPhoto(file, imageType);
     });
   };
 
   const capture = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!customerReady || !cameraActive || captureLock.current || !video?.videoWidth || !canvas) return;
+    if (!customerReady || !cameraActive || saving || uploadingPhotos.current.size > 0 || captureLock.current || !video?.videoWidth || !canvas) return;
+    const capturedAngle = angle;
     captureLock.current = true;
     setCapturing(true);
     try {
@@ -179,7 +213,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
       if (!blob) throw new Error("Could not capture this photo. Try again.");
       setFlashing(true);
       setIntakeError(null);
-      addPhoto(blob, angle);
+      addPhoto(blob, capturedAngle);
     } catch (error) {
       setIntakeError(error instanceof Error ? error.message : "Capture failed. Try again.");
     } finally { captureLock.current = false; setCapturing(false); }
@@ -189,6 +223,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
     if (!canAdvance) return;
     photos.forEach((photo) => { URL.revokeObjectURL(photo.previewUrl); previewUrls.current.delete(photo.previewUrl); });
     setPhotos([]);
+    savedPhotosByImageId.current.clear();
     itemIdRef.current = null;
     setCompleted((previous) => previous + 1);
     setDisplayNumber((previous) => previous + 1);
@@ -225,7 +260,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
             <div data-testid="camera-viewfinder" className={`relative min-h-40 flex-1 overflow-hidden bg-black ${dragging ? "ring-2 ring-inset ring-emerald-400" : ""}`}
               onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
-              onDrop={(event) => { event.preventDefault(); setDragging(false); processFiles(Array.from(event.dataTransfer.files)); }}>
+              onDrop={(event) => { event.preventDefault(); setDragging(false); processFiles(Array.from(event.dataTransfer.files), angle); }}>
               {/* Keep mounted so the stream always attaches to a real video element. */}
               <video ref={videoRef} autoPlay playsInline muted className={`absolute inset-0 h-full w-full object-contain ${facingMode === "user" ? "-scale-x-100" : ""}`} />
               {cameraActive && <div className="pointer-events-none absolute left-1/2 top-[8%] h-[84%] aspect-[9/16] max-w-[80%] -translate-x-1/2 rounded-2xl border border-white/25">
@@ -258,22 +293,23 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
         <footer className="shrink-0 border-t border-neutral-800 bg-neutral-900 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
           <div className="mx-auto max-w-3xl">
             <div className="flex gap-1 rounded-xl bg-neutral-950 p-1" role="group" aria-label="Photo angle">
-              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} aria-pressed={angle === entry.type}
+              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} disabled={saving} aria-pressed={angle === entry.type}
                 className={`min-h-10 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-white ${angle === entry.type ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}>{entry.label}</button>)}
             </div>
             <p className="mt-2 text-center text-xs leading-5 text-neutral-400">{selectedAngle.hint}</p>
             <div className="mt-2 grid grid-cols-3 items-center justify-items-center">
-              <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
-              <button type="button" onClick={() => void capture()} disabled={!cameraActive || capturing} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
+              <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive || saving} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
+              <button type="button" onClick={() => void capture()} disabled={!cameraActive || saving} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
                 <span className="flex h-full w-full items-center justify-center rounded-full bg-white">{capturing && <Loader2 className="size-5 animate-spin text-neutral-900" />}</span>
               </button>
-              <button type="button" onClick={() => fileInputRef.current?.click()} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
-              <input type="file" ref={fileInputRef} accept="image/*" multiple aria-label="Choose display photos" className="hidden" onChange={(event) => { processFiles(Array.from(event.target.files || [])); event.target.value = ""; }} />
+              <button type="button" disabled={saving} onClick={() => { pickerAngle.current = angle; fileInputRef.current?.click(); }} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
+              <input type="file" ref={fileInputRef} accept="image/*" multiple aria-label="Choose display photos" className="hidden" onChange={(event) => { processFiles(Array.from(event.target.files || []), pickerAngle.current); event.target.value = ""; }} />
             </div>
             {photos.length > 0 && <div className="mt-3 flex items-center gap-3 border-t border-neutral-800 pt-3">
               <div aria-label="Captured photos" className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
                 {photos.map((photo, index) => <div key={photo.id} className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-neutral-700">
                   <img src={photo.previewUrl} alt={`${angles.find((entry) => entry.type === photo.imageType)?.label} angle ${index + 1}`} className="size-full object-cover" />
+                  <span className="absolute top-0 left-0 rounded-br bg-black/80 px-1 text-[10px] text-white">{angles.find((entry) => entry.type === photo.imageType)?.label}</span>
                   {photo.status === "uploading" && <span aria-label="Saving photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><Loader2 className="size-4 animate-spin" /></span>}
                   {photo.status === "saved" && <span aria-label="Photo saved" className="absolute bottom-0 right-0 rounded-tl bg-emerald-700 p-1"><Check className="size-3" /></span>}
                   {photo.status === "error" && <button type="button" aria-label={`Retry photo ${index + 1}`} title={photo.error} onClick={() => void uploadPhoto(photo)} className="absolute inset-0 flex items-center justify-center bg-red-950/90"><RotateCcw className="size-5" /></button>}

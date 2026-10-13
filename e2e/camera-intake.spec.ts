@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
       : path === "/api/rmas" ? { rma: { id: "test-rma", rmaNumber: "RMA-TEST" } }
       : path === "/api/rmas/test-rma" ? { rma: { id: "test-rma", rmaNumber: "RMA-TEST", customerName: "Test Customer" } }
       : path === "/api/rmas/test-rma/items" ? { item: { id: "test-item", itemNumber: 1 } }
-      : path === "/api/rma-items/test-item/upload" ? { success: true, image: { id: "test-image" } }
+      : path === "/api/rma-items/test-item/upload" ? { success: true, image: { id: crypto.randomUUID() } }
       : {};
     await route.fulfill({ json: data });
   });
@@ -61,7 +61,7 @@ test("camera preview, failed upload retry, and progression work without losing p
     if (uploads === 1) {
       await new Promise<void>((resolve) => { releaseUpload = resolve; });
       await route.fulfill({ status: 503, json: { error: "Offline test failure" } });
-    } else await route.fulfill({ json: { success: true, image: { id: "saved" } } });
+    } else await route.fulfill({ json: { success: true, image: { id: `saved-${uploads}` } } });
   });
   await page.goto("/rmas/test-rma/capture");
   await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
@@ -75,7 +75,8 @@ test("camera preview, failed upload retry, and progression work without losing p
   releaseUpload!();
   await page.getByRole("button", { name: "Retry photo 1" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Back", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Front", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "Capture back photo" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
   await page.getByRole("button", { name: "Next display" }).click();
@@ -118,4 +119,56 @@ test("scanner stays usable on a small phone and in landscape", async ({ page }) 
       return box.bottom <= innerHeight && box.top >= 0;
     })).toBe(true);
   }
+});
+
+test("front capture keeps the explicitly selected side", async ({ page }) => {
+  const uploadedSides: string[] = [];
+  await page.route("**/api/rma-items/test-item/upload", async (route) => {
+    const body = route.request().postDataBuffer()!.toString();
+    uploadedSides.push(body.match(/name="imageType"\r\n\r\n([^\r]+)/)![1]);
+    await route.fulfill({ json: { success: true, image: { id: `photo-${uploadedSides.length}` } } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Front", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Capture back photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
+  expect(uploadedSides).toEqual(["primary", "back"]);
+});
+
+test("photo picker preserves the side selected when it opened", async ({ page }) => {
+  let uploadedSide = "";
+  await page.route("**/api/rma-items/test-item/upload", async (route) => {
+    uploadedSide = route.request().postDataBuffer()!.toString().match(/name="imageType"\r\n\r\n([^\r]+)/)![1];
+    await route.fulfill({ json: { success: true, image: { id: "picker-photo" } } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  const chooserPromise = page.waitForEvent("filechooser");
+  await page.getByRole("button", { name: "Photos", exact: true }).click();
+  const chooser = await chooserPromise;
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await chooser.setFiles({ name: "front.png", mimeType: "image/png", buffer: Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64") });
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  expect(uploadedSide).toBe("primary");
+});
+
+test("duplicate upload shows one saved photo with the server side", async ({ page }) => {
+  let uploads = 0;
+  await page.route("**/api/rma-items/test-item/upload", async (route) => {
+    uploads++;
+    await route.fulfill({ json: { success: true, deduplicated: uploads > 1, image: { id: "same-photo", imageType: "primary" } } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Capture back photo" }).click();
+  await expect.poll(() => uploads).toBe(2);
+  await expect(page.getByRole("alert").filter({ hasText: "already saved as Front" })).toBeVisible();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("img", { name: "Front angle 1" })).toBeVisible();
 });

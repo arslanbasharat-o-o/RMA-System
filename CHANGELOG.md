@@ -12,6 +12,7 @@ Changes to the public source are recorded here.
 - Preserve the original source title and rank for visual recognition evidence and show only the latest visual run in the inspection drawer.
 - Keep iPhone Pro and Pro Max identities distinct, recognize abbreviated model listings, and require review when visual sources disagree.
 - Preserve recognition confidence during catalog resolution and leave assembly selection unresolved when several catalog SKUs share the same model.
+- Keep the explicitly selected photo side during capture and phone photo selection; serialize uploads and show duplicate photos only once with their saved side.
 
 ### Verification
 
