@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
 import { db } from "@/db";
-import { users, sessions, customers, rmas, rmaItems, returnReasons, recognitionRuns, recognitionCandidates, reviewActions, itemImages } from "@/db/schema";
+import { users, sessions, customers, rmas, rmaItems, returnReasons, recognitionRuns, recognitionCandidates, reviewActions, itemImages, ocrExtractions } from "@/db/schema";
 import { createSessionToken } from "@/lib/auth/session";
 import { processRmaItem } from "@/lib/queue/processor";
 import { storage } from "@/lib/storage";
@@ -20,10 +20,16 @@ describe("Current item inspection evidence", () => {
     const [reason] = await db.select().from(returnReasons).limit(1);
     const [rma] = await db.insert(rmas).values({ rmaNumber: `QA-${key}`, customerId, returnReasonId: reason.id }).returning();
     rmaId = rma.id;
-    const [item] = await db.insert(rmaItems).values({ rmaId, itemNumber: 1, recognitionRevision: 2 }).returning();
+    const [item] = await db.insert(rmaItems).values({ rmaId, itemNumber: 1, recognitionRevision: 3 }).returning();
     itemId = item.id;
-    const [oldRun] = await db.insert(recognitionRuns).values({ rmaItemId: itemId, recognitionRevision: 1, pipelineType: "visual", providerName: "mock", status: "completed", createdAt: new Date("2026-01-01") }).returning();
+    const [oldRun] = await db.insert(recognitionRuns).values({ rmaItemId: itemId, recognitionRevision: 1, pipelineType: "visual", providerName: "mock", status: "completed", createdAt: new Date("2026-01-03") }).returning();
     const [newRun] = await db.insert(recognitionRuns).values({ rmaItemId: itemId, recognitionRevision: 2, pipelineType: "visual", providerName: "mock", status: "completed", rawResponse: { visual_matches: [{ title: "16Pro lcd screen" }] }, createdAt: new Date("2026-01-02") }).returning();
+    const [oldOcr] = await db.insert(recognitionRuns).values({ rmaItemId: itemId, recognitionRevision: 1, pipelineType: "vendor_ocr", providerName: "mock", status: "completed", createdAt: new Date("2026-01-04") }).returning();
+    const [newOcr] = await db.insert(recognitionRuns).values({ rmaItemId: itemId, recognitionRevision: 3, pipelineType: "vendor_ocr", providerName: "mock", status: "completed", createdAt: new Date("2026-01-02") }).returning();
+    await db.insert(ocrExtractions).values([
+      { rmaItemId: itemId, recognitionRunId: oldOcr.id, rawText: ["Stale OCR"] },
+      { rmaItemId: itemId, recognitionRunId: newOcr.id, rawText: ["Current OCR"] },
+    ]);
     await db.insert(recognitionCandidates).values([
       { rmaItemId: itemId, recognitionRunId: oldRun.id, candidateType: "display_model", candidateTitle: "Old generation", rank: 1 },
       { rmaItemId: itemId, recognitionRunId: newRun.id, candidateType: "display_model", candidateTitle: "Reordered cleaner title Pro Max", rank: 1 },
@@ -44,7 +50,9 @@ describe("Current item inspection evidence", () => {
     const body = await response.json();
     expect(body.candidates).toHaveLength(1);
     expect(body.candidates[0].candidateTitle).toBe("16Pro lcd screen");
-    expect(body.item.recognitionRevision).toBe(2);
+    expect(body.item.recognitionRevision).toBe(3);
+    expect(body.ocrExtractions).toHaveLength(1);
+    expect(body.ocrExtractions[0].rawText).toEqual(["Current OCR"]);
   });
   it("retains an operator model correction when a forced retry returns another model", async () => {
     const stored = await storage.saveImage(Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==", "base64"), "iphone13_ami.jpg", "image/png", `qa-evidence/${itemId}`);
@@ -55,6 +63,8 @@ describe("Current item inspection evidence", () => {
     expect(result.predictedModel).toBe("iPhone 16 Pro");
     expect(result.predictedDisplayAssembly).toBe("Apple iPhone 16 Pro Display");
     expect(result.reviewNotes).toContain("Automated suggestion: iPhone 13 Pro");
+    expect(result.status).toBe("review_required");
+    expect(result.matchStatus).toBe("ambiguous");
     const response = await GET(new NextRequest("http://localhost/api/rma-items/test", { headers: { cookie: `rma_session=${token}` } }), { params: Promise.resolve({ id: itemId }) });
     expect((await response.json()).item.modelSource).toBe("manual");
   });

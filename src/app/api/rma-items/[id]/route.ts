@@ -13,7 +13,7 @@ import {
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
-import { eq, asc, desc, and, inArray } from "drizzle-orm";
+import { eq, asc, desc, and, inArray, lte } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
@@ -72,8 +72,8 @@ export async function GET(
   const runs = await db
     .select()
     .from(recognitionRuns)
-    .where(eq(recognitionRuns.rmaItemId, id))
-    .orderBy(desc(recognitionRuns.createdAt));
+    .where(and(eq(recognitionRuns.rmaItemId, id), lte(recognitionRuns.recognitionRevision, item.recognitionRevision)))
+    .orderBy(desc(recognitionRuns.recognitionRevision), desc(recognitionRuns.createdAt));
 
   const latestOcrRun = runs.find((run) => run.pipelineType === "vendor_ocr");
   const currentOcrRunIds = runs.filter((run) =>

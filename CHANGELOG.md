@@ -2,7 +2,7 @@
 
 Changes to the public source are recorded here.
 
-## [0.2.5] - 2026-10-13
+## [0.2.5] - 2026-10-14
 
 ### Fixed
 

@@ -448,6 +448,17 @@ export async function processRmaItem(
   const manualModel = getManualModelOverride(modelReviews);
   if (manualModel) {
     unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}. Automated suggestion: ${unified.predictedModel || "unresolved"}.`);
+    const normalize = (value: string | null) => (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const modelConflict = normalize(manualModel.predictedModel) !== normalize(unified.predictedModel) ||
+      normalize(manualModel.predictedManufacturer) !== normalize(unified.predictedManufacturer) ||
+      (manualModel.catalogDisplayId && manualModel.catalogDisplayId !== unified.catalogDisplayId);
+    if (modelConflict) {
+      finalItemStatus = "review_required";
+      unified.overallMatchStatus = "ambiguous";
+      unified.evidenceNotes.push("Automated recognition conflicts with the retained operator correction. Review the new evidence before accepting it.");
+    } else if (!manualModel.catalogDisplayId) {
+      finalItemStatus = "review_required";
+    }
   }
   await updateItemForRevision(itemId, revision, {
       predictedManufacturer: unified.predictedManufacturer,

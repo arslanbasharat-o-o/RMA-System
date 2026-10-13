@@ -182,8 +182,11 @@ export function matchDisplayToCatalog(
     });
     // A device family can have several catalog assemblies. Do not invent a
     // technology/SKU by selecting whichever row the database returned first.
-    if (exactMatches.length > 1) return null;
-    if (exactMatches.length === 1) {
+    const selectedAppleModel = extractAppleModels(mdl)[0];
+    const familyMatches = selectedAppleModel ? catalog.filter((item) =>
+      compactSlug(item.manufacturer) === normMfg && extractAppleModels(item.modelName)[0] === selectedAppleModel
+    ) : exactMatches;
+    if (exactMatches.length === 1 && familyMatches.length === 1) {
         const item = exactMatches[0];
         return {
           catalogId: item.id,
@@ -216,6 +219,7 @@ export function matchDisplayToCatalog(
     const querySlug = compactSlug(query);
     if (!title && !querySlug) continue;
 
+    const specificity = new Map<string, number>();
     const matches = catalog.filter((item) => {
       if (mfg && mdl) {
         if (compactSlug(item.manufacturer) !== compactSlug(mfg)) return false;
@@ -241,11 +245,12 @@ export function matchDisplayToCatalog(
       if (item.internalSku) {
         const skuSlug = compactSlug(item.internalSku);
         if (skuSlug && containsModelPhrase(query, item.internalSku)) {
+          specificity.set(item.id, 1000 + skuSlug.length);
           return true;
         }
       }
 
-      return (item.aliases || []).some((alias) => {
+      const matchingAliases = (item.aliases || []).filter((alias) => {
         const normalizedAlias = normalizeModelText(alias);
         const aliasSlug = compactSlug(alias);
         if (!normalizedAlias || !aliasSlug) return false;
@@ -258,10 +263,15 @@ export function matchDisplayToCatalog(
           querySlug === aliasSlug
         );
       });
+      if (!matchingAliases.length) return false;
+      specificity.set(item.id, Math.max(...matchingAliases.map((alias) => normalizeModelText(alias).length)));
+      return true;
     });
 
-    if (matches.length === 1) {
-      const item = matches[0];
+    const bestSpecificity = Math.max(0, ...specificity.values());
+    const strongestMatches = matches.filter((item) => specificity.get(item.id) === bestSpecificity);
+    if (strongestMatches.length === 1) {
+      const item = strongestMatches[0];
       return {
         catalogId: item.id,
         manufacturer: item.manufacturer,
