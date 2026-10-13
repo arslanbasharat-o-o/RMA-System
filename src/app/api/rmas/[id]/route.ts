@@ -138,6 +138,10 @@ export async function GET(
     rma,
     items: itemsWithImages,
     stats,
+  }, {
+    headers: {
+      "Cache-Control": "private, no-store, max-age=0, must-revalidate",
+    },
   });
 }
 

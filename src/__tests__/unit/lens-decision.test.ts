@@ -45,7 +45,8 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.manufacturer).toBe("Apple");
       expect(decision.model).toBe("iPhone 13 Pro");
       expect(decision.displayName).toBe("Apple iPhone 13 Pro Display");
-      expect(decision.confidence).toBeGreaterThanOrEqual(0.8);
+      expect(decision.confidence).toBeLessThan(0.5);
+      expect(decision.reasoning).toContain("different devices");
       expect(decision.cleanedCandidates.length).toBeGreaterThan(0);
       expect(decision.cleanedCandidates[0]).not.toContain("eBay");
     });
@@ -120,6 +121,51 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
   });
 
   describe("cleanVisualCandidatesWithOpenAi", () => {
+    it("preserves the leading 16Pro evidence despite conflicting Pro Max and other generations", async () => {
+      const candidates: VisualCandidate[] = [
+        { title: "16Pro bad lcd Bad glass, lcd damage, only screen", rank: 1 },
+        { title: "iPhone 17 A3520 OLED Assembly", rank: 2 },
+        { title: "iPhone 16 Pro Max screen replacement", rank: 4 },
+        { title: "iPhone 16 Pro Screen", rank: 9 },
+      ];
+      const decision = await cleanVisualCandidatesWithOpenAi(candidates, { isMock: true });
+      expect(decision.model).toBe("iPhone 16 Pro");
+      expect(decision.confidence).toBeLessThan(0.5);
+      expect(decision.cleanedCandidates).toHaveLength(candidates.length);
+      expect(decision.cleanedCandidates[0]).toContain("16Pro");
+      expect(decision.cleanedCandidates[1]).toContain("iPhone 17");
+    });
+
+    it("keeps a consistent Pro Max identity distinct from Pro", async () => {
+      const decision = await cleanVisualCandidatesWithOpenAi([
+        { title: "iPhone 16 Pro Max OLED Screen", rank: 1 },
+        { title: "16ProMax lcd display", rank: 2 },
+      ], { isMock: true });
+      expect(decision.model).toBe("iPhone 16 Pro Max");
+      expect(decision.confidence).toBeGreaterThan(0.8);
+    });
+
+    it("does not mistake a leading Pixel or Galaxy result for an iPhone shorthand", () => {
+      expect(cleanVisualCandidatesHeuristic([
+        { title: "Google Pixel 7 Pro OLED Screen", rank: 1 },
+        { title: "Apple iPhone 16 Pro Display", rank: 2 },
+      ]).model).toBe("Pixel 7 Pro");
+    });
+
+    it("treats Pro / Pro Max shorthand compatibility as multiple variants", () => {
+      const decision = cleanVisualCandidatesHeuristic([{ title: "iPhone 16 Pro / Pro Max screen parts", rank: 1 }]);
+      expect(decision.model).toBeNull();
+      expect(decision.confidence).toBeLessThan(0.5);
+    });
+
+    it("does not decide a device from a multi-device compatibility listing", async () => {
+      const decision = await cleanVisualCandidatesWithOpenAi([
+        { title: "iPhone 16 Pro / iPhone 16 Pro Max screen parts", rank: 1 },
+      ], { isMock: true });
+      expect(decision.model).toBeNull();
+      expect(decision.confidence).toBeLessThan(0.5);
+    });
+
     it("should seamlessly fall back to heuristic when in test mode without throwing", async () => {
       const candidates: VisualCandidate[] = [
         {

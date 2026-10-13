@@ -1,6 +1,7 @@
 import { VisualIdentificationResult } from "./lens/types";
 import { OcrStructuredOutput } from "./openai/types";
 import { VendorMatchResult } from "./rules/types";
+import { extractAppleModels } from "./lens/model-evidence";
 
 export interface CatalogDisplayMatch {
   catalogId: string;
@@ -51,6 +52,7 @@ export interface UnifiedIdentificationResult {
 function normalizeModelText(value: string): string {
   return value
     .toLowerCase()
+    .replace(/pro\s*max/g, "pro max")
     .replace(/([a-z])([0-9])/g, "$1 $2")
     .replace(/([0-9])([a-z])/g, "$1 $2")
     .replace(/[^a-z0-9]+/g, " ")
@@ -158,7 +160,7 @@ export function matchDisplayToCatalog(
     const normSearchModel = compactSlug(mdl);
     const normMfg = compactSlug(mfg);
 
-    for (const item of catalog) {
+    const exactMatches = catalog.filter((item) => {
       const normCatFull = compactSlug(`${item.manufacturer} ${item.modelName}`);
       const normCatModel = compactSlug(item.modelName);
       const normCatMfg = compactSlug(item.manufacturer);
@@ -176,7 +178,16 @@ export function matchDisplayToCatalog(
         normSearchFull === normCatModel ||
         normSearchModel === normCatFull;
 
-      if (normSearchFull === normCatFull || (normMfg === normCatMfg && isModelMatch)) {
+      return normSearchFull === normCatFull || (normMfg === normCatMfg && isModelMatch);
+    });
+    // A device family can have several catalog assemblies. Do not invent a
+    // technology/SKU by selecting whichever row the database returned first.
+    const selectedAppleModel = extractAppleModels(mdl)[0];
+    const familyMatches = selectedAppleModel ? catalog.filter((item) =>
+      compactSlug(item.manufacturer) === normMfg && extractAppleModels(item.modelName)[0] === selectedAppleModel
+    ) : exactMatches;
+    if (exactMatches.length === 1 && familyMatches.length === 1) {
+        const item = exactMatches[0];
         return {
           catalogId: item.id,
           manufacturer: item.manufacturer,
@@ -184,10 +195,9 @@ export function matchDisplayToCatalog(
           normalizedIdentifier: item.normalizedModelIdentifier,
           displayTechnology: item.displayTechnology,
           internalSku: item.internalSku,
-          confidenceScore: 0.95,
+          confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.95),
           matchType: "exact",
         };
-      }
     }
   }
 
@@ -209,7 +219,21 @@ export function matchDisplayToCatalog(
     const querySlug = compactSlug(query);
     if (!title && !querySlug) continue;
 
+    const specificity = new Map<string, number>();
     const matches = catalog.filter((item) => {
+      if (mfg && mdl) {
+        if (compactSlug(item.manufacturer) !== compactSlug(mfg)) return false;
+        const selectedApple = extractAppleModels(mdl);
+        const catalogApple = extractAppleModels(item.modelName);
+        const cleanModel = item.modelName.toLowerCase().startsWith(item.manufacturer.toLowerCase())
+          ? item.modelName.slice(item.manufacturer.length).trim() : item.modelName;
+        const sameModel = compactSlug(cleanModel) === compactSlug(mdl) ||
+          (item.aliases || []).some((alias) => compactSlug(alias) === compactSlug(mdl)) ||
+          (selectedApple.length === 1 && catalogApple.length === 1 && selectedApple[0] === catalogApple[0]);
+        // Lower-ranked sources may suggest a different device. They cannot
+        // replace the chosen identity merely because that SKU is in the catalog.
+        if (!sameModel) return false;
+      }
       const itemMfg = normalizeModelText(item.manufacturer);
       const itemMfgSlug = compactSlug(item.manufacturer);
       const manufacturerPresent =
@@ -220,12 +244,13 @@ export function matchDisplayToCatalog(
       // SKU direct match
       if (item.internalSku) {
         const skuSlug = compactSlug(item.internalSku);
-        if (skuSlug && (querySlug.includes(skuSlug) || skuSlug.includes(querySlug))) {
+        if (skuSlug && containsModelPhrase(query, item.internalSku)) {
+          specificity.set(item.id, 1000 + skuSlug.length);
           return true;
         }
       }
 
-      return (item.aliases || []).some((alias) => {
+      const matchingAliases = (item.aliases || []).filter((alias) => {
         const normalizedAlias = normalizeModelText(alias);
         const aliasSlug = compactSlug(alias);
         if (!normalizedAlias || !aliasSlug) return false;
@@ -234,15 +259,19 @@ export function matchDisplayToCatalog(
         if (/^\d+$/.test(normalizedAlias) && !manufacturerPresent) return false;
 
         return (
-          ` ${title} `.includes(` ${normalizedAlias} `) ||
-          querySlug === aliasSlug ||
-          (manufacturerPresent && querySlug.includes(aliasSlug) && aliasSlug.length >= 4)
+          containsModelPhrase(query, alias) ||
+          querySlug === aliasSlug
         );
       });
+      if (!matchingAliases.length) return false;
+      specificity.set(item.id, Math.max(...matchingAliases.map((alias) => normalizeModelText(alias).length)));
+      return true;
     });
 
-    if (matches.length === 1) {
-      const item = matches[0];
+    const bestSpecificity = Math.max(0, ...specificity.values());
+    const strongestMatches = matches.filter((item) => specificity.get(item.id) === bestSpecificity);
+    if (strongestMatches.length === 1) {
+      const item = strongestMatches[0];
       return {
         catalogId: item.id,
         manufacturer: item.manufacturer,
@@ -250,18 +279,19 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: item.displayTechnology,
         internalSku: item.internalSku,
-        confidenceScore: 0.88,
+        confidenceScore: Math.min(0.88, visualResult.cleanDecision?.confidence ?? 0.88),
         matchType: "alias",
       };
     } else if (matches.length > 1) {
       // If multiple variants match, pick exact base model match if available
-      const exactMdlMatch = matches.find(
+      const exactMdlMatches = matches.filter(
         (m) =>
           mdl &&
           (compactSlug(m.modelName) === compactSlug(mdl) ||
             compactSlug(`${m.manufacturer} ${m.modelName}`) === compactSlug(`${mfg} ${mdl}`))
       );
-      if (exactMdlMatch) {
+      if (exactMdlMatches.length === 1) {
+        const exactMdlMatch = exactMdlMatches[0];
         return {
           catalogId: exactMdlMatch.id,
           manufacturer: exactMdlMatch.manufacturer,
@@ -269,40 +299,10 @@ export function matchDisplayToCatalog(
           normalizedIdentifier: exactMdlMatch.normalizedModelIdentifier,
           displayTechnology: exactMdlMatch.displayTechnology,
           internalSku: exactMdlMatch.internalSku,
-          confidenceScore: 0.9,
+          confidenceScore: Math.min(0.9, visualResult.cleanDecision?.confidence ?? 0.9),
           matchType: "exact",
         };
       }
-    }
-  }
-
-  // 4. Fourth priority: Containment matching for base device model
-  if (mfg && mdl) {
-    const targetMfgSlug = compactSlug(mfg);
-    const targetModelSlug = compactSlug(mdl);
-
-    const containmentCandidates = catalog.filter((item) => {
-      if (compactSlug(item.manufacturer) !== targetMfgSlug) return false;
-      const itemMdlSlug = compactSlug(item.modelName);
-      return itemMdlSlug.includes(targetModelSlug) || targetModelSlug.includes(itemMdlSlug);
-    });
-
-    if (containmentCandidates.length > 0) {
-      // Pick shortest model name (closest to base model)
-      containmentCandidates.sort(
-        (a, b) => a.modelName.length - b.modelName.length
-      );
-      const best = containmentCandidates[0];
-      return {
-        catalogId: best.id,
-        manufacturer: best.manufacturer,
-        modelName: best.modelName,
-        normalizedIdentifier: best.normalizedModelIdentifier,
-        displayTechnology: best.displayTechnology,
-        internalSku: best.internalSku,
-        confidenceScore: 0.82,
-        matchType: "candidate",
-      };
     }
   }
 
@@ -372,6 +372,9 @@ export function synthesizeRecognition(
   } else {
     evidenceNotes.push("Display model could not be verified in internal catalog.");
   }
+  if (displayMatch && visualResult?.cleanDecision?.reasoning) {
+    evidenceNotes.push(visualResult.cleanDecision.reasoning);
+  }
 
   // Vendor assignment
   const identifiedVendorId = vendorMatch.vendorId;
@@ -384,6 +387,10 @@ export function synthesizeRecognition(
 
   // Check for contradiction or provider failure
   let hasContradiction = false;
+  if (visualResult?.cleanDecision && visualResult.cleanDecision.confidence < 0.5 && displayMatch?.matchType !== "part_number") {
+    hasContradiction = true;
+    evidenceNotes.push("Visual matches conflict; the device model requires human review.");
+  }
   if (visualResult?.error) {
     hasContradiction = true;
     evidenceNotes.push(

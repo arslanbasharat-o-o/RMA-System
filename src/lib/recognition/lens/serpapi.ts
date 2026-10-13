@@ -150,7 +150,9 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
       });
 
       const finalManufacturer = cleanDecision.manufacturer || extracted.manufacturer;
-      const finalModel = cleanDecision.model || extracted.model;
+      const finalModel = cleanDecision.confidence < 0.5
+        ? cleanDecision.model || undefined
+        : cleanDecision.model || extracted.model;
 
       return {
         provider: this.name,
@@ -162,7 +164,7 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
           cleanDecision.displayName ||
           (finalModel ? `${finalManufacturer} ${finalModel} Display` : undefined),
         usedQuery: queryUsed || undefined,
-        rawResponse: data as Record<string, unknown>,
+        rawResponse: { ...data, cleanDecision },
         durationMs: Date.now() - startTime,
       };
     } catch (err: unknown) {
