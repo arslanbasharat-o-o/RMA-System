@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, use } from "react";
+import React, { useState, use, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -20,6 +20,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { toast } from "sonner";
+import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 
 export default function RmaDetailPage({
   params,
@@ -34,32 +35,26 @@ export default function RmaDetailPage({
   const [inspectingItemId, setInspectingItemId] = useState<string | null>(null);
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
 
-  const fetchRmaData = async () => {
-    try {
-      const res = await fetch(`/api/rmas/${rmaId}`);
-      if (res.status === 401) {
-        window.location.assign("/login");
-        return;
-      }
-      if (res.ok) {
-        const json = await res.json();
-        setData(json);
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchRmaData();
-    // Poll every 4 seconds if items are in processing/queued
-    const interval = setInterval(() => {
-      fetchRmaData();
-    }, 4000);
-    return () => clearInterval(interval);
+    setData(null);
+    setLoading(true);
+    setSelectedItemIds([]);
+    setInspectingItemId(null);
   }, [rmaId]);
+
+  const { refreshNow: fetchRmaData, refreshError } = useLiveRefresh(rmaId, async (signal) => {
+    const res = await fetch(`/api/rmas/${rmaId}`, { cache: "no-store", signal });
+    if (res.status === 401) {
+      window.location.assign("/login");
+      return false;
+    }
+    if (!res.ok) throw new Error("Could not refresh this RMA.");
+    const json = await res.json();
+    if (signal.aborted) return;
+    setData(json);
+    setLoading(false);
+    return json.stats?.processing > 0;
+  });
 
   const { rma, items = [], stats = {} } = data || {};
 
@@ -144,6 +139,13 @@ export default function RmaDetailPage({
     }
   };
 
+  if (!data && refreshError) return <AppShell>
+    <div role="alert" className="space-y-3 p-4">
+      <p>Could not load this RMA. Check your connection and try again.</p>
+      <Button onClick={fetchRmaData}>Try again</Button>
+    </div>
+  </AppShell>;
+
   if (loading && !data) {
     return (
       <AppShell>
@@ -168,6 +170,10 @@ export default function RmaDetailPage({
   return (
     <AppShell>
       <div className="space-y-6">
+        {refreshError && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+          <span>Connection interrupted. Retrying updates…</span>
+          <Button size="sm" variant="outline" onClick={fetchRmaData}>Refresh</Button>
+        </div>}
         {/* Breadcrumb & Navigation */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Link

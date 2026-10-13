@@ -24,13 +24,13 @@ export class MockLensProvider implements DisplayVisualRecognitionProvider {
         rank: 1,
       },
       {
-        title: "Apple iPhone 13 Pro Max Display Panel",
-        sourceUrl: "https://example.com/item/iphone-13-pro-max-screen",
+        title: "Apple iPhone 13 Pro Display Panel",
+        sourceUrl: "https://example.com/item/iphone-13-pro-panel",
         rank: 2,
       },
       {
-        title: "iPhone 13 Standard In-cell LCD Screen",
-        sourceUrl: "https://example.com/item/iphone-13-screen",
+        title: "iPhone 13 Pro OLED Screen",
+        sourceUrl: "https://example.com/item/iphone-13-pro-oled",
         rank: 3,
       },
     ];

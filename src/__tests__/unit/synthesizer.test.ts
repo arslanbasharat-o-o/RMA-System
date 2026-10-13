@@ -60,6 +60,39 @@ describe("Unified Synthesizer", () => {
     expect(match?.matchType).toBe("alias");
   });
 
+  it("does not promote a low-confidence visual decision to a 95 percent catalog match", () => {
+    const visual: VisualIdentificationResult = {
+      provider: "mock", candidates: [], durationMs: 0, rawResponse: {},
+      cleanDecision: { manufacturer: "Apple", model: "iPhone 13 Pro", displayName: "Apple iPhone 13 Pro Display", confidence: 0.35, cleanedCandidates: [], reasoning: "Conflicting models" },
+    };
+    expect(matchDisplayToCatalog(visual, catalog)?.confidenceScore).toBe(0.35);
+  });
+
+  it("leaves assembly selection unresolved when the same device has several catalog SKUs", () => {
+    const visual: VisualIdentificationResult = {
+      provider: "mock", candidates: [], durationMs: 0, rawResponse: {},
+      normalizedManufacturer: "Apple", normalizedModel: "iPhone 13 Pro",
+    };
+    expect(matchDisplayToCatalog(visual, [catalog[0], { ...catalog[0], id: "different-sku", displayTechnology: "LCD" }])).toBeNull();
+  });
+
+  it("never extends Pro to Pro Max when the requested model is missing from the catalog", () => {
+    const visual: VisualIdentificationResult = {
+      provider: "mock", candidates: [{ title: "iPhone 16 Pro Max Display", rank: 2 }], durationMs: 0, rawResponse: {},
+      normalizedManufacturer: "Apple", normalizedModel: "iPhone 16 Pro",
+    };
+    expect(matchDisplayToCatalog(visual, [{ ...catalog[0], modelName: "iPhone 16 Pro Max", aliases: ["iPhone16ProMax"] }])).toBeNull();
+  });
+
+  it("resolves a unique assembly SKU even when device model names are duplicated", () => {
+    const visual: VisualIdentificationResult = {
+      provider: "mock", candidates: [{ title: "DISP-IP13P-LCD", rank: 1 }], durationMs: 0, rawResponse: {},
+      normalizedManufacturer: "Apple", normalizedModel: "iPhone 13 Pro",
+    };
+    const variants = [catalog[0], { ...catalog[0], id: "lcd-variant", internalSku: "DISP-IP13P-LCD", displayTechnology: "LCD" }];
+    expect(matchDisplayToCatalog(visual, variants)?.catalogId).toBe("lcd-variant");
+  });
+
   it("does not match a numeric alias without the matching manufacturer", () => {
     const visualResult: VisualIdentificationResult = {
       provider: "mock",

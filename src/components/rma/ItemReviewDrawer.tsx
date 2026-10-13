@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Check,
@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import { motion } from "motion/react";
 import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants";
+import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 
 export function ItemReviewDrawer({
@@ -45,6 +46,8 @@ export function ItemReviewDrawer({
   const [saving, setSaving] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const editing = useRef(false);
+  const optionsLoaded = useRef(false);
 
   // Prevent background scroll-locking bugs
   useScrollLock(true);
@@ -69,43 +72,42 @@ export function ItemReviewDrawer({
   }, [zoomedImage, showDeleteConfirm, onClose]);
 
   useEffect(() => {
-    const controller = new AbortController();
-
-    async function loadData() {
-      setLoading(true);
-      try {
-        const [itemRes, catRes, venRes] = await Promise.all([
-          fetch(`/api/rma-items/${itemId}`, { signal: controller.signal }),
-          fetch(`/api/display-catalog`, { signal: controller.signal }),
-          fetch(`/api/vendors`, { signal: controller.signal }),
-        ]);
-
-        const itemJson = await itemRes.json();
-        const catJson = await catRes.json();
-        const venJson = await venRes.json();
-
-        if (controller.signal.aborted) return;
-
-        setData(itemJson);
-        setCatalogList(catJson.catalog || []);
-        setVendorList(venJson.vendors || []);
-
-        setSelectedCatalogId(itemJson.item.catalogDisplayId || "");
-        setSelectedVendorId(itemJson.item.identifiedVendorId || "");
-        setSelectedVariantId(itemJson.item.identifiedVendorVariantId || "");
-        setReviewNotes(itemJson.item.reviewNotes || "");
-      } catch (err) {
-        if (!controller.signal.aborted) {
-          console.error("Failed to load item review data:", err);
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    }
-    loadData();
-
-    return () => controller.abort();
+    editing.current = false;
+    optionsLoaded.current = false;
+    setLoading(true);
+    setData(null);
   }, [itemId]);
+
+  const { refreshNow, refreshError } = useLiveRefresh(itemId, async (signal) => {
+    const response = await fetch(`/api/rma-items/${itemId}`, { signal, cache: "no-store" });
+    if (response.status === 401) { window.location.assign("/login"); return false; }
+    if (!response.ok) throw new Error("Could not load the display item.");
+    const itemJson = await response.json();
+    if (!itemJson.item) throw new Error("Display item is unavailable.");
+    if (signal.aborted) return;
+    setData(itemJson);
+    setLoading(false);
+    // Live recognition updates must never erase a correction being typed.
+    if (!editing.current) {
+      setSelectedCatalogId(itemJson.item.catalogDisplayId || "");
+      setSelectedVendorId(itemJson.item.identifiedVendorId || "");
+      setSelectedVariantId(itemJson.item.identifiedVendorVariantId || "");
+      setReviewNotes(itemJson.item.reviewNotes || "");
+    }
+    if (!optionsLoaded.current) {
+      const [catRes, venRes] = await Promise.all([
+        fetch("/api/display-catalog", { signal, cache: "no-store" }),
+        fetch("/api/vendors", { signal, cache: "no-store" }),
+      ]);
+      if (!catRes.ok || !venRes.ok) throw new Error("Could not load review options.");
+      const [catJson, venJson] = await Promise.all([catRes.json(), venRes.json()]);
+      if (signal.aborted) return;
+      setCatalogList(catJson.catalog || []);
+      setVendorList(venJson.vendors || []);
+      optionsLoaded.current = true;
+    }
+    return ["queued", "processing", "uploaded"].includes(itemJson.item.status);
+  });
 
   const handleApplyCorrection = async (action: string) => {
     setSaving(true);
@@ -177,7 +179,7 @@ export function ItemReviewDrawer({
     }
   };
 
-  if (loading) {
+  if (loading && !refreshError) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-end">
         <div
@@ -196,6 +198,13 @@ export function ItemReviewDrawer({
       </div>
     );
   }
+
+  if (!data && refreshError) return <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/60 p-4">
+    <div role="alert" className="rounded-xl bg-white p-5 text-neutral-900 dark:bg-neutral-900 dark:text-white">
+      <p>Could not load this display. Check your connection and try again.</p>
+      <div className="mt-4 flex gap-2"><Button onClick={refreshNow}>Try again</Button><Button variant="outline" onClick={onClose}>Close</Button></div>
+    </div>
+  </div>;
 
   const { item, images, candidates, ocrExtractions, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
@@ -234,7 +243,7 @@ export function ItemReviewDrawer({
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
+            className="flex min-h-11 min-w-11 items-center justify-center rounded-lg text-neutral-400 hover:text-neutral-900 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
             aria-label="Close drawer"
           >
             <X className="h-4 w-4 shrink-0" />
@@ -242,7 +251,13 @@ export function ItemReviewDrawer({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:p-6 space-y-4 sm:space-y-6">
+          {refreshError && <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
+            <span>Connection interrupted. Retrying updates…</span><Button size="sm" variant="outline" onClick={refreshNow}>Refresh</Button>
+          </div>}
+          {["queued", "processing"].includes(item?.status) && <p role="status" aria-live="polite" className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
+            {item.status === "queued" ? "Waiting to analyze this display…" : item.visualStatus === "pending" ? "Searching for the display model…" : item.vendorOcrStatus === "pending" ? "Visual search finished. Reading display markings…" : "Preparing recognition results…"} Results update here automatically.
+          </p>}
           {/* Images Gallery */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-2">
@@ -283,7 +298,7 @@ export function ItemReviewDrawer({
               </div>
               <div className="flex items-center gap-1.5">
                 <Badge variant="outline">
-                  {item?.modelConfidenceScore
+                  {item?.modelSource === "manual" ? "Operator corrected" : item?.modelConfidenceScore
                     ? `${Math.round(item.modelConfidenceScore * 100)}% Match`
                     : "Unresolved"}
                 </Badge>
@@ -293,7 +308,7 @@ export function ItemReviewDrawer({
             <div className="p-2.5 rounded-md bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 shadow-xs">
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wider">
-                  Definitive Display Name
+                  Suggested Display Name
                 </span>
                 {(() => {
                   const matched = catalogList.find(
@@ -386,8 +401,9 @@ export function ItemReviewDrawer({
                 Select Verified Display Model:
               </label>
               <Select
+                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
                 value={selectedCatalogId}
-                onChange={(e) => setSelectedCatalogId(e.target.value)}
+                onChange={(e) => { editing.current = true; setSelectedCatalogId(e.target.value); }}
               >
                 <option value="">-- Leave as current --</option>
                 {catalogList.map((cat) => (
@@ -405,8 +421,10 @@ export function ItemReviewDrawer({
                   Vendor:
                 </label>
                 <Select
+                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
                   value={selectedVendorId}
                   onChange={(e) => {
+                    editing.current = true;
                     setSelectedVendorId(e.target.value);
                     setSelectedVariantId("");
                   }}
@@ -425,8 +443,9 @@ export function ItemReviewDrawer({
                   Variant:
                 </label>
                 <Select
+                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
                   value={selectedVariantId}
-                  onChange={(e) => setSelectedVariantId(e.target.value)}
+                  onChange={(e) => { editing.current = true; setSelectedVariantId(e.target.value); }}
                   disabled={!selectedVendorId}
                 >
                   <option value="">-- None / Unresolved --</option>
@@ -447,9 +466,9 @@ export function ItemReviewDrawer({
               <input
                 type="text"
                 value={reviewNotes}
-                onChange={(e) => setReviewNotes(e.target.value)}
+                onChange={(e) => { editing.current = true; setReviewNotes(e.target.value); }}
                 placeholder="e.g. Verified genuine AMI aftermarket ink stamp"
-                className="w-full text-xs h-8 px-2.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-400"
+                className="w-full text-base sm:text-xs min-h-11 sm:min-h-0 h-8 px-2.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-400"
               />
             </div>
 

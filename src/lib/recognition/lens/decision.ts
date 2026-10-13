@@ -18,6 +18,7 @@ export interface DecisionContext {
 }
 
 import { cleanRawCandidateTitle } from "./cleaner-utils";
+import { appleVisualEvidence } from "./model-evidence";
 export { cleanRawCandidateTitle };
 
 /**
@@ -39,13 +40,8 @@ export function cleanVisualCandidatesHeuristic(
     };
   }
 
-  const cleanedTitles: string[] = [];
-  for (const c of candidates) {
-    const cleaned = cleanRawCandidateTitle(c.title);
-    if (cleaned && !cleanedTitles.includes(cleaned)) {
-      cleanedTitles.push(cleaned);
-    }
-  }
+  const cleanedTitles = candidates.map((candidate) => cleanRawCandidateTitle(candidate.title));
+  const appleEvidence = appleVisualEvidence(candidates);
 
   // Combine top candidate texts for device identification
   const combinedText = candidates
@@ -58,19 +54,9 @@ export function cleanVisualCandidatesHeuristic(
   let model: string | null = null;
 
   // Apple detection
-  const appleMatch = combinedText.match(
-    /\biphone\s*(\d{1,2}|se|xr|xs|x)\s*(pro\s*max|pro|plus|mini|max)?\b/i
-  );
-  if (appleMatch) {
+  if (appleEvidence) {
     manufacturer = "Apple";
-    const gen = appleMatch[1].toUpperCase();
-    const suffix = (appleMatch[2] || "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .split(" ")
-      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
-      .join(" ");
-    model = `iPhone ${gen}${suffix ? " " + suffix : ""}`;
+    model = appleEvidence.model;
   } else if (/\bipad\b/i.test(combinedText)) {
     manufacturer = "Apple";
     const ipadMatch = combinedText.match(/\bipad\s*(air\s*\d*|pro\s*\d*|mini\s*\d*|\d+)?\b/i);
@@ -168,17 +154,17 @@ export function cleanVisualCandidatesHeuristic(
       : `${cleanModelForDisplay} Display`
     : cleanedTitles[0] || "Unidentified Display";
 
-  const confidence = model ? 0.88 : 0.45;
+  const confidence = appleEvidence?.confidence ?? (model ? 0.88 : 0.45);
 
   return {
     manufacturer,
     model: cleanModelForDisplay || model,
     displayName,
     confidence,
-    cleanedCandidates: cleanedTitles.slice(0, 5),
-    reasoning: model
+    cleanedCandidates: cleanedTitles,
+    reasoning: appleEvidence?.reasoning || (model
       ? `Visual candidates consistently match ${manufacturer} ${cleanModelForDisplay || model}.`
-      : "Visual candidates lacked a definitive model consensus.",
+      : "Visual candidates lacked a definitive model consensus."),
   };
 }
 
@@ -198,6 +184,12 @@ export async function cleanVisualCandidatesWithOpenAi(
 ): Promise<CleanDisplayDecision> {
   if (!candidates || candidates.length === 0) {
     return cleanVisualCandidatesHeuristic([], context);
+  }
+
+  // Named Apple variants are source evidence, not text for an LLM to rewrite.
+  // Mixed Pro / Pro Max results remain a low-confidence suggestion for review.
+  if (appleVisualEvidence(candidates)) {
+    return cleanVisualCandidatesHeuristic(candidates, context);
   }
 
   const apiKey = process.env.OPENAI_API_KEY;

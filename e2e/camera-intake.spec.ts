@@ -18,7 +18,8 @@ test.beforeEach(async ({ page }) => {
   });
   await page.addInitScript(() => {
     // Synthetic local media: no physical camera, recognition API, or real uploads.
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: async () => {
+    // Patch the prototype because WebKit may return a fresh MediaDevices wrapper.
+    Object.defineProperty(Object.getPrototypeOf(navigator.mediaDevices), "getUserMedia", { configurable: true, value: async () => {
       const canvas = document.createElement("canvas");
       canvas.width = 720; canvas.height = 960;
       const ctx = canvas.getContext("2d")!;
@@ -94,7 +95,7 @@ test("customerless capture never opens camera or starts upload", async ({ page }
 
 test("camera denial has useful recovery and accessible file upload", async ({ page }) => {
   await page.addInitScript(() => {
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", { configurable: true, value: async () => { throw new DOMException("Denied", "NotAllowedError"); } });
+    Object.defineProperty(Object.getPrototypeOf(navigator.mediaDevices), "getUserMedia", { configurable: true, value: async () => { throw new DOMException("Denied", "NotAllowedError"); } });
   });
   await page.goto("/rmas/test-rma/capture");
   await expect(page.getByText("Camera unavailable", { exact: true })).toBeVisible();

@@ -2,6 +2,22 @@
 
 Changes to the public source are recorded here.
 
+## [0.2.5] - 2026-10-14
+
+### Fixed
+
+- Refresh recognition results in an open inspection drawer, including after a phone reconnects or returns to the page, while preserving unsaved corrections.
+- Read live RMA and item responses without browser or proxy caching; recover interrupted reads with bounded retries.
+- Preserve explicit operator model corrections during automated retries, while retaining the new recognition evidence for review.
+- Preserve the original source title and rank for visual recognition evidence and show only the latest visual run in the inspection drawer.
+- Keep iPhone Pro and Pro Max identities distinct, recognize abbreviated model listings, and require review when visual sources disagree.
+- Preserve recognition confidence during catalog resolution and leave assembly selection unresolved when several catalog SKUs share the same model.
+
+### Verification
+
+- Added offline recognition replay, catalog-boundary, evidence API, and live drawer regression coverage.
+- Release validation covers desktop Chrome, mobile Chrome, and mobile Safari intake and result updates using synthetic media and mocked recognition providers.
+
 ## [0.2.4] - 2026-10-11
 
 ### Fixed
