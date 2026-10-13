@@ -98,11 +98,13 @@ jobs:
           test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.description"}}')" = "The RMA System worker processes display photos and prepares model and vendor suggestions for staff review."
           test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}')" = "MIT"
           docker run --rm --entrypoint sh rma-system-worker:ci -c 'test ! -e /app/.env && test ! -e /app/.env.local && test -z "$(find /app/data/storage -mindepth 1 -print -quit)"'
-      - name: Install browser for offline intake checks
-        run: npx playwright install --with-deps chromium
+      - name: Install browsers for offline mobile checks
+        run: npx playwright install --with-deps chromium webkit
       - name: Verify camera and customer intake on desktop and mobile
         if: ${{ !inputs.full_browser_suite }}
-        run: npx playwright test e2e/camera-intake.spec.ts --project=chromium --project=mobile-chrome
+        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts --project=chromium --project=mobile-chrome
+      - name: Verify Safari camera and live result updates
+        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts --project=mobile-safari
       - name: Run the full browser suite for release validation
         if: inputs.full_browser_suite
         run: npx playwright test --project=chromium --project=mobile-chrome

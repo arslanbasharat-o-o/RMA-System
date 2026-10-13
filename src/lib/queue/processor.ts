@@ -10,11 +10,14 @@ import {
   vendorVariants,
   vendorRecognitionRules,
   appSettings,
+  reviewActions,
 } from "@/db/schema";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService } from "@/lib/recognition/openai";
+import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
+import { getManualModelOverride } from "@/lib/recognition/manual-model";
 import { VendorRuleMatcher } from "@/lib/recognition/rules/matcher";
 import {
   matchDisplayToCatalog,
@@ -175,9 +178,9 @@ export async function processRmaItem(
       // Save visual candidates with cleaned titles
       for (let idx = 0; idx < visualResult.candidates.length; idx++) {
         const cand = visualResult.candidates[idx];
-        const cleanTitle =
-          visualResult.cleanDecision?.cleanedCandidates?.[idx] ||
-          cand.title;
+        // Keep every title attached to its original source and rank. The LLM's
+        // summarized candidate array is not guaranteed to preserve either.
+        const cleanTitle = cleanRawCandidateTitle(cand.title) || cand.title;
         await db.insert(recognitionCandidates).values({
           recognitionRunId: run.id,
           rmaItemId: itemId,
@@ -440,6 +443,12 @@ export async function processRmaItem(
   }
 
   // Update RMA Item with synthesized recognition result
+  const modelReviews = await db.select().from(reviewActions)
+    .where(eq(reviewActions.rmaItemId, itemId)).orderBy(desc(reviewActions.createdAt));
+  const manualModel = getManualModelOverride(modelReviews);
+  if (manualModel) {
+    unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}. Automated suggestion: ${unified.predictedModel || "unresolved"}.`);
+  }
   await updateItemForRevision(itemId, revision, {
       predictedManufacturer: unified.predictedManufacturer,
       predictedModel: unified.predictedModel,
@@ -455,9 +464,10 @@ export async function processRmaItem(
       matchedCodesSummary: unified.matchedCodesSummary,
       reviewNotes: unified.evidenceNotes.join(" | "),
       updatedAt: new Date(),
+      ...manualModel,
     });
 
   console.log(
-    `[Processor] Completed item ${itemId}: Model=${unified.predictedModel || "Unresolved"}, Vendor=${unified.identifiedVendorName || "Unresolved"} (Status=${unified.overallMatchStatus})`
+    `[Processor] Completed item ${itemId}: Model=${manualModel?.predictedModel || unified.predictedModel || "Unresolved"}, Vendor=${unified.identifiedVendorName || "Unresolved"} (Status=${unified.overallMatchStatus})`
   );
 }

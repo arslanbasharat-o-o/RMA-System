@@ -12,7 +12,8 @@ import {
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
-import { eq, asc, desc } from "drizzle-orm";
+import { getManualModelOverride } from "@/lib/recognition/manual-model";
+import { eq, asc, desc, and, inArray } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
@@ -51,6 +52,7 @@ export async function GET(
       verifiedAt: rmaItems.verifiedAt,
       createdAt: rmaItems.createdAt,
       updatedAt: rmaItems.updatedAt,
+      recognitionRevision: rmaItems.recognitionRevision,
     })
     .from(rmaItems)
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
@@ -73,17 +75,32 @@ export async function GET(
     .where(eq(recognitionRuns.rmaItemId, id))
     .orderBy(desc(recognitionRuns.createdAt));
 
-  const extractions = await db
+  const latestOcrRun = runs.find((run) => run.pipelineType === "vendor_ocr");
+  const currentOcrRunIds = runs.filter((run) =>
+    run.pipelineType === "vendor_ocr" && run.recognitionRevision === latestOcrRun?.recognitionRevision
+  ).map((run) => run.id);
+  const extractions = currentOcrRunIds.length ? await db
     .select()
     .from(ocrExtractions)
-    .where(eq(ocrExtractions.rmaItemId, id))
-    .orderBy(desc(ocrExtractions.createdAt));
+    .where(and(eq(ocrExtractions.rmaItemId, id), inArray(ocrExtractions.recognitionRunId, currentOcrRunIds)))
+    .orderBy(desc(ocrExtractions.createdAt)) : [];
 
-  const candidates = await db
+  const latestVisualRun = runs.find((run) => run.pipelineType === "visual");
+  const candidates = latestVisualRun ? await db
     .select()
     .from(recognitionCandidates)
-    .where(eq(recognitionCandidates.rmaItemId, id))
-    .orderBy(asc(recognitionCandidates.rank));
+    .where(and(eq(recognitionCandidates.rmaItemId, id), eq(recognitionCandidates.recognitionRunId, latestVisualRun.id)))
+    .orderBy(asc(recognitionCandidates.rank)) : [];
+
+  // Older cleaners could reorder titles. Prefer the saved provider's original
+  // title at the source rank so the inspection evidence is faithful.
+  const rawVisualResponse = latestVisualRun?.rawResponse as Record<string, unknown> | null;
+  const sourceMatches = Array.isArray(rawVisualResponse?.visual_matches)
+    ? rawVisualResponse.visual_matches as Array<{ title?: unknown }> : [];
+  const currentCandidates = candidates.map((candidate) => {
+    const title = sourceMatches[(candidate.rank || 1) - 1]?.title;
+    return { ...candidate, candidateTitle: typeof title === "string" ? title : candidate.candidateTitle };
+  });
 
   const reviews = await db
     .select()
@@ -92,12 +109,17 @@ export async function GET(
     .orderBy(desc(reviewActions.createdAt));
 
   return NextResponse.json({
-    item,
+    item: {
+      ...item,
+      modelSource: getManualModelOverride(reviews)?.predictedModel === item.predictedModel ? "manual" : "recognition",
+    },
     images,
     runs,
     ocrExtractions: extractions,
-    candidates,
+    candidates: currentCandidates,
     reviewHistory: reviews,
+  }, {
+    headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },
   });
 }
 
