@@ -325,30 +325,37 @@ test.describe("Challenger 2: Staff Administration & Security Guards", () => {
 });
 
 // ============================================================================
-// Focus Area 4: Loading States & UX Skeletons
+// Focus Area 4: Accessible Loading States
 // ============================================================================
-test.describe("Challenger 2: Skeletons & Loading State Visual Verification", () => {
+test.describe("Challenger 2: Loading State Visual Verification", () => {
   test.beforeEach(async ({ page }) => {
     await loginAsAdmin(page);
   });
 
-  test("C2.11: Skeletons render during data fetching without layout shifts", async ({
+  test("C2.11: Accessible loading status remains visible while settings data is pending", async ({
     page,
   }) => {
-    // Add artificial delay to settings API
+    let releaseSettings!: () => void;
+    const settingsRequestGate = new Promise<void>((resolve) => {
+      releaseSettings = resolve;
+    });
+
+    // Hold the settings response until the user-visible loading state is asserted.
     await page.route("**/api/settings", async (route) => {
-      await new Promise((res) => setTimeout(res, 600));
+      await settingsRequestGate;
       await route.continue();
     });
 
-    await page.goto("/settings");
+    await page.goto("/settings", { waitUntil: "domcontentloaded" });
+    try {
+      await expect(
+        page.getByRole("status").filter({ hasText: "Loading settings…" })
+      ).toBeVisible();
+    } finally {
+      releaseSettings();
+    }
 
-    // While fetching, skeleton elements with pulse animation should be present
-    const skeletons = page.locator(".animate-pulse");
-    const count = await skeletons.count();
-    expect(count).toBeGreaterThanOrEqual(1);
-
-    // After loading completes, content replaces skeletons
+    // Once the response is released, the settings controls replace the status.
     await expect(page.locator('button:has-text("Save Timezone")')).toBeVisible({
       timeout: 10000,
     });
@@ -376,7 +383,8 @@ test.describe("Challenger 2: Skeletons & Loading State Visual Verification", () 
 
     // Button should be disabled during inflight mutation
     await expect(saveBtn).toBeDisabled();
-    const spinner = saveBtn.locator(".animate-spin");
+    await expect(saveBtn).toHaveAttribute("aria-busy", "true");
+    const spinner = saveBtn.locator('svg[aria-hidden="true"]');
     await expect(spinner).toBeVisible();
 
     // Once mutation settles, button re-enables
