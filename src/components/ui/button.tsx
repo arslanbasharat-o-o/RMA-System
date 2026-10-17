@@ -1,5 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils/cn";
+import { LoadingIcon } from "@/components/ui/loading-icon";
 
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -52,7 +53,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {...props}
       >
         {loading ? (
-          <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent mr-1.5 shrink-0" />
+          <LoadingIcon className="mr-1.5 size-3.5 shrink-0" />
         ) : null}
         {children}
       </button>

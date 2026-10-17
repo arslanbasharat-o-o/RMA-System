@@ -11,12 +11,12 @@ import {
   ArrowRight,
   Package,
 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import {
   CardSpotlight,
   DataTableToolbar,
   CopyBadge,
-  GlowingBadge,
+  StatusText,
   ShimmerButton,
 } from "@/components/premium";
 
@@ -157,10 +157,7 @@ export default function RmaListPage() {
           {/* Mobile View: High-density interactive cards */}
           <div className="sm:hidden p-3 space-y-3">
             {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-32 w-full rounded-xl" />
-                <Skeleton className="h-32 w-full rounded-xl" />
-              </div>
+              <LoadingMessage label="Loading RMA records…" compact className="justify-center py-8" />
             ) : rmas.length > 0 ? (
               rmas.map((rma) => (
                 <div
@@ -169,12 +166,11 @@ export default function RmaListPage() {
                 >
                   <div className="flex items-center justify-between">
                     <CopyBadge value={rma.rmaNumber} />
-                    <GlowingBadge
+                    <StatusText
                       variant={getStatusVariant(rma.status)}
-                      pulse={rma.status === "review_required"}
                     >
                       {formatRmaStatus(rma.status)}
-                    </GlowingBadge>
+                    </StatusText>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -227,7 +223,7 @@ export default function RmaListPage() {
             )}
           </div>
 
-          {/* Desktop View: Polished Table with CopyBadge & GlowingBadge */}
+          {/* Desktop View: RMA data table */}
           <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-xs text-left">
               <thead className="bg-neutral-50/80 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
@@ -246,9 +242,7 @@ export default function RmaListPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="px-5 py-6">
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
+                      <LoadingMessage label="Loading RMA records…" compact className="justify-center" />
                     </td>
                   </tr>
                 ) : rmas.length > 0 ? (
@@ -288,12 +282,11 @@ export default function RmaListPage() {
                         )}
                       </td>
                       <td className="px-5 py-3">
-                        <GlowingBadge
+                        <StatusText
                           variant={getStatusVariant(rma.status)}
-                          pulse={rma.status === "review_required"}
                         >
                           {formatRmaStatus(rma.status)}
-                        </GlowingBadge>
+                        </StatusText>
                       </td>
                       <td className="px-5 py-3 font-mono text-neutral-500 dark:text-neutral-400">
                         {rma.trackingNumber ? (

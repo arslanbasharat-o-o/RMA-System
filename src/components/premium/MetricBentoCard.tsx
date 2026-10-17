@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils/cn";
 import { CardSpotlight } from "./CardSpotlight";
 import { EvilSparkline } from "./EvilSparkline";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
-import { Skeleton } from "@/components/ui/skeleton";
+import { StatusText } from "@/components/ui/status-text";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 interface MetricBentoCardProps {
@@ -32,13 +32,6 @@ interface MetricBentoCardProps {
   badgeVariant?: "success" | "warning" | "neutral" | "info";
   className?: string;
 }
-
-const badgeVariants = {
-  success: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20",
-  warning: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20",
-  neutral: "bg-neutral-500/10 text-neutral-600 dark:text-neutral-400 border-neutral-500/20",
-  info: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20",
-};
 
 /**
  * MetricBentoCard component inspired by Kokonut UI (@kokonutui) & Blocks.so (@blocks-so).
@@ -80,14 +73,9 @@ export function MetricBentoCard({
         </div>
 
         {badge && (
-          <span
-            className={cn(
-              "text-[10px] font-mono px-2 py-0.5 rounded-md border shrink-0 font-medium whitespace-nowrap leading-none",
-              badgeVariants[badgeVariant]
-            )}
-          >
+          <StatusText variant={badgeVariant} showIcon={false} className="shrink-0 text-[10px] font-mono">
             {badge}
-          </span>
+          </StatusText>
         )}
       </div>
 
@@ -96,7 +84,9 @@ export function MetricBentoCard({
         <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-slate-900 dark:text-slate-50 flex items-baseline gap-1">
           {prefix && <span className="text-lg font-medium text-slate-500">{prefix}</span>}
           {loading ? (
-            <Skeleton className="h-8 w-20 my-0.5" />
+            <StatusText loading className="text-base text-slate-500 dark:text-slate-400">
+              Loading
+            </StatusText>
           ) : (
             <AnimatedNumber value={value} />
           )}

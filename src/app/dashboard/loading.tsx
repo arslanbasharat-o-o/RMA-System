@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/layout/AppShell";
-import { DashboardSkeleton } from "@/components/ui/skeletons/DashboardSkeleton";
+import { PageLoading } from "@/components/ui/loading-message";
 
 export default function Loading() {
-  return (
-    <AppShell>
-      <DashboardSkeleton />
-    </AppShell>
-  );
+  return <PageLoading label="Loading dashboard…" />;
 }

@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { CardSpotlight, ShimmerButton } from "@/components/premium";
+import { LoadingIcon } from "@/components/ui/loading-icon";
 import { RmaLogo } from "@/components/brand/RmaLogo";
 import {
   AnimatedShield,
@@ -179,12 +180,12 @@ export default function LoginPage() {
                       className="w-full h-10 text-xs font-semibold gap-2"
                     >
                       {loading ? (
-                        <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                        <LoadingIcon className="size-3.5" />
                       ) : (
                         <AnimatedLock size={15} unlocked={false} />
                       )}
-                      <span>Sign In</span>
-                      <AnimatedArrowRight size={15} />
+                      <span>{loading ? "Signing in…" : "Sign In"}</span>
+                      {!loading && <AnimatedArrowRight size={15} />}
                     </ShimmerButton>
                   </div>
                 </form>

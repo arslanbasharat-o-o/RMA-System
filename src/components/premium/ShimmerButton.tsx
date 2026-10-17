@@ -2,6 +2,7 @@
 
 import React from "react";
 import { cn } from "@/lib/utils/cn";
+import { LoadingIcon } from "@/components/ui/loading-icon";
 
 export interface ShimmerButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -36,7 +37,7 @@ export const ShimmerButton = React.forwardRef<
       {...props}
     >
       <span className="relative z-10 flex items-center gap-1.5 font-medium">
-        {loading && <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent shrink-0" />}
+        {loading && <LoadingIcon className="size-3.5 shrink-0" />}
         {children}
       </span>
     </button>

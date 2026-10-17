@@ -325,16 +325,23 @@ export function synthesizeRecognition(
   visualResult?: VisualIdentificationResult | null
 ): UnifiedIdentificationResult {
   const evidenceNotes: string[] = [];
+  const visualModelIsUsable = !visualResult?.cleanDecision || visualResult.cleanDecision.confidence >= 0.5;
+  // A low-confidence visual decision must not regain an identity through a
+  // catalog alias or through its model-bearing displayName. Exact part-number
+  // evidence remains authoritative and is checked for contradictions below.
+  const acceptedDisplayMatch = displayMatch &&
+    (visualModelIsUsable || displayMatch.matchType === "part_number")
+    ? displayMatch
+    : null;
 
   // Model assignment
   const predictedManufacturer =
-    displayMatch?.manufacturer ||
+    acceptedDisplayMatch?.manufacturer ||
     visualResult?.cleanDecision?.manufacturer ||
     visualResult?.normalizedManufacturer ||
     null;
 
-  const visualModelIsUsable = !visualResult?.cleanDecision || visualResult.cleanDecision.confidence >= 0.5;
-  let rawModel = displayMatch?.modelName || (visualModelIsUsable
+  let rawModel = acceptedDisplayMatch?.modelName || (visualModelIsUsable
     ? visualResult?.cleanDecision?.model || visualResult?.normalizedModel || null
     : null);
 
@@ -348,27 +355,29 @@ export function synthesizeRecognition(
   }
   const predictedModel = rawModel;
 
-  const displayLabel = displayMatch
-    ? (displayMatch.modelName.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(displayMatch.manufacturer.toLowerCase().replace(/[^a-z0-9]/g, ""))
-        ? displayMatch.modelName
-        : `${displayMatch.manufacturer} ${displayMatch.modelName}`)
+  const displayLabel = acceptedDisplayMatch
+    ? (acceptedDisplayMatch.modelName.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(acceptedDisplayMatch.manufacturer.toLowerCase().replace(/[^a-z0-9]/g, ""))
+        ? acceptedDisplayMatch.modelName
+        : `${acceptedDisplayMatch.manufacturer} ${acceptedDisplayMatch.modelName}`)
     : null;
 
-  const predictedDisplayAssembly = displayMatch
-    ? `${displayLabel}${displayMatch.displayTechnology ? ` (${displayMatch.displayTechnology})` : " Display"}`
+  const predictedDisplayAssembly = acceptedDisplayMatch
+    ? `${displayLabel}${acceptedDisplayMatch.displayTechnology ? ` (${acceptedDisplayMatch.displayTechnology})` : " Display"}`
+    : !visualModelIsUsable
+    ? predictedManufacturer === "Apple" ? "Unidentified Apple Display" : "Unidentified Display"
     : (visualResult?.cleanDecision?.displayName ||
        visualResult?.detectedDisplayAssembly ||
        (predictedManufacturer && predictedModel
          ? `${predictedManufacturer} ${predictedModel} Display`
          : null));
-  const catalogDisplayId = displayMatch?.catalogId || null;
+  const catalogDisplayId = acceptedDisplayMatch?.catalogId || null;
   const modelConfidenceScore =
-    displayMatch?.confidenceScore ||
+    acceptedDisplayMatch?.confidenceScore ||
     (visualResult?.cleanDecision?.confidence ?? (visualResult?.normalizedModel ? 0.75 : 0));
 
-  if (displayMatch) {
+  if (acceptedDisplayMatch) {
     evidenceNotes.push(
-      `Display identified as ${predictedManufacturer} ${predictedModel} via ${displayMatch.matchType} matching.`
+      `Display identified as ${predictedManufacturer} ${predictedModel} via ${acceptedDisplayMatch.matchType} matching.`
     );
   } else if (visualResult?.cleanDecision?.displayName) {
     evidenceNotes.push(
@@ -377,7 +386,7 @@ export function synthesizeRecognition(
   } else {
     evidenceNotes.push("Display model could not be verified in internal catalog.");
   }
-  if (displayMatch && visualResult?.cleanDecision?.reasoning) {
+  if (acceptedDisplayMatch && visualResult?.cleanDecision?.reasoning) {
     evidenceNotes.push(visualResult.cleanDecision.reasoning);
   }
 
@@ -392,7 +401,7 @@ export function synthesizeRecognition(
 
   // Check for contradiction or provider failure
   let hasContradiction = false;
-  if (visualResult?.cleanDecision && visualResult.cleanDecision.confidence < 0.5 && displayMatch?.matchType !== "part_number") {
+  if (visualResult?.cleanDecision && visualResult.cleanDecision.confidence < 0.5 && acceptedDisplayMatch?.matchType !== "part_number") {
     hasContradiction = true;
     evidenceNotes.push("Visual matches conflict; the device model requires human review.");
   }
@@ -401,22 +410,22 @@ export function synthesizeRecognition(
     evidenceNotes.push(
       `Visual identification error: ${visualResult.error}. Escalated for review.`
     );
-  } else if (displayMatch?.contradictionDetected) {
+  } else if (acceptedDisplayMatch?.contradictionDetected) {
     hasContradiction = true;
     evidenceNotes.push(
-      `Discrepancy detected: ${displayMatch.contradictionDetails || "Physical part number contradicted visual candidate."} Escalated for review.`
+      `Discrepancy detected: ${acceptedDisplayMatch.contradictionDetails || "Physical part number contradicted visual candidate."} Escalated for review.`
     );
-  } else if (displayMatch && visualResult) {
+  } else if (acceptedDisplayMatch && visualResult) {
     const visualModel = visualResult.normalizedModel;
     if (
-      displayMatch.matchType === "part_number" &&
+      acceptedDisplayMatch.matchType === "part_number" &&
       visualModel &&
-      !displayMatch.modelName.toLowerCase().includes(visualModel.toLowerCase()) &&
-      !visualModel.toLowerCase().includes(displayMatch.modelName.toLowerCase())
+      !acceptedDisplayMatch.modelName.toLowerCase().includes(visualModel.toLowerCase()) &&
+      !visualModel.toLowerCase().includes(acceptedDisplayMatch.modelName.toLowerCase())
     ) {
       hasContradiction = true;
       evidenceNotes.push(
-        `Discrepancy detected: Physical part number indicates '${displayMatch.manufacturer} ${displayMatch.modelName}' while visual search suggested '${visualModel}'. Escalated for review.`
+        `Discrepancy detected: Physical part number indicates '${acceptedDisplayMatch.manufacturer} ${acceptedDisplayMatch.modelName}' while visual search suggested '${visualModel}'. Escalated for review.`
       );
     }
   }
@@ -425,7 +434,7 @@ export function synthesizeRecognition(
   let overallMatchStatus: UnifiedIdentificationResult["overallMatchStatus"] = "unknown";
   let itemStatus: UnifiedIdentificationResult["itemStatus"] = "review_required";
 
-  const isModelConfident = Boolean(displayMatch && modelConfidenceScore >= 0.85);
+  const isModelConfident = Boolean(acceptedDisplayMatch && modelConfidenceScore >= 0.85);
   const isVendorConfident =
     vendorMatch.matchStatus === "exact_match" ||
     (vendorMatch.matchStatus === "strong_candidate" && identifiedVendorVariantId !== null);

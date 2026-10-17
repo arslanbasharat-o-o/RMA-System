@@ -11,6 +11,8 @@ export interface VisualCandidate {
 export interface VisualIdentificationResult {
   provider: string;
   candidates: VisualCandidate[];
+  /** Optional visible Google AI Overview text; never treated as verified by itself. */
+  aiOverview?: string;
   normalizedModel?: string;
   normalizedManufacturer?: string;
   detectedDisplayAssembly?: string;

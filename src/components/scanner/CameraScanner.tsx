@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Camera, SwitchCamera, Images, Check, AlertCircle, Loader2, ArrowRight, RotateCcw, ScanLine } from "lucide-react";
+import { Camera, SwitchCamera, Images, Check, AlertCircle, ArrowRight, RotateCcw, ScanLine } from "lucide-react";
+import { LoadingIcon } from "@/components/ui/loading-icon";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 
 interface CapturedPhoto {
@@ -332,7 +333,9 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
             <div className="mt-2 grid grid-cols-3 items-center justify-items-center">
               <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive || saving} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
               <button type="button" onClick={() => void capture()} disabled={!cameraActive || saving} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
-                <span className="flex h-full w-full items-center justify-center rounded-full bg-white">{capturing && <Loader2 className="size-5 animate-spin text-neutral-900" />}</span>
+                <span className="flex h-full w-full items-center justify-center rounded-full bg-white">
+                  {capturing && <LoadingIcon className="size-5 text-neutral-900" />}
+                </span>
               </button>
               <button type="button" disabled={saving} onClick={() => { pickerAngle.current = angle; fileInputRef.current?.click(); }} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
               <input type="file" ref={fileInputRef} accept="image/*" multiple aria-label="Choose display photos" className="hidden" onChange={(event) => { processFiles(Array.from(event.target.files || []), pickerAngle.current); event.target.value = ""; }} />
@@ -342,7 +345,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                 {photos.map((photo, index) => <div key={photo.id} className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-neutral-700">
                   <img src={photo.previewUrl} alt={`${angles.find((entry) => entry.type === photo.imageType)?.label} angle ${index + 1}`} className="size-full object-cover" />
                   <span className="absolute top-0 left-0 rounded-br bg-black/80 px-1 text-[10px] text-white">{angles.find((entry) => entry.type === photo.imageType)?.label}</span>
-                  {photo.status === "uploading" && <span aria-label="Saving photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><Loader2 className="size-4 animate-spin" /></span>}
+                  {photo.status === "uploading" && <span aria-label="Saving photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><LoadingIcon className="size-4" /></span>}
                   {photo.status === "saved" && <span aria-label="Photo saved" className="absolute bottom-0 right-0 rounded-tl bg-emerald-700 p-1"><Check className="size-3" /></span>}
                   {photo.status === "error" && <button type="button" aria-label={`Retry photo ${index + 1}`} title={photo.error} onClick={() => void uploadPhoto(photo)} className="absolute inset-0 flex items-center justify-center bg-red-950/90"><RotateCcw className="size-5" /></button>}
                 </div>)}

@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { MotionCardGrid, MotionCardItem } from "@/components/motion/CardMotion";
 import { toast } from "sonner";
 import {
   CardSpotlight,
   CopyBadge,
-  GlowingBadge,
+  StatusText,
   ShimmerButton,
 } from "@/components/premium";
 
@@ -266,9 +266,9 @@ export default function VendorCatalogPage() {
                   <span className="font-bold text-emerald-950 dark:text-emerald-200">
                     Vendor Match: {testResult.rule.vendorName}
                   </span>
-                  <GlowingBadge variant="success">
+                  <StatusText variant="success">
                     Variant: {testResult.rule.variantName || "Unresolved (Manual Review)"}
-                  </GlowingBadge>
+                  </StatusText>
                 </div>
                 <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
                   Matched token: <span className="font-mono font-bold">{testResult.token}</span> via pattern{" "}
@@ -282,10 +282,7 @@ export default function VendorCatalogPage() {
 
         {/* Vendors and Variants Hierarchy */}
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Skeleton className="h-48 w-full rounded-xl" />
-            <Skeleton className="h-48 w-full rounded-xl" />
-          </div>
+          <LoadingMessage label="Loading vendors and variants…" className="justify-center py-12" />
         ) : (
           <MotionCardGrid className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {vendors.map((vendor) => (

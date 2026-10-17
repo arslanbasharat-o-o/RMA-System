@@ -3,7 +3,7 @@ export * from "./CardSpotlight";
 export * from "./EvilSparkline";
 export * from "./EvilDonutChart";
 export * from "./MetricBentoCard";
-export * from "./GlowingBadge";
+export { StatusText, StatusBadge } from "../ui/status-text";
 export * from "./CopyBadge";
 export * from "./RmaStatusPipeline";
 export * from "./AiLensInspectorCard";

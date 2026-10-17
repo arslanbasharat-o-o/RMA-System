@@ -88,6 +88,63 @@ describe("Unified Synthesizer", () => {
       extraction_notes: [],
     }, visual);
     expect(unresolved.predictedModel).toBeNull();
+    expect(unresolved.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+    expect(unresolved.catalogDisplayId).toBeNull();
+    expect(unresolved.itemStatus).toBe("review_required");
+  });
+
+  it("does not let a low-confidence visual guess re-enter through a catalog alias", () => {
+    const visual: VisualIdentificationResult = {
+      provider: "mock",
+      candidates: [{ title: "Apple iPhone 13 Pro display", rank: 1 }],
+      durationMs: 0,
+      rawResponse: {},
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: "iPhone 13 Pro",
+        displayName: "Apple iPhone 13 Pro Display",
+        confidence: 0.45,
+        cleanedCandidates: ["Apple iPhone 13 Pro display"],
+        reasoning: "Conflicting models",
+      },
+    };
+    const aliasMatch = {
+      catalogId: "cat-13p",
+      manufacturer: "Apple",
+      modelName: "iPhone 13 Pro",
+      normalizedIdentifier: "apple-iphone-13-pro",
+      displayTechnology: "OLED",
+      internalSku: "DISP-IP13P-OLED",
+      confidenceScore: 0.45,
+      matchType: "alias" as const,
+    };
+    const vendorMatch: VendorMatchResult = {
+      vendorId: null,
+      vendorName: null,
+      vendorVariantId: null,
+      vendorVariantName: null,
+      matchedRuleId: null,
+      matchedPattern: null,
+      confidenceScore: 0,
+      matchStatus: "unknown",
+      evidenceNotes: [],
+      candidateAlternatives: [],
+    };
+    const ocr: OcrStructuredOutput = {
+      raw_text: [],
+      detected_codes: [],
+      part_numbers: [],
+      vendor_markings: [],
+      technology_markings: [],
+      possible_vendor_aliases: [],
+      unreadable_regions: [],
+      extraction_notes: [],
+    };
+
+    const unresolved = synthesizeRecognition(aliasMatch, vendorMatch, ocr, visual);
+    expect(unresolved.predictedModel).toBeNull();
+    expect(unresolved.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+    expect(unresolved.catalogDisplayId).toBeNull();
     expect(unresolved.itemStatus).toBe("review_required");
   });
 

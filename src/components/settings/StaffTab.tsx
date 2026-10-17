@@ -7,10 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { Users, UserPlus, Search, Shield, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
-import { CardSpotlight, CopyBadge, ShimmerButton } from "@/components/premium";
+import { CardSpotlight, CopyBadge, ShimmerButton, StatusText } from "@/components/premium";
 
 export interface StaffUser {
   id: string;
@@ -161,11 +161,7 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
 
           {/* Directory Content */}
           {loading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-14 w-full rounded-lg" />
-              <Skeleton className="h-14 w-full rounded-lg" />
-              <Skeleton className="h-14 w-full rounded-lg" />
-            </div>
+            <LoadingMessage label="Loading staff accounts…" compact className="justify-center py-8" />
           ) : filteredUsers.length === 0 ? (
             <div className="text-center py-8 border border-dashed border-neutral-200 dark:border-neutral-800 rounded-lg">
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
@@ -210,7 +206,7 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
                             {u.role}
                           </Badge>
                           {!u.active && (
-                            <Badge variant="danger">Inactive</Badge>
+                            <StatusText variant="danger" showIcon={false}>Inactive</StatusText>
                           )}
                         </span>
                         <div className="mt-0.5">

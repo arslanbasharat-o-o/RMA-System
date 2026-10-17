@@ -16,13 +16,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import {
   CardSpotlight,
-  GlowingBadge,
+  StatusText,
   CopyBadge,
   ShimmerButton,
 } from "@/components/premium";
@@ -144,17 +144,14 @@ export default function ReviewQueuePage() {
             <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
               Review Queue
             </h1>
-            <GlowingBadge variant={queue.length > 0 ? "warning" : "success"} pulse={false}>
-              {queue.length > 0 ? `${queue.length} Pending` : "Queue Clear"}
-            </GlowingBadge>
+            <StatusText variant={queue.length > 0 ? "warning" : "success"}>
+              {queue.length > 0 ? `${queue.length} pending` : "Queue clear"}
+            </StatusText>
           </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-            <Skeleton className="h-96 md:col-span-7 rounded-2xl" />
-            <Skeleton className="h-96 md:col-span-5 rounded-2xl" />
-          </div>
+          <LoadingMessage label="Loading review items…" className="justify-center py-12" />
         ) : queue.length > 0 && currentItem ? (
           <AnimatePresence mode="wait">
             <motion.div

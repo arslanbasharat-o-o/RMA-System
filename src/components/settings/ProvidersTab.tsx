@@ -1,9 +1,8 @@
 "use client";
 
-import { CardSpotlight, ShimmerButton } from "@/components/premium";
+import { CardSpotlight, ShimmerButton, StatusText } from "@/components/premium";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Smartphone, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ProviderStatus {
@@ -70,9 +69,9 @@ export function ProvidersTab({
                 Visual Recognition
               </h3>
             </div>
-            <Badge variant={visualConfigured ? "success" : "secondary"}>
+            <StatusText variant={visualConfigured ? "success" : "neutral"} showIcon={false}>
               {visualConfigured ? "Configured" : "Unconfigured"}
-            </Badge>
+            </StatusText>
           </div>
           <div className="space-y-3">
             <div className="text-xs space-y-1">
@@ -129,9 +128,9 @@ export function ProvidersTab({
                 Markings & Stamp Recognition
               </h3>
             </div>
-            <Badge variant={status.openaiConfigured ? "success" : "secondary"}>
+            <StatusText variant={status.openaiConfigured ? "success" : "neutral"} showIcon={false}>
               {status.openaiConfigured ? "API Key Configured" : "Unconfigured"}
-            </Badge>
+            </StatusText>
           </div>
           <div className="space-y-3">
             <div className="text-xs space-y-1">

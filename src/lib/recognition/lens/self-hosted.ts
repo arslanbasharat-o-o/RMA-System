@@ -88,6 +88,22 @@ function getPrice(value: unknown): string | undefined {
   return undefined;
 }
 
+function getAiOverview(payload: JsonObject): string | undefined {
+  for (const candidate of [payload, ...getNestedObjects(payload)]) {
+    for (const key of ["ai_overview", "aiOverview"]) {
+      const value = candidate[key];
+      const text = typeof value === "string"
+        ? value
+        : isJsonObject(value) && typeof value.text === "string"
+          ? value.text
+          : undefined;
+      const normalized = text?.trim();
+      if (normalized && normalized.length <= 1600) return normalized;
+    }
+  }
+  return undefined;
+}
+
 function getStatus(payload: JsonObject): string | undefined {
   return typeof payload.status === "string" ? payload.status.toLowerCase() : undefined;
 }
@@ -374,9 +390,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   ): VisualIdentificationResult {
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
+    const aiOverview = getAiOverview(payload);
     const candidates: VisualCandidate[] = matches
       .filter(isJsonObject)
-      .slice(0, 20)
+      .slice(0, 30)
       .map((match, index) => ({
         title: typeof match.title === "string" && match.title.trim()
           ? match.title
@@ -393,6 +410,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     // network calls while retaining the normalized result shape.
     const cleanDecision = cleanVisualCandidatesHeuristic(candidates, {
       filename: context?.filename,
+      aiOverview,
     });
     const normalizedManufacturer = cleanDecision.manufacturer || undefined;
     const normalizedModel = cleanDecision.model || undefined;
@@ -400,6 +418,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     return {
       provider: this.name,
       candidates,
+      aiOverview,
       cleanDecision,
       normalizedManufacturer,
       normalizedModel,
