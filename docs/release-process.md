@@ -19,6 +19,8 @@ The project is distributed under the MIT License. After the full release validat
 
 - `ghcr.io/arslanbasharat-o-o/rma-system:<version>` and `:latest` for the web application
 - `ghcr.io/arslanbasharat-o-o/rma-system:worker-<version>` and `:worker-latest` for the queue worker
+- `ghcr.io/arslanbasharat-o-o/rma-system-lens-api:<version>` and `:latest` for the self-hosted API
+- `ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:<version>` and `:latest` for the Scrapling Chrome worker
 
 Confirm that the linked package is public after its first successful publication. Compose can use the published images by setting `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the desired tags, then running `docker compose pull` followed by `docker compose up -d --no-build`. No PostgreSQL data, uploaded images, or runtime secrets belong in an image.
 

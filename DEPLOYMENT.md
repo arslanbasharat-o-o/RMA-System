@@ -20,6 +20,11 @@ SESSION_SECRET=<unique output from openssl rand -base64 32>
 POSTGRES_PASSWORD=<unique database password>
 LENS_PROVIDER=serpapi_lens
 SERPAPI_API_KEY=<provider key>
+# For the self-hosted adapter, use these instead of the two SerpApi settings:
+# LENS_PROVIDER=self_hosted_lens
+# LENS_API_BASE_URL=https://lens.internal/api
+# LENS_API_KEY=<self-hosted service key>
+# LENS_API_MODE=upload_search
 OPENAI_API_KEY=<provider key>
 OPENAI_VISION_MODEL=gpt-4o-mini
 WORKER_CONCURRENCY=1
@@ -31,6 +36,25 @@ Compose assembles `DATABASE_URL` from `POSTGRES_PASSWORD`. Set `INITIAL_ADMIN_EM
 ```bash
 chmod 600 .env
 ```
+
+### Visual provider choice
+
+`LENS_PROVIDER=serpapi_lens` keeps the existing SerpApi integration. To switch
+reversibly to a self-hosted Lens-compatible service, set
+`LENS_PROVIDER=self_hosted_lens`, `LENS_API_BASE_URL`, and `LENS_API_KEY`.
+The adapter sends the key as both a bearer authorization and `X-API-Key` header.
+
+With `LENS_API_MODE=upload_search` (the default), the base URL is treated as a
+service root and the worker sends `POST <base>/upload`, then
+`GET <base>/search?image_id=...` with the optional `q` filter. Set
+`LENS_API_MODE=direct` when the base URL itself is the image-search endpoint;
+the worker sends the image as multipart form data in one `POST`. Both response
+shapes use the SerpApi-compatible `visual_matches` array.
+
+For the bundled production API and Scrapling Chrome worker, follow the
+[self-hosted Lens deployment guide](docs/self-hosted-lens.md). It attaches the
+API to the existing RMA network, keeps the diagnostic port on loopback, and
+uses private Redis and image-storage volumes. No database migration is needed.
 
 ## Start services
 

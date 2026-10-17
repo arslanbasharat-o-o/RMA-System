@@ -2,7 +2,7 @@
 # Multi-stage Dockerfile for containerized deployment
 # ==============================================================================
 
-FROM node:24-alpine AS base
+FROM node:24.21.0-alpine AS base
 WORKDIR /app
 RUN apk add --no-cache libc6-compat python3 make g++
 
@@ -33,7 +33,7 @@ RUN npm run build
 # ------------------------------------------------------------------------------
 # Production Runner (Next.js App)
 # ------------------------------------------------------------------------------
-FROM node:24-alpine AS runner
+FROM node:24.21.0-alpine AS runner
 WORKDIR /app
 
 ARG APP_VERSION=unknown
@@ -73,7 +73,7 @@ CMD ["npm", "run", "start"]
 # ------------------------------------------------------------------------------
 # Background Worker Runner
 # ------------------------------------------------------------------------------
-FROM node:24-alpine AS worker
+FROM node:24.21.0-alpine AS worker
 WORKDIR /app
 
 ARG APP_VERSION=unknown

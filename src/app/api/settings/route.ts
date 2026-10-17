@@ -19,8 +19,10 @@ export async function GET(req: NextRequest) {
   // Include environment status (never exposing secret values directly)
   const providerStatus = {
     serpapiConfigured: Boolean(process.env.SERPAPI_API_KEY),
+    selfHostedConfigured: Boolean(process.env.LENS_API_BASE_URL && process.env.LENS_API_KEY),
     openaiConfigured: Boolean(process.env.OPENAI_API_KEY),
-    activeLensProvider: formatted.LENS_PROVIDER || process.env.LENS_PROVIDER || "mock",
+    providerManagedByEnvironment: Boolean(process.env.LENS_PROVIDER),
+    activeLensProvider: process.env.LENS_PROVIDER || formatted.LENS_PROVIDER || "mock",
     activeLensFilterQuery: formatted.LENS_FILTER_QUERY || process.env.LENS_FILTER_QUERY || "display screen",
     activeOpenAiModel: formatted.OPENAI_VISION_MODEL || process.env.OPENAI_VISION_MODEL || "gpt-5.6-terra",
     storageDriver: formatted.STORAGE_DRIVER || process.env.STORAGE_DRIVER || "local",

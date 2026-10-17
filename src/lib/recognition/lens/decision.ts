@@ -154,7 +154,11 @@ export function cleanVisualCandidatesHeuristic(
       : `${cleanModelForDisplay} Display`
     : cleanedTitles[0] || "Unidentified Display";
 
-  const confidence = appleEvidence?.confidence ?? (model ? 0.88 : 0.45);
+  // A single web listing is a suggestion, not corroboration for a physical
+  // display model. Lens often streams its first card before other matches.
+  const confidence = candidates.length < 2
+    ? Math.min(appleEvidence?.confidence ?? (model ? 0.88 : 0.45), 0.45)
+    : appleEvidence?.confidence ?? (model ? 0.88 : 0.45);
 
   return {
     manufacturer,
