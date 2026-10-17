@@ -4,6 +4,12 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-10-17
+
+### Fixed
+
+- Remove the duplicate desktop sidebar toggle so the navigation has one clear collapse/expand control.
+
 ## [0.2.6] - 2026-10-17
 
 ### Changed
