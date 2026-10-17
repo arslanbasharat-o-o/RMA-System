@@ -4,7 +4,17 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
-## [0.3.4] - 2026-10-18
+## [0.3.5] - 2026-10-18
+
+### Fixed
+
+- Align the complete desktop and mobile browser suite with the conservative recognition result: an unknown vendor remains unassigned and needs review even when the display is a possible candidate.
+
+### Verification
+
+- The v0.3.4 candidate passed 269 browser checks but was not published because this stale assertion failed on desktop and mobile Chrome. This release includes that corrected assertion and the v0.3.4 source changes.
+
+## [0.3.4] - 2026-10-18 (unpublished candidate)
 
 ### Fixed
 
