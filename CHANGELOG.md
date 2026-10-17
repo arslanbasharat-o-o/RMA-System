@@ -4,7 +4,7 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
-## [0.3.2] - 2026-10-18
+## [0.3.3] - 2026-10-18
 
 ### Added
 
@@ -16,6 +16,11 @@ Changes to the public source are recorded here.
 
 - Prevent low-confidence visual guesses from becoming catalog identities or model-bearing display labels; retain exact physical part-number matches.
 - Keep the loading inspection drawer full-height and expose its loading state as a dialog on mobile and desktop.
+- Replace stale skeleton and spinner selectors in the full browser suite with checks for the accessible loading status and busy button state.
+
+### Release note
+
+- The v0.3.2 candidate tag was not published after full release validation found outdated loading-state assertions. This release supersedes that candidate.
 
 ### Verification
 
