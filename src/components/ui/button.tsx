@@ -26,13 +26,13 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variants = {
       primary:
-        "bg-neutral-900 text-white hover:bg-neutral-800 shadow-xs active:bg-neutral-950 dark:bg-neutral-100 dark:text-neutral-900 dark:hover:bg-neutral-200 dark:active:bg-neutral-300",
+        "bg-slate-900 text-white hover:bg-slate-800 shadow-xs active:bg-slate-950 dark:bg-indigo-600 dark:text-white dark:hover:bg-indigo-500 dark:active:bg-indigo-700 dark:border dark:border-indigo-400/30",
       secondary:
-        "bg-neutral-100 text-neutral-900 hover:bg-neutral-200 active:bg-neutral-300 dark:bg-neutral-800 dark:text-neutral-100 dark:hover:bg-neutral-700 dark:active:bg-neutral-600",
+        "bg-slate-100 text-slate-800 hover:bg-slate-200 active:bg-slate-300 dark:bg-zinc-800 dark:text-zinc-100 dark:hover:bg-zinc-700 dark:active:bg-zinc-600 border border-slate-200/80 dark:border-zinc-700/80",
       outline:
-        "border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-800 dark:text-neutral-200 hover:bg-neutral-50 dark:hover:bg-neutral-800 active:bg-neutral-100 dark:active:bg-neutral-700",
+        "border border-slate-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 hover:bg-slate-50 dark:hover:bg-zinc-700 active:bg-slate-100 dark:active:bg-zinc-600",
       ghost:
-        "text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-900 dark:text-neutral-100",
+        "text-slate-700 dark:text-zinc-300 hover:bg-slate-100 dark:hover:bg-zinc-800 hover:text-slate-900 dark:hover:text-white",
       destructive:
         "bg-rose-600 text-white hover:bg-rose-700 shadow-xs active:bg-rose-800 dark:bg-rose-600 dark:hover:bg-rose-700",
     };

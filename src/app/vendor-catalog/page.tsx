@@ -2,16 +2,20 @@
 
 import React, { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Plus, Building2, Play } from "lucide-react";
+import { Plus, Building2, Play, Sparkles, Cpu, Layers } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MotionCardGrid, MotionCardItem } from "@/components/motion/CardMotion";
 import { toast } from "sonner";
+import {
+  CardSpotlight,
+  CopyBadge,
+  GlowingBadge,
+  ShimmerButton,
+} from "@/components/premium";
 
 export default function VendorCatalogPage() {
   const [vendors, setVendors] = useState<any[]>([]);
@@ -183,67 +187,98 @@ export default function VendorCatalogPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Vendor Catalog & Rules
-          </h1>
+        {/* Executive Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+              Vendor Catalog & Rules
+            </h1>
+          </div>
 
           <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-            <Button size="sm" variant="outline" onClick={() => setShowAddRule(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddRule(true)}
+              className="h-8.5 sm:h-9 text-xs justify-center px-2 font-medium"
+            >
               <span className="sm:hidden">+ Rule</span>
               <span className="hidden sm:inline">+ Add Rule</span>
             </Button>
-            <Button size="sm" variant="outline" onClick={() => setShowAddVariant(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowAddVariant(true)}
+              className="h-8.5 sm:h-9 text-xs justify-center px-2 font-medium"
+            >
               <span className="sm:hidden">+ Variant</span>
               <span className="hidden sm:inline">+ Add Variant</span>
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setShowAddVendor(true)} className="h-8.5 sm:h-9 text-xs justify-center px-2">
+            <ShimmerButton
+              onClick={() => setShowAddVendor(true)}
+              className="h-8.5 sm:h-9 px-3 text-xs font-semibold justify-center"
+            >
               <span className="sm:hidden">+ Vendor</span>
               <span className="hidden sm:inline">+ Add Vendor</span>
-            </Button>
+            </ShimmerButton>
           </div>
         </div>
 
-        {/* OCR Test Sandbox Card */}
-        <Card className="border-neutral-200/90 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30">
-          <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-              Rule Matching Simulator
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-4 pt-1">
-            <div className="flex gap-2">
+        {/* OCR Test Sandbox Card with CardSpotlight */}
+        <CardSpotlight
+          className="p-5 border-neutral-200/90 dark:border-zinc-800 bg-white/95 dark:bg-[#121215]/95 shadow-sm relative"
+          spotlightColor="rgba(255, 255, 255, 0.04)"
+        >
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-700 dark:text-neutral-300">
+                Test Stamp & Marking Rules
+              </span>
+            </div>
+            <span className="text-[10px] font-mono text-neutral-400">
+              {rules.length} active rules loaded
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Input
-                placeholder="Enter sample OCR text (e.g. AMI/A, AMI INCELL, JK-TECH)..."
+                placeholder="Enter stamp or label text (e.g. AMI/A, JK-TECH)..."
                 value={testText}
                 onChange={(e) => setTestText(e.target.value)}
-                className="text-xs h-9 bg-white dark:bg-neutral-900"
+                className="text-xs h-9 bg-neutral-50 dark:bg-neutral-900/60 font-mono flex-1"
               />
-              <Button size="sm" variant="primary" onClick={handleTestMatch}>
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={handleTestMatch}
+                className="h-9 px-4 text-xs font-semibold shrink-0"
+              >
                 <Play className="h-3.5 w-3.5 mr-1" />
-                <span>Test Rules</span>
+                <span>Test Rule</span>
               </Button>
             </div>
 
             {testResult ? (
-              <div className="mt-3 p-3 rounded-lg bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 text-xs">
-                <div className="flex items-center gap-2">
-                  <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+              <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs space-y-1.5">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="font-bold text-emerald-950 dark:text-emerald-200">
                     Vendor Match: {testResult.rule.vendorName}
                   </span>
-                  <Badge variant="success">
-                    Variant: {testResult.rule.variantName || "Unresolved (Requires Review)"}
-                  </Badge>
+                  <GlowingBadge variant="success">
+                    Variant: {testResult.rule.variantName || "Unresolved (Manual Review)"}
+                  </GlowingBadge>
                 </div>
-                <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
-                  Matched token: <span className="font-mono font-bold">{testResult.token}</span> via rule pattern{" "}
+                <p className="text-[11px] text-emerald-800 dark:text-emerald-300">
+                  Matched token: <span className="font-mono font-bold">{testResult.token}</span> via pattern{" "}
                   <span className="font-mono font-bold">&quot;{testResult.rule.pattern}&quot;</span> (Priority:{" "}
                   {testResult.rule.priority})
                 </p>
               </div>
             ) : null}
-          </CardContent>
-        </Card>
+          </div>
+        </CardSpotlight>
 
         {/* Vendors and Variants Hierarchy */}
         {loading ? (
@@ -255,54 +290,60 @@ export default function VendorCatalogPage() {
           <MotionCardGrid className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {vendors.map((vendor) => (
               <MotionCardItem key={vendor.id}>
-                <Card className="h-full">
-                  <CardHeader className="p-5 pb-3 border-b border-neutral-100 dark:border-neutral-800 flex-row items-center justify-between">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <CardTitle className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-                          {vendor.name}
-                        </CardTitle>
-                        <Badge variant="outline" className="font-mono">
-                          Code: {vendor.code}
-                        </Badge>
+                <CardSpotlight className="h-full p-5 flex flex-col justify-between border-neutral-200/90 dark:border-neutral-800 bg-white/95 dark:bg-[#121215]/95 shadow-sm">
+                  <div>
+                    <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
+                            {vendor.name}
+                          </h3>
+                          <CopyBadge value={vendor.code} label={vendor.code} />
+                        </div>
+                        {vendor.aliases?.length > 0 && (
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1">
+                            Aliases: {vendor.aliases.join(", ")}
+                          </p>
+                        )}
                       </div>
-                      {vendor.aliases?.length > 0 && (
-                        <CardDescription className="text-xs mt-0.5">
-                          Aliases: {vendor.aliases.join(", ")}
-                        </CardDescription>
-                      )}
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200/60 dark:border-neutral-700/60 shrink-0 whitespace-nowrap leading-none">
+                        {vendor.variants?.length || 0} variants
+                      </span>
                     </div>
-                  </CardHeader>
-                  <CardContent className="p-5 pt-3 space-y-3">
-                    <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                      Configured Variants ({vendor.variants?.length || 0})
-                    </span>
 
-                    <div className="space-y-1.5">
-                      {vendor.variants?.map((va: any) => (
-                        <div
-                          key={va.id}
-                          className="flex items-center justify-between p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900/50 border border-neutral-200/60 dark:border-neutral-800 text-xs"
-                        >
-                          <div>
-                            <span className="font-semibold text-neutral-900 dark:text-neutral-100">{va.name}</span>
-                            <span className="text-[11px] text-neutral-500 dark:text-neutral-400 ml-2 font-mono">
-                              ({va.code})
+                    <div className="space-y-2">
+                      <span className="text-[10px] font-semibold text-neutral-400 uppercase tracking-wider block">
+                        Registered Variants:
+                      </span>
+
+                      <div className="space-y-1.5">
+                        {vendor.variants?.map((va: any) => (
+                          <div
+                            key={va.id}
+                            className="flex items-center justify-between p-2 rounded-lg bg-neutral-50 dark:bg-zinc-900 border border-neutral-200/60 dark:border-zinc-800 text-xs"
+                          >
+                            <div>
+                              <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                                {va.name}
+                              </span>
+                              <span className="text-[11px] text-neutral-500 dark:text-neutral-400 ml-2 font-mono">
+                                ({va.code})
+                              </span>
+                            </div>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                              {va.displayTechnology || "Standard"}
                             </span>
                           </div>
-                          <Badge variant="secondary" className="text-[10px]">
-                            {va.displayTechnology || "Standard"}
-                          </Badge>
-                        </div>
-                      ))}
-                      {(!vendor.variants || vendor.variants.length === 0) && (
-                        <p className="text-xs text-neutral-400 dark:text-neutral-500 py-2 italic">
-                          No variants registered under this vendor.
-                        </p>
-                      )}
+                        ))}
+                        {(!vendor.variants || vendor.variants.length === 0) && (
+                          <p className="text-xs text-neutral-400 dark:text-neutral-500 py-2 italic">
+                            No variants registered under this vendor.
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </CardSpotlight>
               </MotionCardItem>
             ))}
           </MotionCardGrid>
@@ -315,9 +356,9 @@ export default function VendorCatalogPage() {
           title="Add Parent Vendor"
           maxWidth="max-w-sm"
         >
-          <form onSubmit={handleCreateVendor} className="space-y-3">
+          <form onSubmit={handleCreateVendor} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Vendor Name *
               </label>
               <Input
@@ -326,10 +367,11 @@ export default function VendorCatalogPage() {
                 value={newVendorName}
                 onChange={(e) => setNewVendorName(e.target.value)}
                 autoFocus
+                className="h-9 text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Unique Code *
               </label>
               <Input
@@ -337,23 +379,31 @@ export default function VendorCatalogPage() {
                 placeholder="e.g. AMI"
                 value={newVendorCode}
                 onChange={(e) => setNewVendorCode(e.target.value)}
+                className="h-9 text-xs font-mono"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Aliases (Comma separated)
               </label>
               <Input
                 placeholder="AM-I, AMI Group"
                 value={newVendorAliases}
                 onChange={(e) => setNewVendorAliases(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddVendor(false)}>
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-zinc-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddVendor(false)}
+                className="text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" size="sm">
+              <Button type="submit" variant="primary" size="sm" className="text-xs font-semibold">
                 Save Vendor
               </Button>
             </div>
@@ -367,14 +417,15 @@ export default function VendorCatalogPage() {
           title="Add Vendor Variant"
           maxWidth="max-w-sm"
         >
-          <form onSubmit={handleCreateVariant} className="space-y-3">
+          <form onSubmit={handleCreateVariant} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Parent Vendor *
               </label>
               <Select
                 value={selectedParentVendorId}
                 onChange={(e) => setSelectedParentVendorId(e.target.value)}
+                className="h-9 text-xs"
               >
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -384,7 +435,7 @@ export default function VendorCatalogPage() {
               </Select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Variant Name *
               </label>
               <Input
@@ -392,10 +443,11 @@ export default function VendorCatalogPage() {
                 placeholder="e.g. AMI In-cell, AMI/A"
                 value={variantName}
                 onChange={(e) => setVariantName(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Variant Code *
               </label>
               <Input
@@ -403,23 +455,31 @@ export default function VendorCatalogPage() {
                 placeholder="e.g. AMI-INCELL, AMI/A"
                 value={variantCode}
                 onChange={(e) => setVariantCode(e.target.value)}
+                className="h-9 text-xs font-mono"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Display Technology
               </label>
               <Input
                 placeholder="In-cell, OLED, Aftermarket"
                 value={variantTech}
                 onChange={(e) => setVariantTech(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddVariant(false)}>
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-zinc-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddVariant(false)}
+                className="text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" size="sm">
+              <Button type="submit" variant="primary" size="sm" className="text-xs font-semibold">
                 Save Variant
               </Button>
             </div>
@@ -433,9 +493,9 @@ export default function VendorCatalogPage() {
           title="Add Recognition Rule"
           maxWidth="max-w-md"
         >
-          <form onSubmit={handleCreateRule} className="space-y-3">
+          <form onSubmit={handleCreateRule} className="space-y-3.5">
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Target Vendor *
               </label>
               <Select
@@ -444,6 +504,7 @@ export default function VendorCatalogPage() {
                   setRuleVendorId(e.target.value);
                   setRuleVariantId("");
                 }}
+                className="h-9 text-xs"
               >
                 {vendors.map((v) => (
                   <option key={v.id} value={v.id}>
@@ -454,12 +515,13 @@ export default function VendorCatalogPage() {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Target Variant (Optional)
               </label>
               <Select
                 value={ruleVariantId}
                 onChange={(e) => setRuleVariantId(e.target.value)}
+                className="h-9 text-xs"
               >
                 <option value="">-- Vendor only (Leaves variant unresolved) --</option>
                 {activeVendorForVariant?.variants?.map((va: any) => (
@@ -470,14 +532,15 @@ export default function VendorCatalogPage() {
               </Select>
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   Rule Type
                 </label>
                 <Select
                   value={ruleType}
                   onChange={(e) => setRuleType(e.target.value)}
+                  className="h-9 text-xs"
                 >
                   <option value="exact_code">Exact Code</option>
                   <option value="normalized_text">Normalized Text</option>
@@ -487,19 +550,20 @@ export default function VendorCatalogPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   Priority (1-250)
                 </label>
                 <Input
                   type="number"
                   value={rulePriority}
                   onChange={(e) => setRulePriority(parseInt(e.target.value))}
+                  className="h-9 text-xs font-mono"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Pattern *
               </label>
               <Input
@@ -507,14 +571,21 @@ export default function VendorCatalogPage() {
                 placeholder="e.g. AMI/A or ^AMI[\/\-]A$"
                 value={rulePattern}
                 onChange={(e) => setRulePattern(e.target.value)}
+                className="h-9 text-xs font-mono"
               />
             </div>
 
-            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
-              <Button type="button" variant="ghost" size="sm" onClick={() => setShowAddRule(false)}>
+            <div className="flex justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-zinc-800">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowAddRule(false)}
+                className="text-xs"
+              >
                 Cancel
               </Button>
-              <Button type="submit" variant="primary" size="sm">
+              <Button type="submit" variant="primary" size="sm" className="text-xs font-semibold">
                 Save Rule
               </Button>
             </div>

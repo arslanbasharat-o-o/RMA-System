@@ -1,11 +1,12 @@
 import { test, expect, Page } from "@playwright/test";
 
 async function mockRecognition(page: Page) {
-  const state = { completed: false, visualDone: false, failItem: false, itemReads: 0 };
+  const state = { completed: false, visualFailed: false, visualDone: false, failItem: false, itemReads: 0 };
   const item = () => ({
     id: "live-item", itemNumber: 1,
     status: state.completed ? "review_required" : "processing",
-    visualStatus: state.completed || state.visualDone ? "success" : "pending",
+    visualError: state.visualFailed ? "This operation was aborted" : null,
+    visualStatus: state.visualFailed ? "failed" : state.completed || state.visualDone ? "success" : "pending",
     vendorOcrStatus: state.completed ? "success" : "pending",
     predictedManufacturer: state.completed ? "Apple" : null,
     predictedModel: state.completed ? "iPhone 16 Pro" : null,
@@ -73,5 +74,33 @@ test("returning to an idle page revalidates results without waiting for a timer"
   await expect(page.getByText("Apple iPhone 16 Pro Display", { exact: true }).filter({ visible: true })).toBeVisible();
   state.completed = false;
   await page.evaluate(() => window.dispatchEvent(new Event("pageshow")));
-  await expect(page.getByText("Analyzing", { exact: true })).toBeVisible({ timeout: 3000 });
+  await expect(page.getByText("Processing", { exact: true }).filter({ visible: true })).toBeVisible({ timeout: 3000 });
+});
+
+
+test("visual timeouts show saved OCR and retry failures leave inspection open", async ({ page }) => {
+  const state = await mockRecognition(page);
+  state.completed = true;
+  state.visualFailed = true;
+  let attempts = 0;
+  let failRetry = true;
+  await page.route("**/api/rma-items/live-item/recognition", async route => {
+    attempts++;
+    expect(route.request().postDataJSON()).toEqual({ pipeline: "visual" });
+    await route.fulfill({ status: failRetry ? 503 : 200, json: failRetry ? { error: "Offline queue failure" } : { success: true } });
+  });
+  await page.goto("/rmas/live-rma");
+  await page.getByRole("button", { name: /Inspect/ }).click();
+  const drawer = page.getByRole("dialog", { name: "Inspection for Display Item #1" });
+  await expect(drawer.getByRole("alert")).toContainText("The visual search timed out");
+  await expect(drawer.getByRole("alert")).toContainText("Text recognition completed successfully");
+  expect(attempts).toBe(0);
+  await drawer.getByRole("button", { name: "Retry visual identification", exact: true }).click();
+  await expect(page.getByText("Could not queue recognition. Please try again.")).toBeVisible();
+  await expect(drawer).toBeVisible();
+  expect(attempts).toBe(1);
+  failRetry = false;
+  await drawer.getByRole("button", { name: "Retry visual identification", exact: true }).click();
+  await expect(drawer).toHaveCount(0);
+  expect(attempts).toBe(2);
 });

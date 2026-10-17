@@ -4,11 +4,10 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
-import { ArrowLeft, Plus, Camera, AlertCircle } from "lucide-react";
+import { ArrowLeft, Plus, Camera, AlertCircle, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
@@ -18,6 +17,7 @@ import {
   errorAlertVariants,
   accordionVariants,
 } from "@/lib/motion/variants";
+import { CardSpotlight, ShimmerButton } from "@/components/premium";
 
 export default function CreateRmaPage() {
   const router = useRouter();
@@ -147,7 +147,7 @@ export default function CreateRmaPage() {
         <div>
           <Link
             href="/rmas"
-            className="inline-flex items-center text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
+            className="inline-flex items-center text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors"
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
             <span>Back to RMA Shipments</span>
@@ -155,131 +155,143 @@ export default function CreateRmaPage() {
         </div>
 
         {/* Header */}
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Create RMA Intake
+        <div className="pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+            New RMA
           </h1>
         </div>
 
-        {/* Intake Form */}
+        {/* Intake Form with CardSpotlight */}
         <motion.div
           variants={cardEntranceVariants}
           initial="hidden"
           animate="visible"
         >
-          <Card>
-            <CardContent className="p-6">
-              {loading ? (
-                <div className="space-y-4">
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-14 w-full" />
-                  <Skeleton className="h-20 w-full" />
-                </div>
-              ) : (
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* Inline Error Banner */}
-                  <AnimatePresence>
-                    {errorMessage && (
-                      <motion.div
-                        variants={errorAlertVariants}
-                        initial="hidden"
-                        animate="visible"
-                        exit="exit"
-                        className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-xs text-red-700 dark:text-red-300 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2">
-                          <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
-                          <span>{errorMessage}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setErrorMessage(null)}
-                          className="text-red-500 hover:text-red-700 dark:hover:text-red-300 text-xs font-bold"
-                          aria-label="Dismiss error"
-                        >
-                          &times;
-                        </button>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+          <CardSpotlight
+            className="p-6 sm:p-7 border-neutral-200/90 dark:border-neutral-800 bg-white/95 dark:bg-[#121215]/95 shadow-md relative"
+            spotlightColor="rgba(99, 102, 241, 0.08)"
+          >
 
-                  {/* Customer Selector */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label htmlFor="rma-customer" className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                        Customer / Business Name *
-                      </label>
+            {loading ? (
+              <div className="space-y-4">
+                <Skeleton className="h-14 w-full rounded-lg" />
+                <Skeleton className="h-14 w-full rounded-lg" />
+                <Skeleton className="h-20 w-full rounded-lg" />
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                {/* Inline Error Banner */}
+                <AnimatePresence>
+                  {errorMessage && (
+                    <motion.div
+                      variants={errorAlertVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      className="p-3 rounded-lg bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-xs text-red-700 dark:text-red-300 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
+                        <span>{errorMessage}</span>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setShowQuickCustomer(true)}
-                        className="text-xs text-neutral-900 dark:text-neutral-100 hover:underline font-medium inline-flex items-center gap-1 cursor-pointer"
+                        onClick={() => setErrorMessage(null)}
+                        className="text-red-500 hover:text-red-700 dark:hover:text-red-300 text-xs font-bold"
+                        aria-label="Dismiss error"
                       >
-                        <Plus className="h-3 w-3" />
-                        <span>Quick Add Customer</span>
+                        &times;
                       </button>
-                    </div>
-                    <Select
-                      id="rma-customer"
-                      aria-describedby="customer-help"
-                      value={customerId}
-                      onChange={(e) => setCustomerId(e.target.value)}
-                      required
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* Customer Selector */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label
+                      htmlFor="rma-customer"
+                      className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200"
                     >
-                      <option value="" disabled>Select a customer or add a new one</option>
-                      {customers.filter((c) => c.name?.trim() && c.active).map((c) => (
+                      Customer / Business Name *
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickCustomer(true)}
+                      className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold inline-flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3 w-3" />
+                      <span>Quick Add Customer</span>
+                    </button>
+                  </div>
+                  <Select
+                    id="rma-customer"
+                    value={customerId}
+                    onChange={(e) => setCustomerId(e.target.value)}
+                    required
+                    className="h-9 text-xs"
+                  >
+                    <option value="" disabled>
+                      Select a customer or add a new one
+                    </option>
+                    {customers
+                      .filter((c) => c.name?.trim() && c.active)
+                      .map((c) => (
                         <option key={c.id} value={c.id}>
                           {c.name} {c.contactName ? `(${c.contactName})` : ""}
                         </option>
                       ))}
-                    </Select>
-                    <p id="customer-help" className="mt-2 text-xs text-neutral-500">Choose the customer for this shipment before opening the scanner.</p>
-                  </div>
+                  </Select>
+                </div>
 
-                  {/* Return Reason Selector */}
-                  <div>
-                    <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
-                      Return Reason *
-                    </label>
-                    <Select
-                      value={returnReasonId}
-                      onChange={(e) => setReturnReasonId(e.target.value)}
-                      required
+                {/* Return Reason Selector */}
+                <div>
+                  <label htmlFor="rma-return-reason" className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1.5">
+                    Return Reason *
+                  </label>
+                  <Select
+                    id="rma-return-reason"
+                    value={returnReasonId}
+                    onChange={(e) => setReturnReasonId(e.target.value)}
+                    required
+                    className="h-9 text-xs"
+                  >
+                    {returnReasons.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+
+                {/* Other Reason Explanation */}
+                <AnimatePresence>
+                  {isOtherReason && (
+                    <motion.div
+                      variants={accordionVariants}
+                      initial="collapsed"
+                      animate="expanded"
+                      exit="collapsed"
+                      className="overflow-hidden"
                     >
-                      {returnReasons.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.label}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-
-                  {/* Other Reason Explanation */}
-                  <AnimatePresence>
-                    {isOtherReason && (
-                      <motion.div
-                        variants={accordionVariants}
-                        initial="collapsed"
-                        animate="expanded"
-                        exit="collapsed"
-                        className="overflow-hidden"
-                      >
-                        <div className="pt-1">
-                          <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                            Explain Return Reason *
-                          </label>
-                          <Input
-                            placeholder="Provide details about return reason..."
-                            value={returnReasonNotes}
-                            onChange={(e) => setReturnReasonNotes(e.target.value)}
-                            required
-                          />
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                      <div className="pt-1">
+                        <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                          Explain Return Reason *
+                        </label>
+                        <Input
+                          placeholder="Provide details about return reason..."
+                          value={returnReasonNotes}
+                          onChange={(e) => setReturnReasonNotes(e.target.value)}
+                          required
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Optional Fields Row */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-neutral-100 dark:border-zinc-800">
                   <div>
                     <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                       External RMA # (Optional)
@@ -288,6 +300,7 @@ export default function CreateRmaPage() {
                       placeholder="e.g. CUST-RMA-8841"
                       value={externalRmaNumber}
                       onChange={(e) => setExternalRmaNumber(e.target.value)}
+                      className="h-9 text-xs font-mono"
                     />
                   </div>
 
@@ -299,6 +312,7 @@ export default function CreateRmaPage() {
                       placeholder="e.g. 1Z9999999999999999"
                       value={trackingNumber}
                       onChange={(e) => setTrackingNumber(e.target.value)}
+                      className="h-9 text-xs font-mono"
                     />
                   </div>
                 </div>
@@ -318,6 +332,7 @@ export default function CreateRmaPage() {
                           e.target.value ? parseInt(e.target.value) : ""
                         )
                       }
+                      className="h-9 text-xs"
                     />
                   </div>
 
@@ -329,27 +344,26 @@ export default function CreateRmaPage() {
                       placeholder="Package condition, special instructions..."
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
+                      className="h-9 text-xs"
                     />
                   </div>
                 </div>
 
                 {/* Submit Button */}
-                <div className="pt-4 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">
-                  <Button
+                <div className="pt-4 border-t border-neutral-100 dark:border-zinc-800 flex justify-end">
+                  <ShimmerButton
                     type="submit"
-                    variant="primary"
                     loading={submitting}
                     disabled={!customerId || !returnReasonId}
-                    className="gap-2 shrink-0 w-full sm:w-auto h-10 px-5 text-xs sm:text-sm font-medium"
+                    className="gap-2 shrink-0 w-full sm:w-auto h-10 px-5 text-xs sm:text-sm font-semibold"
                   >
                     <Camera className="h-4 w-4 shrink-0" />
                     <span>Create RMA & Open Scanner</span>
-                  </Button>
+                  </ShimmerButton>
                 </div>
               </form>
             )}
-          </CardContent>
-        </Card>
+          </CardSpotlight>
         </motion.div>
 
         {/* Quick Add Customer Modal */}
@@ -370,6 +384,7 @@ export default function CreateRmaPage() {
                 value={newCustomerName}
                 onChange={(e) => setNewCustomerName(e.target.value)}
                 autoFocus
+                className="h-9 text-xs"
               />
             </div>
             <div>
@@ -381,6 +396,7 @@ export default function CreateRmaPage() {
                 placeholder="returns@fastfix.com"
                 value={newCustomerEmail}
                 onChange={(e) => setNewCustomerEmail(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
@@ -389,6 +405,7 @@ export default function CreateRmaPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowQuickCustomer(false)}
+                className="text-xs"
               >
                 Cancel
               </Button>
@@ -397,6 +414,7 @@ export default function CreateRmaPage() {
                 variant="primary"
                 size="sm"
                 loading={quickCustomerSaving}
+                className="text-xs"
               >
                 Save Customer
               </Button>

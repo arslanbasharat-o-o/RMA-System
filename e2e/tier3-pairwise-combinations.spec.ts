@@ -16,7 +16,7 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
   await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-  await page.click('button:has-text("Sign In to Platform")');
+  await page.click('button:has-text("Sign In")');
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -69,13 +69,13 @@ test.describe("Tier 3 - Pairwise Combinations (Cross-Feature Matrix)", () => {
     // 5. Verify Visual Recognition card presence
     const body = page.locator("body");
     await expect(body).toContainText(
-      /Visual Recognition Provider|Visual Identification|Google Lens/i
+      /Visual Recognition|Visual Identification|Google Lens/i
     );
 
     // 6. Execute Connection Test for Google Lens
     const testLensBtn = page
       .locator(
-        'button:has-text("Test Visual Connection"), button:has-text("Test Connection")'
+        'button:has-text("Test Visual Recognition Connection"), button:has-text("Test Connection")'
       )
       .first();
 
@@ -83,9 +83,7 @@ test.describe("Tier 3 - Pairwise Combinations (Cross-Feature Matrix)", () => {
       await testLensBtn.click();
 
       // Expect either loading state or result toast / badge
-      const feedback = page.locator(
-        '[data-sonner-toaster], text=/latency|connected|roundtrip|provider/i'
-      );
+      const feedback = page.getByText(/Roundtrip latency: \d+ms/i);
       await expect(feedback.first()).toBeVisible({ timeout: 10000 });
     }
 
@@ -385,7 +383,7 @@ test.describe("Tier 3 - Pairwise Combinations (Cross-Feature Matrix)", () => {
 
     // Click Save Timezone button
     const saveBtn = page.locator(
-      'button:has-text("Save Timezone"), button:has-text("Save Configuration"), button:has-text("Save Settings")'
+      'button:has-text("Save Timezone"), button:has-text("Save Recognition Settings"), button:has-text("Save Settings")'
     );
     if ((await saveBtn.count()) > 0) {
       await saveBtn.first().click();

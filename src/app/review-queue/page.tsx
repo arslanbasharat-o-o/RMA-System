@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -9,15 +9,23 @@ import {
   ChevronRight,
   ChevronLeft,
   HelpCircle,
+  Sparkles,
+  Maximize2,
+  CheckCircle2,
+  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
+import {
+  CardSpotlight,
+  GlowingBadge,
+  CopyBadge,
+  ShimmerButton,
+} from "@/components/premium";
 
 export default function ReviewQueuePage() {
   const [queue, setQueue] = useState<any[]>([]);
@@ -30,6 +38,7 @@ export default function ReviewQueuePage() {
   // Selection states
   const [selectedCatalogId, setSelectedCatalogId] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
+  const actionPending = useRef(false);
 
   const fetchQueue = async () => {
     setLoading(true);
@@ -64,8 +73,9 @@ export default function ReviewQueuePage() {
 
   const currentItem = queue[currentIndex];
 
-  const handleAction = async (action: string) => {
-    if (!currentItem) return;
+  const handleAction = useCallback(async (action: string) => {
+    if (!currentItem || actionPending.current) return;
+    actionPending.current = true;
     setActionLoading(true);
 
     try {
@@ -96,250 +106,322 @@ export default function ReviewQueuePage() {
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to submit review decision");
     } finally {
+      actionPending.current = false;
       setActionLoading(false);
     }
-  };
+  }, [currentItem, queue, currentIndex, selectedCatalogId, selectedVendorId]);
+
+  // Keyboard shortcut listener (Y to accept, U for unknown, S to skip, arrows to navigate)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger if user is typing in a select or input
+      const target = e.target as HTMLElement | null;
+      if (e.repeat || e.metaKey || e.ctrlKey || e.altKey || actionLoading || target?.closest('input, select, textarea, [contenteditable="true"], [role="combobox"], [role="listbox"], [role="option"]')) {
+        return;
+      }
+      if (e.key === "y" || e.key === "Y") {
+        e.preventDefault();
+        handleAction("accept_suggestion");
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        if (currentIndex < queue.length - 1) setCurrentIndex((i) => i + 1);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        if (currentIndex > 0) setCurrentIndex((i) => i - 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleAction, currentIndex, queue.length, actionLoading]);
 
   return (
     <AppShell>
-      <div className="max-w-4xl mx-auto space-y-6">
-        <div className="flex items-center justify-between gap-3">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Sequential Review Queue
-          </h1>
-
-          <Badge variant="outline" className="font-mono shrink-0">
-            <span className="sm:hidden">{queue.length} pending</span>
-            <span className="hidden sm:inline"><AnimatedNumber value={queue.length} /> displays pending review</span>
-          </Badge>
+      <div className="max-w-5xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-3 pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+              Review Queue
+            </h1>
+            <GlowingBadge variant={queue.length > 0 ? "warning" : "success"} pulse={false}>
+              {queue.length > 0 ? `${queue.length} Pending` : "Queue Clear"}
+            </GlowingBadge>
+          </div>
         </div>
 
         {loading ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Skeleton className="h-96 w-full rounded-xl" />
-            <Skeleton className="h-96 w-full rounded-xl" />
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
+            <Skeleton className="h-96 md:col-span-7 rounded-2xl" />
+            <Skeleton className="h-96 md:col-span-5 rounded-2xl" />
           </div>
         ) : queue.length > 0 && currentItem ? (
           <AnimatePresence mode="wait">
             <motion.div
               key={currentItem.id}
-              initial={{ opacity: 0, y: 6 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -4 }}
-              transition={{ duration: 0.16 }}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              exit={{ opacity: 0, y: -6 }}
+              transition={{ duration: 0.18 }}
+              className="grid grid-cols-1 md:grid-cols-12 gap-6"
             >
-            {/* Visual Display Left Card */}
-            <Card className="overflow-hidden flex flex-col">
-              <div className="relative aspect-4/3 bg-neutral-900 flex items-center justify-center border-b border-neutral-200 dark:border-neutral-800">
-                <img
-                  src={`/api/images/${currentItem.primaryImageId || currentItem.id}?size=preview`}
-                  alt="Review display"
-                  className="w-full h-full object-contain"
-                  onError={(e) => {
-                    (e.target as HTMLElement).style.display = "none";
-                  }}
-                />
-                <div className="absolute top-3 left-3 flex items-center gap-2">
-                  <Badge variant="default" className="bg-black/70 backdrop-blur-md text-white border-0">
-                    Display #{currentItem.itemNumber}
-                  </Badge>
-                </div>
-              </div>
-
-              <CardContent className="p-5 flex-1 flex flex-col justify-between space-y-4">
+              {/* Left Column: Visual Display Evidence (7 cols) */}
+              <CardSpotlight
+                className="md:col-span-7 p-0 overflow-hidden flex flex-col justify-between relative border-slate-200/90 dark:border-zinc-800 bg-white/95 dark:bg-[#121215]/95 shadow-md"
+                spotlightColor="rgba(255, 255, 255, 0.04)"
+              >
                 <div>
-                  <div className="grid grid-cols-2 gap-3 mb-2">
-                    <div>
-                      <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
-                        Suggested Model:
+                  {/* Image Preview Container */}
+                  <div className="relative aspect-4/3 sm:aspect-16/10 bg-black flex items-center justify-center border-b border-slate-200 dark:border-zinc-800 overflow-hidden group">
+                    <img
+                      src={`/api/images/${currentItem.primaryImageId || currentItem.id}?size=preview`}
+                      alt="Review display flex cable"
+                      className="w-full h-full object-contain transition-transform duration-300 group-hover:scale-105"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = "none";
+                      }}
+                    />
+
+                    {/* Overlay Badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md text-xs font-mono font-bold bg-zinc-950/80 backdrop-blur-md text-white border border-white/10 shadow-sm">
+                        Display #{currentItem.itemNumber}
                       </span>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                        {currentItem.predictedDisplayAssembly ||
-                          (currentItem.predictedModel
-                            ? `${currentItem.predictedManufacturer ? currentItem.predictedManufacturer + " " : ""}${currentItem.predictedModel}`
-                            : "Unidentified Model")}
-                      </p>
                     </div>
 
-                    <div>
-                      <span className="text-[11px] font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider block">
-                        Suggested Vendor:
+                    <div className="absolute top-3 right-3 flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-md text-[10px] font-mono font-semibold bg-indigo-600/90 text-white backdrop-blur-md flex items-center gap-1.5 shadow-xs border border-indigo-400/30">
+                        <Sparkles className="h-3 w-3" />
+                        Scanned Stamp
                       </span>
-                      <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-                        {currentItem.identifiedVendorName || "Unidentified Vendor"}
-                      </p>
                     </div>
                   </div>
 
-                  {currentItem.reviewNotes && (
-                    <div className="mt-2 text-xs text-amber-900 dark:text-amber-200 bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 p-2.5 rounded-md flex items-start gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                  {/* Recognition Metadata */}
+                  <div className="p-5 space-y-4">
+                    <div className="grid grid-cols-2 gap-3 pb-3 border-b border-neutral-100 dark:border-zinc-800">
                       <div>
-                        <span className="font-semibold block text-[11px] uppercase tracking-wider text-amber-950 dark:text-amber-300">
-                          Reason for Review:
+                        <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider block mb-1">
+                          Identified Model:
                         </span>
-                        <span className="text-xs leading-relaxed">{currentItem.reviewNotes}</span>
+                        <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                          {currentItem.predictedDisplayAssembly ||
+                            (currentItem.predictedModel
+                              ? `${currentItem.predictedManufacturer ? currentItem.predictedManufacturer + " " : ""}${currentItem.predictedModel}`
+                              : "Unidentified Model")}
+                        </p>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider block mb-1">
+                          Supplier Attribution:
+                        </span>
+                        <p className="text-sm font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                          {currentItem.identifiedVendorName || "Unidentified Vendor"}
+                        </p>
                       </div>
                     </div>
-                  )}
 
-                  {currentItem.matchedCodesSummary && (
-                    <div className="mt-2 text-xs font-mono text-neutral-700 dark:text-neutral-300 bg-neutral-100 dark:bg-neutral-800 p-2 rounded">
-                      <span className="font-semibold text-neutral-900 dark:text-neutral-100">Matched Codes: </span>
-                      {currentItem.matchedCodesSummary}
+                    {/* Review Reason Alert */}
+                    {currentItem.reviewNotes && (
+                      <div className="p-3 rounded-lg border border-amber-300/80 dark:border-amber-700/60 bg-amber-50/70 dark:bg-amber-950/30 flex items-start gap-2.5">
+                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <span className="font-semibold block text-[10px] uppercase tracking-wider text-amber-900 dark:text-amber-300">
+                            Reason For Review:
+                          </span>
+                          <span className="text-xs text-amber-950 dark:text-amber-200 leading-relaxed">
+                            {currentItem.reviewNotes}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Matched Codes */}
+                    {currentItem.matchedCodesSummary && (
+                      <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-zinc-900 border border-neutral-200/60 dark:border-zinc-800 flex items-center justify-between text-xs">
+                        <span className="text-neutral-500 font-medium">Matched Codes:</span>
+                        <CopyBadge value={currentItem.matchedCodesSummary} />
+                      </div>
+                    )}
+
+                    {/* Extracted Markings */}
+                    <div className="p-3 rounded-lg bg-neutral-50/80 dark:bg-zinc-900/60 border border-neutral-200/60 dark:border-zinc-800 text-xs font-mono text-neutral-600 dark:text-neutral-400 space-y-1">
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 block">
+                        Extracted Markings:
+                      </span>
+                      <p className="text-neutral-800 dark:text-neutral-200 font-mono text-xs break-all">
+                        {currentItem.extractedTextSummary || "No markings detected"}
+                      </p>
                     </div>
-                  )}
-
-                  <div className="mt-2.5 p-2.5 rounded bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200 dark:border-neutral-800 text-xs font-mono text-neutral-600 dark:text-neutral-400">
-                    <span className="font-semibold block text-neutral-800 dark:text-neutral-200 mb-0.5">
-                      Extracted Text / Markings:
-                    </span>
-                    {currentItem.extractedTextSummary || "No markings detected"}
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between text-xs text-neutral-400 dark:text-neutral-500 pt-3 border-t border-neutral-100 dark:border-neutral-800">
-                  <span>Item {currentIndex + 1} of {queue.length}</span>
-                  <div className="flex items-center gap-1">
+                {/* Carousel Pagination Footer */}
+                <div className="p-4 bg-neutral-50/70 dark:bg-zinc-900/50 border-t border-neutral-100 dark:border-zinc-800 flex items-center justify-between text-xs text-neutral-500 dark:text-neutral-400">
+                  <span className="font-mono">
+                    Screen <strong>{currentIndex + 1}</strong> of {queue.length}
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       disabled={currentIndex === 0}
                       onClick={() => setCurrentIndex((prev) => prev - 1)}
+                      className="h-7 px-2.5 text-xs"
                     >
-                      <ChevronLeft className="h-4 w-4" />
+                      <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+                      <span>Prev</span>
                     </Button>
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       disabled={currentIndex >= queue.length - 1}
                       onClick={() => setCurrentIndex((prev) => prev + 1)}
+                      className="h-7 px-2.5 text-xs"
                     >
-                      <ChevronRight className="h-4 w-4" />
+                      <span>Next</span>
+                      <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </CardSpotlight>
 
-            {/* Quick Action Decision Right Card */}
-            <Card className="flex flex-col justify-between">
-              <CardHeader className="p-5 pb-3">
-                <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                  Verification Decision
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="p-5 pt-0 space-y-4 flex-1">
-                {/* 1. Quick Accept */}
-                <div className="p-3.5 rounded-lg border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/60 dark:bg-emerald-950/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <span className="font-semibold text-xs text-emerald-950 dark:text-emerald-200 block">
-                      Accept Suggested Match
+              {/* Right Column: Verification Decision Panel (5 cols) */}
+              <CardSpotlight
+                className="md:col-span-5 p-5 sm:p-6 flex flex-col justify-between border-slate-200/90 dark:border-zinc-800 bg-white/95 dark:bg-[#121215]/95 shadow-md"
+                spotlightColor="rgba(255, 255, 255, 0.04)"
+              >
+                <div>
+                  <div className="flex items-center justify-between pb-3 mb-4 border-b border-slate-200/80 dark:border-zinc-800">
+                    <span className="text-sm font-semibold text-slate-900 dark:text-zinc-100">
+                      Review & Confirmation
                     </span>
-                    <span className="text-[11px] text-emerald-800 dark:text-emerald-300">
-                      Confirm {currentItem.predictedModel || "current record"} as verified.
+                    <span className="text-[10px] font-mono text-slate-400">
+                      Shortcuts: [Y] Approve
                     </span>
                   </div>
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    loading={actionLoading}
-                    onClick={() => handleAction("accept_suggestion")}
-                    className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0 justify-center"
-                  >
-                    <Check className="h-4 w-4 mr-1 shrink-0" />
-                    <span>Accept (Y)</span>
-                  </Button>
+
+                  <div className="space-y-4">
+                    {/* Primary Accept Action */}
+                    <div className="p-4 rounded-xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent space-y-3">
+                      <div>
+                        <span className="font-bold text-xs text-emerald-950 dark:text-emerald-200 block">
+                          Approve Model Match
+                        </span>
+                      </div>
+
+                      <Button
+                        variant="primary"
+                        size="md"
+                        loading={actionLoading}
+                        onClick={() => handleAction("accept_suggestion")}
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold text-xs justify-center shadow-xs cursor-pointer"
+                      >
+                        <Check className="h-4 w-4 mr-1.5 shrink-0" />
+                        <span>Approve Match (Press Y)</span>
+                      </Button>
+                    </div>
+
+                    {/* Manual Model Override */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="review-model" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        Select Different Model:
+                      </label>
+                      <Select
+                        id="review-model"
+                        value={selectedCatalogId}
+                        onChange={(e) => setSelectedCatalogId(e.target.value)}
+                        className="text-xs h-9"
+                      >
+                        <option value="">-- Choose from Display Catalog --</option>
+                        {catalogs.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.manufacturer} {cat.modelName} ({cat.displayTechnology || "OLED"})
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+
+                    {/* Manual Vendor Override */}
+                    <div className="space-y-1.5">
+                      <label htmlFor="review-vendor" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
+                        Select Different Supplier:
+                      </label>
+                      <Select
+                        id="review-vendor"
+                        value={selectedVendorId}
+                        onChange={(e) => setSelectedVendorId(e.target.value)}
+                        className="text-xs h-9"
+                      >
+                        <option value="">-- Choose Supplier --</option>
+                        {vendors.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.name}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
                 </div>
 
-                {/* 2. Manual Model Override */}
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Or Select Correct Display Model:
-                  </label>
-                  <Select
-                    value={selectedCatalogId}
-                    onChange={(e) => setSelectedCatalogId(e.target.value)}
-                  >
-                    <option value="">-- Choose from Catalog --</option>
-                    {catalogs.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.manufacturer} {cat.modelName}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-
-                {/* 3. Manual Vendor Override */}
-                <div>
-                  <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
-                    Or Select Correct Vendor:
-                  </label>
-                  <Select
-                    value={selectedVendorId}
-                    onChange={(e) => setSelectedVendorId(e.target.value)}
-                  >
-                    <option value="">-- Choose Vendor --</option>
-                    {vendors.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.name}
-                      </option>
-                    ))}
-                  </Select>
-                </div>
-
-                {/* Action buttons */}
-                <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex flex-col gap-2">
+                {/* Secondary Actions */}
+                <div className="pt-5 border-t border-neutral-100 dark:border-zinc-800 space-y-2 mt-4">
                   <Button
                     variant="primary"
                     size="sm"
                     loading={actionLoading}
                     disabled={!selectedCatalogId && !selectedVendorId}
                     onClick={() => handleAction("manual_verify")}
+                    className="w-full text-xs font-medium"
                   >
-                    Save Selected Override
+                    Save Changes
                   </Button>
 
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="flex-1"
+                      className="flex-1 text-xs"
                       onClick={() => handleAction("mark_unknown")}
                     >
-                      <HelpCircle className="h-3.5 w-3.5 mr-1" />
+                      <HelpCircle className="h-3.5 w-3.5 mr-1 text-neutral-400" />
                       <span>Mark Unknown</span>
                     </Button>
 
                     <Button
                       variant="ghost"
                       size="sm"
+                      className="text-xs"
                       onClick={() => setCurrentIndex((prev) => (prev + 1) % queue.length)}
                     >
-                      <span>Skip For Now</span>
+                      <span>Skip</span>
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        </AnimatePresence>
+              </CardSpotlight>
+            </motion.div>
+          </AnimatePresence>
         ) : (
-          <Card>
-            <CardContent className="p-12 text-center space-y-3">
-              <Check className="h-10 w-10 text-emerald-600 dark:text-emerald-400 mx-auto" />
+          <CardSpotlight className="p-12 text-center space-y-4 border-dashed border-2 border-neutral-200 dark:border-zinc-800">
+            <div className="h-12 w-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-sm">
+              <CheckCircle2 className="h-6 w-6" />
+            </div>
+            <div>
               <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100">
-                Review Queue Empty
+                Review Queue Clear
               </h3>
-              <Link href="/dashboard">
-                <Button size="sm" variant="outline" className="mt-2">
-                  Return to Dashboard
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
+              <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-1 max-w-sm mx-auto">
+                All captured screens have been identified and confirmed. Return to the dashboard or intake a new RMA.
+              </p>
+            </div>
+            <Link href="/dashboard" className="inline-block">
+              <Button size="sm" variant="outline" className="text-xs font-medium">
+                Return to Dashboard &rarr;
+              </Button>
+            </Link>
+          </CardSpotlight>
         )}
       </div>
     </AppShell>

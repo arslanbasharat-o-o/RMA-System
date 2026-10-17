@@ -186,28 +186,28 @@ export default function SettingsPage() {
     <AppShell>
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div>
+        <div className="pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
             System Settings
           </h1>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="w-full sm:w-auto flex-wrap sm:flex-nowrap">
-            <TabsTrigger value="general" className="flex-1 sm:flex-none">
-              <Sliders className="h-3.5 w-3.5 mr-1" />
+          <TabsList className="w-full sm:w-auto flex-wrap sm:flex-nowrap bg-neutral-100/80 dark:bg-zinc-900/80 p-1 rounded-xl border border-neutral-200/60 dark:border-zinc-800">
+            <TabsTrigger value="general" className="flex-1 sm:flex-none text-xs font-medium">
+              <Sliders className="h-3.5 w-3.5 mr-1.5" />
               <span>General</span>
             </TabsTrigger>
-            <TabsTrigger value="providers" className="flex-1 sm:flex-none">
-              <Eye className="h-3.5 w-3.5 mr-1" />
+            <TabsTrigger value="providers" className="flex-1 sm:flex-none text-xs font-medium">
+              <Eye className="h-3.5 w-3.5 mr-1.5" />
               <span>Recognition Providers</span>
             </TabsTrigger>
-            <TabsTrigger value="staff" className="flex-1 sm:flex-none">
-              <Users className="h-3.5 w-3.5 mr-1" />
+            <TabsTrigger value="staff" className="flex-1 sm:flex-none text-xs font-medium">
+              <Users className="h-3.5 w-3.5 mr-1.5" />
               <span>Staff & Access</span>
             </TabsTrigger>
-            <TabsTrigger value="appearance" className="flex-1 sm:flex-none">
-              <Palette className="h-3.5 w-3.5 mr-1" />
+            <TabsTrigger value="appearance" className="flex-1 sm:flex-none text-xs font-medium">
+              <Palette className="h-3.5 w-3.5 mr-1.5" />
               <span>Appearance</span>
             </TabsTrigger>
           </TabsList>

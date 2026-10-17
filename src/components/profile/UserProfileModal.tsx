@@ -6,14 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { APP_VERSION } from "@/lib/version";
+import { AlertCircle } from "lucide-react";
 import {
-  KeyRound,
-  LogOut,
-  CheckCircle2,
-  AlertCircle,
-  Eye,
-  EyeOff,
-} from "lucide-react";
+  AnimatedKey,
+  AnimatedLogout,
+  AnimatedEye,
+  AnimatedCheckCircle,
+} from "@/components/icons/AnimatedIcons";
 import { toast } from "sonner";
 
 export interface UserProfileModalProps {
@@ -136,19 +135,19 @@ export function UserProfileModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="User Profile & Account"
+      title="Your Account"
       maxWidth="max-w-lg"
     >
       <div className="space-y-5">
         {/* User Identity Header Card */}
         <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
+            <div className="h-11 w-11 rounded-xl bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 font-bold text-sm flex items-center justify-center shrink-0 shadow-xs">
               {initials}
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 truncate">
-                {currentUser?.name || "Staff Member"}
+                {currentUser?.name || "User"}
               </h3>
               <p className="text-xs text-neutral-500 dark:text-neutral-400 font-mono truncate">
                 {currentUser?.email || "user@rma-platform.local"}
@@ -173,7 +172,7 @@ export function UserProfileModal({
 
         {successMessage && (
           <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/50 text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+            <AnimatedCheckCircle size={16} className="text-emerald-600 dark:text-emerald-400" />
             <span>{successMessage}</span>
           </div>
         )}
@@ -197,7 +196,7 @@ export function UserProfileModal({
           {/* Password Update Section */}
           <div className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
             <div className="flex items-center gap-1.5 text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-              <KeyRound className="h-3.5 w-3.5 text-neutral-500 shrink-0" />
+              <AnimatedKey size={15} className="text-neutral-500 shrink-0" />
               <span>Change Password</span>
             </div>
 
@@ -219,11 +218,7 @@ export function UserProfileModal({
                   className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
                   tabIndex={-1}
                 >
-                  {showCurrentPass ? (
-                    <EyeOff className="h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <Eye className="h-3.5 w-3.5 shrink-0" />
-                  )}
+                  <AnimatedEye size={15} visible={showCurrentPass} />
                 </button>
               </div>
             </div>
@@ -247,11 +242,7 @@ export function UserProfileModal({
                     className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
                     tabIndex={-1}
                   >
-                    {showNewPass ? (
-                      <EyeOff className="h-3.5 w-3.5 shrink-0" />
-                    ) : (
-                      <Eye className="h-3.5 w-3.5 shrink-0" />
-                    )}
+                    <AnimatedEye size={15} visible={showNewPass} />
                   </button>
                 </div>
               </div>
@@ -279,7 +270,7 @@ export function UserProfileModal({
               loading={saving}
               className="w-full sm:w-auto"
             >
-              Save Profile Changes
+              Save Changes
             </Button>
           </div>
         </form>
@@ -299,23 +290,27 @@ export function UserProfileModal({
               onClick={() => setConfirmingLogout(true)}
               className="w-full text-rose-600 dark:text-rose-400 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/40 border-rose-200 dark:border-rose-900/60 gap-2 h-9 text-xs font-semibold justify-center"
             >
-              <LogOut className="h-4 w-4 shrink-0" />
-              <span>Log Out of Account</span>
+              <AnimatedLogout size={16} className="shrink-0" />
+              <span>Log Out</span>
             </Button>
           ) : (
-            <div className="p-3 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 space-y-2">
-              <p className="text-xs font-medium text-rose-800 dark:text-rose-300">
-                Are you sure you want to end your session and log out?
-              </p>
+            <div className="p-3.5 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 space-y-2.5">
+              <div className="flex items-center gap-2">
+                <AnimatedLogout size={16} className="text-rose-600 dark:text-rose-400 shrink-0" />
+                <p className="text-xs font-medium text-rose-800 dark:text-rose-300">
+                  Are you sure you want to log out?
+                </p>
+              </div>
               <div className="flex items-center gap-2">
                 <Button
                   type="button"
                   size="sm"
                   variant="primary"
                   onClick={onLogout}
-                  className="bg-rose-600 hover:bg-rose-700 text-white dark:bg-rose-600 dark:text-white text-xs h-8"
+                  className="bg-rose-600 hover:bg-rose-700 text-white dark:bg-rose-600 dark:text-white text-xs h-8 gap-1.5"
                 >
-                  Yes, Log Out
+                  <AnimatedLogout size={14} />
+                  <span>Yes, Log Out</span>
                 </Button>
                 <Button
                   type="button"
