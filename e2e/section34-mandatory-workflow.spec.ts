@@ -15,11 +15,10 @@ async function navigateTo(page: Page, label: string, urlPattern: RegExp) {
   const isMobile = await mobileToggle.isVisible();
   let link;
   if (isMobile) {
-    const drawer = page.locator('div[role="dialog"][aria-modal="true"]');
+    const drawer = page.getByRole("dialog", { name: "Mobile Navigation Drawer" });
     if (!(await drawer.isVisible())) {
       await mobileToggle.click();
       await expect(drawer).toBeVisible({ timeout: 5000 });
-      await page.waitForTimeout(200);
     }
     link = drawer.getByRole("link", { name: label, exact: true });
   } else {

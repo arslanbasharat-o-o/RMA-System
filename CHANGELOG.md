@@ -4,7 +4,21 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
-## [0.3.3] - 2026-10-18
+## [0.3.4] - 2026-10-18
+
+### Fixed
+
+- Reuse an operator-confirmed model or a corroborated visual decision for identical image bytes across RMA items. A later weak Lens response cannot erase a supported suggestion, and conflicting credible models go to review.
+- Keep an explicit reprocess able to collect fresh evidence while recording a conflict instead of silently replacing a previous model.
+- Select the named mobile navigation drawer in the complete browser workflow so unrelated dialogs cannot intercept the Dashboard step.
+
+### Verification
+
+- Local checks passed: 130 unit and integration tests, TypeScript, ESLint, production build, and the complete 36-step mobile Chrome workflow against an isolated database.
+- Lens recognition tests use mocks and fixtures; they do not call paid recognition APIs.
+- The v0.3.3 candidate tag was not published after full release validation found the mobile workflow selector failure. This release supersedes that candidate.
+
+## [0.3.3] - 2026-10-18 (unpublished candidate)
 
 ### Added
 
@@ -20,7 +34,7 @@ Changes to the public source are recorded here.
 
 ### Release note
 
-- The v0.3.2 candidate tag was not published after full release validation found outdated loading-state assertions. This release supersedes that candidate.
+- The v0.3.2 and v0.3.3 candidate tags were not published. Version v0.3.4 includes these changes and the corrected full mobile workflow.
 
 ### Verification
 
