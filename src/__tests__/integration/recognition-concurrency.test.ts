@@ -79,3 +79,68 @@ it("reuses the same verified visual evidence for identical image bytes across it
   const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, items[1].id));
   expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");
 });
+
+it("preserves conflicting legacy Lens results for an identical photo as review-required", async () => {
+  const [customer] = await db.insert(customers).values({ name: "Legacy conflict QA" }).returning();
+  customerId = customer.id;
+  const [reason] = await db.select().from(returnReasons).limit(1);
+  const [rma] = await db.insert(rmas).values({ rmaNumber: `QA-${crypto.randomUUID()}`, customerId, returnReasonId: reason.id }).returning();
+  rmaId = rma.id;
+  const color = crypto.getRandomValues(new Uint8Array(3));
+  const image = await sharp({ create: {
+    width: 4, height: 4, channels: 3,
+    background: { r: color[0], g: color[1], b: color[2] },
+  } }).png().toBuffer();
+  const items = await db.insert(rmaItems).values([
+    { rmaId, itemNumber: 1 },
+    { rmaId, itemNumber: 2 },
+  ]).returning();
+  const [priorItem, nextItem] = items;
+  const stored = await storage.saveImage(image, "same-display.png", "image/png", `qa-legacy-conflict/${priorItem.id}`);
+  for (const item of items) {
+    await db.insert(itemImages).values({
+      rmaItemId: item.id, imageType: "primary", storagePath: stored.storagePath,
+      originalFilename: stored.originalFilename, mimeType: stored.mimeType,
+      fileSizeBytes: stored.fileSizeBytes, checksumSha256: stored.checksumSha256,
+    });
+  }
+
+  const legacyDecision = (model: string) => ({
+    cleanDecision: {
+      manufacturer: "Apple",
+      model,
+      displayName: `Apple ${model} Display`,
+      confidence: 0.88,
+      cleanedCandidates: [`Apple ${model} Display`],
+      reasoning: "Legacy Lens visual evidence",
+    },
+    candidates: [{ title: `Apple ${model} Display`, rank: 1 }],
+  });
+  await db.insert(recognitionRuns).values([
+    {
+      rmaItemId: priorItem.id, pipelineType: "visual", providerName: "google-lens",
+      status: "completed", rawRequest: { filename: stored.originalFilename },
+      rawResponse: legacyDecision("iPhone 14"),
+      createdAt: new Date(Date.now() + 2_000),
+    },
+    {
+      rmaItemId: priorItem.id, pipelineType: "visual", providerName: "google-lens",
+      status: "completed", rawRequest: { filename: stored.originalFilename },
+      rawResponse: legacyDecision("iPhone 15 Pro"),
+      createdAt: new Date(Date.now() + 3_000),
+    },
+  ]);
+
+  const providerCall = vi.spyOn(MockLensProvider.prototype, "identifyDisplay");
+  await processRmaItem(nextItem.id);
+
+  expect(providerCall).not.toHaveBeenCalled();
+  const [processed] = await db.select().from(rmaItems).where(eq(rmaItems.id, nextItem.id));
+  expect(processed.predictedModel).toBeNull();
+  expect(processed.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+  expect(processed.status).toBe("review_required");
+  const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, nextItem.id));
+  const visualRun = runs.find((run) => run.pipelineType === "visual");
+  expect(visualRun?.providerName).toBe("stable-visual-evidence");
+  expect((visualRun?.rawResponse as { stableDecision?: { conflict?: boolean } }).stableDecision?.conflict).toBe(true);
+});

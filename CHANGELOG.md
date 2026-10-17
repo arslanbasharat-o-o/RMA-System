@@ -4,6 +4,20 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.6] - 2026-10-18
+
+### Fixed
+
+- Reuse legacy visual recognition results for the exact same image even when older releases did not store image checksums, while rejecting filename or upload-time mismatches.
+- Treat conflicting model evidence from historical runs as review-required so reprocessing cannot silently replace a model with a different guess.
+- Preserve legacy result fields when reading recognition evidence created before stable-decision snapshots.
+- Expose the mobile navigation drawer's expanded state to assistive technology and retry the release workflow's early menu interaction if it lands before client hydration.
+
+### Verification
+
+- All 133 unit and integration tests passed; TypeScript, ESLint, optimized production build, and the mobile 36-step workflow passed locally on disposable QA databases.
+- Lens recognition tests use mocks and fixtures; no paid recognition API was called. Full release CI remains the publication gate.
+
 ## [0.3.5] - 2026-10-18
 
 ### Fixed

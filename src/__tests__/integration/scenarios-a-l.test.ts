@@ -16,6 +16,7 @@ import {
 import { generateNextRmaNumber } from "@/lib/utils/rma-sequence";
 import { storage } from "@/lib/storage";
 import { processRmaItem } from "@/lib/queue/processor";
+import { createUniqueTestImage } from "@/__tests__/helpers/image-fixtures";
 import { createSessionToken } from "@/lib/auth/session";
 import { requireAuth } from "@/lib/auth/middleware";
 import { NextRequest, NextResponse } from "next/server";
@@ -166,10 +167,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       .returning();
 
     // Attach 3 distinct images to this single display
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     const angles: Array<"front" | "back" | "stamp_closeup"> = [
       "front",
@@ -234,10 +232,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       })
       .returning();
 
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     const stored = await storage.saveImage(
       sampleBuffer,
@@ -295,10 +290,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       })
       .returning();
 
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     // Filename 'unknown_vendor' activates mock extraction with marking XYZ-7788
     const stored = await storage.saveImage(
@@ -357,10 +349,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       .returning();
 
     // Attach valid image
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
     const stored = await storage.saveImage(
       sampleBuffer,
       "test_f.jpg",
@@ -413,10 +402,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       })
       .returning();
 
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     const crypto = await import("crypto");
     const checksumSha256 = crypto.createHash("sha256").update(sampleBuffer).digest("hex");
@@ -586,10 +572,7 @@ describe("E2E Scenarios A through L Integration Verification", () => {
       })
       .returning();
 
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     const stored = await storage.saveImage(
       sampleBuffer,
