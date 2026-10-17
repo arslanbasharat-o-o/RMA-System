@@ -2,6 +2,7 @@
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { Camera, SwitchCamera, Images, Check, AlertCircle, Loader2, ArrowRight, RotateCcw, ScanLine } from "lucide-react";
+import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 
 interface CapturedPhoto {
   id: string;
@@ -11,6 +12,14 @@ interface CapturedPhoto {
   status: "uploading" | "saved" | "error";
   error?: string;
   serverImageId?: string;
+}
+
+interface LiveRecognitionItem {
+  id: string;
+  itemNumber: number;
+  status: string;
+  predictedModel: string | null;
+  matchStatus: string | null;
 }
 
 const angles = [
@@ -49,11 +58,33 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
   const [angle, setAngle] = useState<CapturedPhoto["imageType"]>("primary");
   const [intakeError, setIntakeError] = useState<string | null>(null);
+  const [liveItems, setLiveItems] = useState<LiveRecognitionItem[]>([]);
   const customerReady = Boolean(customerName?.trim());
   const saving = capturing || photos.some((photo) => photo.status === "uploading");
   const failed = photos.some((photo) => photo.status === "error");
   const canAdvance = photos.length > 0 && !saving && !failed;
   const selectedAngle = angles.find((entry) => entry.type === angle)!;
+
+  const { refreshNow: refreshRecognition, refreshError: recognitionRefreshError } = useLiveRefresh(
+    `scanner-results-${rmaId}`,
+    async (signal) => {
+      const response = await fetch(`/api/rmas/${rmaId}/recognition-status`, {
+        cache: "no-store",
+        signal,
+      });
+      if (response.status === 401) {
+        window.location.assign("/login");
+        return false;
+      }
+      if (!response.ok) throw new Error("Could not refresh display results.");
+      const result = await response.json() as { items?: LiveRecognitionItem[] };
+      if (signal.aborted) return;
+      const items = Array.isArray(result.items) ? result.items : [];
+      setLiveItems(items);
+      return items.some((item) => ["queued", "processing", "uploaded"].includes(item.status));
+    },
+    2500
+  );
 
   const stopTracks = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -160,6 +191,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
         ...entry, status: "saved", serverImageId,
         imageType: storedAngle?.type || photo.imageType,
       } : entry));
+      refreshRecognition();
     } catch (error) {
       setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
         ...entry, status: "error", error: error instanceof Error ? error.message : "Connection lost. Try again.",
@@ -321,6 +353,34 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
               {saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"} saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
             </div>
             {intakeError && <p role="alert" className="mt-2 flex items-center justify-center gap-2 text-xs text-red-300"><AlertCircle className="size-4" />{intakeError}</p>}
+            {liveItems.length > 0 && <section aria-label="Live display results" className="mt-3 border-t border-neutral-800 pt-3">
+              <div className="flex items-center justify-between gap-3 text-xs">
+                <h2 className="font-semibold text-neutral-200">Live results</h2>
+                {recognitionRefreshError
+                  ? <span className="text-amber-300">Reconnecting…</span>
+                  : liveItems.some((item) => ["queued", "processing", "uploaded"].includes(item.status))
+                    ? <span className="text-neutral-400">Updating in the background</span>
+                    : <span className="text-neutral-400">Latest display status</span>}
+              </div>
+              <div className="mt-2 flex max-h-24 gap-2 overflow-x-auto overflow-y-hidden pb-1" role="list" aria-label="Display recognition statuses">
+                {liveItems.map((item) => {
+                  const processing = ["queued", "processing", "uploaded"].includes(item.status);
+                  const needsReview = item.status === "review_required" || item.matchStatus === "ambiguous";
+                  const badge = processing ? "Processing" : item.status === "failed" ? "Retry needed"
+                    : item.status === "verified" ? "Verified" : needsReview ? "Needs review"
+                      : item.predictedModel ? "Suggested" : "Awaiting result";
+                  return <article key={item.id} role="listitem" className="min-w-40 max-w-52 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2">
+                    <div className="flex items-center justify-between gap-2 text-[11px]">
+                      <span className="font-medium text-neutral-300">Display {item.itemNumber}</span>
+                      <span className={needsReview ? "text-amber-300" : item.status === "failed" ? "text-red-300" : "text-neutral-400"}>{badge}</span>
+                    </div>
+                    <p className="mt-1 truncate text-xs font-semibold text-white" title={item.predictedModel || undefined}>
+                      {item.predictedModel || (processing ? "Identifying model…" : "No model suggestion")}
+                    </p>
+                  </article>;
+                })}
+              </div>
+            </section>}
           </div>
         </footer>
       </>}

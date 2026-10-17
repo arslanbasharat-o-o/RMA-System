@@ -119,7 +119,6 @@ export async function processRmaItem(
 
       try {
         let configuredLensProvider: string | undefined = process.env.LENS_PROVIDER;
-        let configuredFilterQuery: string | undefined = process.env.LENS_FILTER_QUERY;
         try {
           if (!configuredLensProvider && process.env.NODE_ENV !== "test") {
             const [lensSetting] = await db
@@ -131,29 +130,15 @@ export async function processRmaItem(
             }
           }
 
-          if (!configuredFilterQuery) {
-            const [filterSetting] = await db
-              .select()
-              .from(appSettings)
-              .where(eq(appSettings.key, "LENS_FILTER_QUERY"));
-            if (filterSetting?.value && typeof filterSetting.value === "string") {
-              configuredFilterQuery = filterSetting.value;
-            }
-          }
         } catch {
           // Fallback to env
         }
 
         const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
-        const lensProvider = getVisualRecognitionProvider(
-          configuredLensProvider,
-          undefined,
-          configuredFilterQuery
-        );
+        const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
         const res = await lensProvider.identifyDisplay(imageBuffer, {
           filename: primaryImage.originalFilename,
           mimeType: primaryImage.mimeType,
-          q: configuredFilterQuery,
         });
 
         visualResult = res;
@@ -168,7 +153,6 @@ export async function processRmaItem(
             status: visualResult.error ? "failed" : "completed",
             rawRequest: {
               filename: primaryImage.originalFilename,
-              q: visualResult.usedQuery || configuredFilterQuery || null,
             },
             rawResponse: visualResult.rawResponse,
             durationMs: visualResult.durationMs,

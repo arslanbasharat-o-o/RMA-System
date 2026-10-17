@@ -16,13 +16,11 @@ export interface VisualIdentificationResult {
   rawResponse: Record<string, unknown>;
   durationMs: number;
   error?: string;
-  usedQuery?: string;
 }
 
 export interface DisplayVisualRecognitionContext {
   mimeType?: string;
   filename?: string;
-  q?: string; // Query filter (the 'q' parameter in Google Lens / SerpApi)
 }
 
 export interface DisplayVisualRecognitionProvider {

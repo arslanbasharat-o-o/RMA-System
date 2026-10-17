@@ -37,7 +37,6 @@ export default function SettingsPage() {
 
   // Form states
   const [lensProvider, setLensProvider] = useState("mock");
-  const [lensFilterQuery, setLensFilterQuery] = useState("display screen");
   const [openaiModel, setOpenaiModel] = useState("gpt-5.6-terra");
   const [timezone, setTimezone] = useState("UTC");
   const [saving, setSaving] = useState(false);
@@ -71,11 +70,6 @@ export default function SettingsPage() {
         const json = await res.json();
         setData(json);
         setLensProvider(json.providerStatus?.activeLensProvider || "mock");
-        setLensFilterQuery(
-          json.settings?.LENS_FILTER_QUERY ||
-            json.providerStatus?.activeLensFilterQuery ||
-            "display screen"
-        );
         setOpenaiModel(json.settings?.OPENAI_VISION_MODEL || "gpt-5.6-terra");
         setTimezone(json.settings?.BUSINESS_TIMEZONE || "UTC");
       }
@@ -119,7 +113,6 @@ export default function SettingsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(data?.providerStatus?.providerManagedByEnvironment ? {} : { LENS_PROVIDER: lensProvider }),
-          LENS_FILTER_QUERY: lensFilterQuery,
           OPENAI_VISION_MODEL: openaiModel,
           BUSINESS_TIMEZONE: timezone,
         }),
@@ -234,8 +227,6 @@ export default function SettingsPage() {
                   <ProvidersTab
                     lensProvider={lensProvider}
                     setLensProvider={setLensProvider}
-                    lensFilterQuery={lensFilterQuery}
-                    setLensFilterQuery={setLensFilterQuery}
                     openaiModel={openaiModel}
                     setOpenaiModel={setOpenaiModel}
                     status={providerStatus}

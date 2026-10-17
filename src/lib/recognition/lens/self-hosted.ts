@@ -13,7 +13,6 @@ export interface SelfHostedLensProviderOptions {
   baseUrl?: string;
   timeoutMs?: number;
   pollIntervalMs?: number;
-  defaultQuery?: string;
   mode?: SelfHostedLensApiMode;
 }
 
@@ -126,7 +125,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     apiKey?: string,
     baseUrl?: string,
     timeoutMs?: number,
-    defaultQuery?: string,
     mode?: SelfHostedLensApiMode,
     pollIntervalMs?: number
   );
@@ -134,12 +132,11 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     optionsOrApiKey: SelfHostedLensProviderOptions | string = {},
     baseUrl?: string,
     timeoutMs?: number,
-    defaultQuery?: string,
     mode?: SelfHostedLensApiMode,
     pollIntervalMs?: number
   ) {
     const options = typeof optionsOrApiKey === "string"
-      ? { apiKey: optionsOrApiKey, baseUrl, timeoutMs, defaultQuery, mode, pollIntervalMs }
+      ? { apiKey: optionsOrApiKey, baseUrl, timeoutMs, mode, pollIntervalMs }
       : optionsOrApiKey;
 
     this.apiKey = options.apiKey || process.env.LENS_API_KEY || "";
@@ -198,7 +195,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
         // A service may expose upload as a direct recognition endpoint. Accept
         // that response without issuing a second request when it already
-        // contains SerpApi-compatible visual_matches.
+        // contains the normalized visual_matches array.
         if (hasVisualMatches(uploadPayload)) {
           payload = uploadPayload;
         } else {
@@ -379,7 +376,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
     const candidates: VisualCandidate[] = matches
       .filter(isJsonObject)
-      .slice(0, 10)
+      .slice(0, 20)
       .map((match, index) => ({
         title: typeof match.title === "string" && match.title.trim()
           ? match.title
@@ -392,7 +389,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
     // This provider deliberately uses the local heuristic cleaner. It keeps
     // self-hosted visual recognition independent from OpenAI credentials and
-    // network calls while retaining the same result shape as SerpApi.
+    // network calls while retaining the normalized result shape.
     const cleanDecision = cleanVisualCandidatesHeuristic(candidates, {
       filename: context?.filename,
     });

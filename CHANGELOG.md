@@ -4,6 +4,24 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-17
+
+### Changed
+
+- Move the Google Lens API and Scrapling Chrome worker into their own public repository and versioned container packages.
+- Keep the RMA deployment configuration pointed at the standalone API while removing its duplicated source tree.
+- Keep the 20 highest-ranked Lens matches for staff review and require independently attributable display listings before a model suggestion can be confident.
+- Show per-display recognition progress and completed results during camera intake so operators can continue to the next display without waiting on the details page.
+
+### Removed
+
+- Remove the unused SerpApi provider, settings, and credential configuration.
+
+### Verification
+
+- Keep uncertain or weakly sourced Apple variant matches in manual review; no model is marked as a certain match by the Lens title scorer.
+- Keep production database and uploaded-image volumes unchanged during the release.
+
 ## [0.2.9] - 2026-10-17
 
 ### Fixed

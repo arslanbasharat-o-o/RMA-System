@@ -148,7 +148,9 @@ export function cleanVisualCandidatesHeuristic(
       ? model.slice(manufacturer.length).trim()
       : model;
 
-  const displayName = cleanModelForDisplay
+  const displayName = appleEvidence && !appleEvidence.model
+    ? "Unidentified Apple Display"
+    : cleanModelForDisplay
     ? manufacturer && !cleanModelForDisplay.toLowerCase().includes(manufacturer.toLowerCase())
       ? `${manufacturer} ${cleanModelForDisplay} Display`
       : `${cleanModelForDisplay} Display`

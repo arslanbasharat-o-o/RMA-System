@@ -11,6 +11,7 @@ test.beforeEach(async ({ page }) => {
       : path === "/api/return-reasons" ? { returnReasons: [{ id: reasonId, label: "Return", code: "RETURN" }] }
       : path === "/api/rmas" ? { rma: { id: "test-rma", rmaNumber: "RMA-TEST" } }
       : path === "/api/rmas/test-rma" ? { rma: { id: "test-rma", rmaNumber: "RMA-TEST", customerName: "Test Customer" } }
+      : path === "/api/rmas/test-rma/recognition-status" ? { items: [] }
       : path === "/api/rmas/test-rma/items" ? { item: { id: "test-item", itemNumber: 1 } }
       : path === "/api/rma-items/test-item/upload" ? { success: true, image: { id: crypto.randomUUID() } }
       : {};
@@ -35,6 +36,29 @@ test.beforeEach(async ({ page }) => {
       return canvas.captureStream(10);
     } });
   });
+});
+
+test("scanner shows a completed display result while intake can continue", async ({ page }) => {
+  let uploaded = false;
+  await page.route("**/api/rmas/test-rma/recognition-status", async (route) => {
+    await route.fulfill({ json: { items: uploaded ? [{
+      id: "test-item",
+      itemNumber: 1,
+      status: "review_required",
+      predictedModel: "iPhone 14 Plus",
+      matchStatus: "ambiguous",
+    }] : [] } });
+  });
+  await page.route("**/api/rma-items/test-item/upload", async (route) => {
+    uploaded = true;
+    await route.fulfill({ json: { success: true, image: { id: "saved-first-display" } } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await expect(page.locator("video")).toBeVisible();
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByText("iPhone 14 Plus")).toBeVisible();
+  await expect(page.getByText("Needs review")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next display" })).toBeEnabled();
 });
 
 test("customer choice is explicit before scanner creation", async ({ page }) => {
