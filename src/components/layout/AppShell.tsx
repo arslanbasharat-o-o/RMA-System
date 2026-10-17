@@ -412,21 +412,6 @@ export function AppShell({
               <Menu className="h-5 w-5" />
             </button>
 
-            {/* Desktop Sidebar Toggle Button */}
-            <button
-              type="button"
-              onClick={toggleSidebar}
-              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-              title={sidebarCollapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
-              className="hidden lg:flex items-center justify-center p-1.5 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
-            >
-              {sidebarCollapsed ? (
-                <PanelLeftOpen className="h-4.5 w-4.5" />
-              ) : (
-                <PanelLeftClose className="h-4.5 w-4.5" />
-              )}
-            </button>
-
             {/* When collapsed on desktop, show RMA Logo with brand text */}
             {sidebarCollapsed && (
               <Link
