@@ -150,22 +150,22 @@ The application version is recorded in `release.json`. Version tags publish a Gi
 
 ## Releases and container images
 
-The current release is [RMA System v0.2.8](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.8). GitHub Container Registry publishes separate packages for the web app, RMA worker, Lens API, and Scrapling worker:
+The current release is [RMA System v0.2.9](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.9). GitHub Container Registry publishes separate packages for the web app, RMA worker, Lens API, and Scrapling worker:
 
 | Image | Purpose | Versioned tag | Current tag |
 | --- | --- | --- | --- |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.8` | `latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | RMA background worker | `worker-0.2.8` | `worker-latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system-lens-api` | Authenticated image-search API | `0.2.8` | `latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system-lens-worker` | Scrapling and Chrome worker | `0.2.8` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.9` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | RMA background worker | `worker-0.2.9` | `worker-latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system-lens-api` | Authenticated image-search API | `0.2.9` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system-lens-worker` | Scrapling and Chrome worker | `0.2.9` | `latest` |
 
 Pull both images with Docker:
 
 ```bash
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.8
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.8
-docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.8
-docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.8
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.9
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.9
+docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.9
+docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.9
 ```
 
 The [container package page](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system) lists available tags and image details. For an existing Compose installation, set `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the selected tags, then follow [the deployment guide](DEPLOYMENT.md). Releases do not roll out to a server automatically.

@@ -17,8 +17,8 @@ LENS_API_BASE_URL=http://lens-api:3000
 LENS_API_KEY=<unique 64-character hex key>
 LENS_API_MODE=upload_search
 LENS_API_POLL_INTERVAL_MS=1000
-LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.8
-LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.8
+LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.9
+LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.9
 RMA_DOCKER_NETWORK=rma-system_rma_network
 ```
 
@@ -49,6 +49,9 @@ docker compose --env-file .env up -d --no-deps app worker
 This provider change needs no database migration. It preserves the existing
 PostgreSQL and image-storage volumes. Check the Settings provider health, app
 and worker status, and Lens worker logs before processing a new RMA.
+
+Redis has a `redis-cli ping` healthcheck. Compose waits for Redis readiness
+before starting the API and Scrapling worker.
 
 The API keeps uploaded search images in its private volume for at most 15
 minutes. Redis is internal to the Lens stack. The API is rate-limited and the

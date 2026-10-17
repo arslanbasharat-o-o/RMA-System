@@ -134,6 +134,37 @@ jobs:
               uv pip check
               uv run pytest -q
             '
+      - name: Verify the production Lens Redis health dependency
+        env:
+          LENS_API_IMAGE: rma-system-lens-api:ci
+          LENS_WORKER_IMAGE: rma-system-lens-worker:ci
+          LENS_API_KEY: ci-only-key
+          RMA_DOCKER_NETWORK: rma-lens-ci-network
+        run: |
+          set -euo pipefail
+          docker network create "$RMA_DOCKER_NETWORK"
+          cleanup() {
+            docker compose --project-name rma-lens-ci \
+              --file services/lens-api/docker-compose.production.yml \
+              down --volumes --remove-orphans >/dev/null 2>&1 || true
+            docker network rm "$RMA_DOCKER_NETWORK" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+          docker compose --project-name rma-lens-ci \
+            --file services/lens-api/docker-compose.production.yml \
+            up --detach redis
+          for attempt in $(seq 1 30); do
+            health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' rma-lens-ci-redis-1 2>/dev/null || true)"
+            if [ "$health" = "healthy" ]; then
+              echo "Production Redis healthcheck passed."
+              exit 0
+            fi
+            sleep 1
+          done
+          docker compose --project-name rma-lens-ci \
+            --file services/lens-api/docker-compose.production.yml ps
+          echo "Production Redis did not become healthy." >&2
+          exit 1
       - name: Build the versioned Lens API and Scrapling worker images
         run: |
           APP_VERSION="$(node -e 'process.stdout.write(JSON.parse(require("node:fs").readFileSync("release.json")).version)')"
