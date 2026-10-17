@@ -1,0 +1,15 @@
+node_modules
+dist
+coverage
+.env
+.git
+.gitignore
+playwright-report
+test-results
+npm-debug.log*
+.venv
+.pytest_cache
+.mypy_cache
+reports
+data
+*.log

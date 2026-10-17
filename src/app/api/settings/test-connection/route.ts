@@ -30,14 +30,14 @@ export async function POST(req: NextRequest) {
 
   if (parsed.data.provider === "lens") {
     try {
-      let configuredProvider: string | undefined;
+      let configuredProvider: string | undefined = process.env.LENS_PROVIDER;
       let configuredQuery: string | undefined;
       try {
         const [lensSetting] = await db
           .select()
           .from(appSettings)
           .where(eq(appSettings.key, "LENS_PROVIDER"));
-        if (lensSetting?.value && typeof lensSetting.value === "string") {
+        if (!configuredProvider && lensSetting?.value && typeof lensSetting.value === "string") {
           configuredProvider = lensSetting.value;
         }
 
@@ -63,8 +63,31 @@ export async function POST(req: NextRequest) {
       }
 
       const provider = getVisualRecognitionProvider(configuredProvider, undefined, configuredQuery);
+      if (provider.name === "self_hosted_lens") {
+        const readinessUrl = new URL("/readyz", process.env.LENS_API_BASE_URL);
+        const response = await fetch(readinessUrl, {
+          cache: "no-store",
+          signal: AbortSignal.timeout(5000),
+        });
+        const readiness = await response.json() as {
+          status?: string;
+          adapter?: string;
+          worker_ready?: boolean;
+          reason?: string;
+        };
+        const ready = response.ok && readiness.status === "ready"
+          && readiness.adapter === "scrapling" && readiness.worker_ready === true;
+        return NextResponse.json({
+          success: ready,
+          provider: provider.name,
+          message: ready
+            ? "Self-hosted Lens API and browser worker are ready."
+            : `Self-hosted Lens is not ready: ${readiness.reason || "live worker is unavailable"}`,
+        });
+      }
       const res = await provider.identifyDisplay(testBuffer, {
         filename: "test.png",
+        mimeType: "image/png",
         q: configuredQuery,
       });
 

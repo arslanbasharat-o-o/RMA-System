@@ -70,7 +70,7 @@ export default function SettingsPage() {
       if (res.ok) {
         const json = await res.json();
         setData(json);
-        setLensProvider(json.settings?.LENS_PROVIDER || "mock");
+        setLensProvider(json.providerStatus?.activeLensProvider || "mock");
         setLensFilterQuery(
           json.settings?.LENS_FILTER_QUERY ||
             json.providerStatus?.activeLensFilterQuery ||
@@ -118,7 +118,7 @@ export default function SettingsPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          LENS_PROVIDER: lensProvider,
+          ...(data?.providerStatus?.providerManagedByEnvironment ? {} : { LENS_PROVIDER: lensProvider }),
           LENS_FILTER_QUERY: lensFilterQuery,
           OPENAI_VISION_MODEL: openaiModel,
           BUSINESS_TIMEZONE: timezone,
@@ -168,7 +168,7 @@ export default function SettingsPage() {
       }
 
       if (json.success) {
-        toast.success(provider === "lens" ? "Google Lens connection verified" : "OpenAI Vision connection verified");
+        toast.success(provider === "lens" ? "Visual provider is ready" : "OpenAI Vision connection verified");
       } else {
         toast.error(json.message);
       }

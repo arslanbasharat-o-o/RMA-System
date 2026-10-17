@@ -1,0 +1,15 @@
+node_modules/
+dist/
+coverage/
+.env
+.DS_Store
+playwright-report/
+test-results/
+npm-debug.log*
+data/images/
+.venv/
+.pytest_cache/
+.mypy_cache/
+__pycache__/
+*.pyc
+*.egg-info/

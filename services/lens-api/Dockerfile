@@ -1,0 +1,60 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:22.14.0-bookworm-slim AS deps
+
+WORKDIR /app
+ENV npm_config_update_notifier=false
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm npm ci --ignore-scripts
+
+FROM deps AS build
+
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
+
+FROM node:22.14.0-bookworm-slim AS prod-deps
+
+WORKDIR /app
+ENV npm_config_update_notifier=false
+COPY package.json package-lock.json ./
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --omit=dev --ignore-scripts
+
+FROM node:22.14.0-bookworm-slim AS runtime
+
+ARG APP_VERSION=1.0.0
+ARG VCS_REF=unknown
+
+WORKDIR /app
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    PORT=3000 \
+    LENS_ADAPTER=scrapling \
+    QUEUE_BACKEND=redis \
+    REDIS_URL=redis://redis:6379 \
+    IMAGE_STORAGE_BACKEND=file \
+    IMAGE_STORAGE_DIR=/var/lib/lens/images \
+    GOOGLE_LENS_LIVE_ENABLED=false \
+    GOOGLE_LENS_LIVE_AUTHORIZED=false \
+    npm_config_update_notifier=false
+
+LABEL org.opencontainers.image.title="RMA System Self-hosted Google Lens API" \
+    org.opencontainers.image.description="Authenticated image-search API for the RMA System, backed by Scrapling and Google Chrome." \
+    org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.version="$APP_VERSION" \
+    org.opencontainers.image.revision="$VCS_REF"
+
+COPY --from=prod-deps --chown=node:node /app/node_modules ./node_modules
+COPY --from=prod-deps --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/dist ./dist
+RUN mkdir -p /var/lib/lens/images && chown -R node:node /var/lib/lens
+
+USER node
+EXPOSE 3000
+STOPSIGNAL SIGTERM
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:3000/healthz').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"
+
+CMD ["node", "dist/server.js"]

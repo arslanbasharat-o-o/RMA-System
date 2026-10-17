@@ -12,6 +12,8 @@ interface ProviderStatus {
   activeLensFilterQuery?: string;
   activeOpenAiModel?: string;
   serpapiConfigured?: boolean;
+  selfHostedConfigured?: boolean;
+  providerManagedByEnvironment?: boolean;
   openaiConfigured?: boolean;
 }
 
@@ -45,6 +47,9 @@ const FILTER_PRESETS = [
   "lcd digitizer",
 ];
 
+const isSelfHosted = (provider: string) => provider === "self_hosted_lens"
+  || provider === "self-hosted-lens" || provider === "self_hosted";
+
 export function ProvidersTab({
   lensProvider,
   setLensProvider,
@@ -61,6 +66,11 @@ export function ProvidersTab({
   onSave,
   saving,
 }: ProvidersTabProps) {
+  const activeProvider = status.activeLensProvider || lensProvider;
+  const visualConfigured = isSelfHosted(activeProvider)
+    ? status.selfHostedConfigured
+    : activeProvider === "mock" || status.serpapiConfigured;
+
   return (
     <div className="space-y-6">
       {/* Live Provider Health Status */}
@@ -74,8 +84,8 @@ export function ProvidersTab({
                 Visual Recognition
               </h3>
             </div>
-            <Badge variant={status.serpapiConfigured ? "success" : "secondary"}>
-              {status.serpapiConfigured ? "API Key Configured" : "Unconfigured"}
+            <Badge variant={visualConfigured ? "success" : "secondary"}>
+              {visualConfigured ? "Configured" : "Unconfigured"}
             </Badge>
           </div>
           <div className="space-y-3">
@@ -83,15 +93,17 @@ export function ProvidersTab({
               <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
                 <span>Active Provider:</span>
                 <span className="font-semibold text-neutral-900 dark:text-white">
-                  {status.activeLensProvider || lensProvider}
+                  {activeProvider}
                 </span>
               </div>
-              <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                <span>Query Filter:</span>
-                <span className="font-mono font-medium text-neutral-900 dark:text-white">
-                  {status.activeLensFilterQuery || lensFilterQuery || "None"}
-                </span>
-              </div>
+              {!isSelfHosted(activeProvider) && (
+                <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
+                  <span>Query Filter:</span>
+                  <span className="font-mono font-medium text-neutral-900 dark:text-white">
+                    {status.activeLensFilterQuery || lensFilterQuery || "None"}
+                  </span>
+                </div>
+              )}
             </div>
 
             {lensTestResult && (
@@ -125,7 +137,7 @@ export function ProvidersTab({
               onClick={() => onTestConnection("lens")}
               className="w-full text-xs"
             >
-              Test Visual Recognition Connection
+              {isSelfHosted(activeProvider) ? "Check API & Worker Health" : "Test Visual Recognition Connection"}
             </Button>
           </div>
         </CardSpotlight>
@@ -213,14 +225,21 @@ export function ProvidersTab({
               <Select
                 value={lensProvider}
                 onChange={(e) => setLensProvider(e.target.value)}
+                disabled={status.providerManagedByEnvironment}
               >
                 <option value="mock">Local Test Provider</option>
                 <option value="serpapi_lens">SerpApi Visual Search</option>
+                <option value="self_hosted_lens">Self-hosted Google Lens API</option>
               </Select>
+              {status.providerManagedByEnvironment && (
+                <p className="mt-1.5 text-[11px] text-neutral-500 dark:text-neutral-400">
+                  Provider selection is managed by the deployment configuration.
+                </p>
+              )}
             </div>
 
             {/* Filter Query */}
-            <div>
+            {!isSelfHosted(lensProvider) && <div>
               <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
                 Visual Match Query Filter (<code className="font-mono text-neutral-600 dark:text-neutral-300">q</code> parameter)
               </label>
@@ -243,7 +262,7 @@ export function ProvidersTab({
                   </button>
                 ))}
               </div>
-            </div>
+            </div>}
 
             {/* OpenAI Vision Model */}
             <div>

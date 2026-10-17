@@ -108,3 +108,48 @@ jobs:
       - name: Run the full browser suite for release validation
         if: inputs.full_browser_suite
         run: npx playwright test --project=chromium --project=mobile-chrome
+      - name: Select the supported Lens API Node.js runtime
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.14.0
+          cache: npm
+          cache-dependency-path: services/lens-api/package-lock.json
+      - name: Verify the Lens API TypeScript service
+        working-directory: services/lens-api
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm audit --omit=dev --audit-level=high
+          npm run build
+      - name: Verify the Scrapling worker and recovery contract
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE/services/lens-api:/workspace" \
+            -w /workspace python:3.12.4-slim-bookworm sh -ec '
+              python -m pip install --no-cache-dir uv==0.12.17
+              uv sync --locked --extra dev
+              uv run mypy scrapling_worker
+              uv lock --check
+              uv pip check
+              uv run pytest -q
+            '
+      - name: Build the versioned Lens API and Scrapling worker images
+        run: |
+          APP_VERSION="$(node -e 'process.stdout.write(JSON.parse(require("node:fs").readFileSync("release.json")).version)')"
+          docker build \
+            --file services/lens-api/Dockerfile \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag rma-system-lens-api:ci \
+            services/lens-api
+          test "$(docker image inspect rma-system-lens-api:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect rma-system-lens-api:ci --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" = "$APP_VERSION"
+          docker build \
+            --file services/lens-api/Dockerfile.scrapling-worker \
+            --build-arg APP_VERSION="$APP_VERSION" \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --tag rma-system-lens-worker:ci \
+            services/lens-api
+          test "$(docker image inspect rma-system-lens-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.revision"}}')" = "$GITHUB_SHA"
+          test "$(docker image inspect rma-system-lens-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.version"}}')" = "$APP_VERSION"
