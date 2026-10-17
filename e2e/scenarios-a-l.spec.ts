@@ -324,7 +324,11 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await processRmaItem(item.id, { pipeline: "all" });
 
     const [updated] = await db.select().from(rmaItems).where(eq(rmaItems.id, item.id));
-    expect(["unknown", "ambiguous"]).toContain(updated.matchStatus);
+    // A supported display suggestion can remain a possible candidate while
+    // the unrecognized vendor marking still requires operator review.
+    expect(["possible_candidate", "unknown", "ambiguous"]).toContain(updated.matchStatus);
+    expect(updated.identifiedVendorId).toBeNull();
+    expect(updated.identifiedVendorVariantId).toBeNull();
     expect(updated.status).toBe("review_required");
 
     // Inspect in UI
