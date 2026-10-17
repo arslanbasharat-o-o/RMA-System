@@ -55,6 +55,29 @@ test("saved desktop sidebar state hydrates without console errors", async ({ pag
   await page.screenshot({ path: `.local/verification/dashboard-${testInfo.project.name}.png`, fullPage: true });
 });
 
+test("desktop has one sidebar toggle and mobile keeps its navigation drawer", async ({ page }, testInfo) => {
+  await page.goto("/dashboard");
+
+  if (testInfo.project.name === "mobile-chrome" || testInfo.project.name === "mobile-safari") {
+    await expect(page.getByRole("button", { name: "Toggle navigation menu" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Collapse sidebar", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Expand sidebar", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Toggle navigation menu" }).click();
+    await expect(page.getByRole("dialog", { name: "Mobile Navigation Drawer" })).toBeVisible();
+    return;
+  }
+
+  const collapse = page.getByRole("button", { name: "Collapse sidebar", exact: true });
+  await expect(collapse).toHaveCount(1);
+  await collapse.click();
+
+  const expand = page.getByRole("button", { name: "Expand sidebar", exact: true });
+  await expect(expand).toHaveCount(1);
+  await expect(page.getByRole("link", { name: "RMA Operations", exact: true })).toBeVisible();
+  await expand.click();
+  await expect(page.getByRole("button", { name: "Collapse sidebar", exact: true })).toHaveCount(1);
+});
+
 test("review shortcuts ignore dropdown typing and submit once while pending", async ({ page }) => {
   let writes = 0;
   let release: (() => void) | undefined;
