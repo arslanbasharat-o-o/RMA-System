@@ -12,11 +12,19 @@ import {
   appSettings,
   reviewActions,
 } from "@/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService } from "@/lib/recognition/openai";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
+import {
+  VISUAL_DECISION_POLICY,
+  readVisualDecisionSnapshot,
+  snapshotVisualDecision,
+  stableVisualDecision,
+  visualResultFromSnapshot,
+  type VisualDecisionSnapshot,
+} from "@/lib/recognition/lens/stable-decision";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
 import { VendorRuleMatcher } from "@/lib/recognition/rules/matcher";
 import {
@@ -39,6 +47,80 @@ async function updateItemForRevision(
     .update(rmaItems)
     .set(values)
     .where(and(eq(rmaItems.id, itemId), eq(rmaItems.recognitionRevision, revision)));
+}
+
+async function previousVisualDecisions(
+  checksumSha256: string,
+  excludeManualItemId?: string
+): Promise<VisualDecisionSnapshot[]> {
+  const matchingImages = await db.select({ rmaItemId: itemImages.rmaItemId })
+    .from(itemImages).where(eq(itemImages.checksumSha256, checksumSha256));
+  const itemIds = [...new Set(matchingImages.map((image) => image.rmaItemId))];
+  if (!itemIds.length) return [];
+
+  const [runs, allImages, reviews] = await Promise.all([
+    db.select({ rmaItemId: recognitionRuns.rmaItemId,
+      rawRequest: recognitionRuns.rawRequest, rawResponse: recognitionRuns.rawResponse })
+      .from(recognitionRuns)
+      .where(and(
+        inArray(recognitionRuns.rmaItemId, itemIds),
+        eq(recognitionRuns.pipelineType, "visual"),
+        eq(recognitionRuns.status, "completed"),
+        sql`${recognitionRuns.rawRequest} ->> 'checksumSha256' = ${checksumSha256}`,
+        sql`${recognitionRuns.rawRequest} ->> 'decisionPolicy' = ${VISUAL_DECISION_POLICY}`
+      ))
+      .orderBy(desc(recognitionRuns.createdAt)).limit(100),
+    db.select({ rmaItemId: itemImages.rmaItemId, imageType: itemImages.imageType,
+      checksumSha256: itemImages.checksumSha256, sortOrder: itemImages.sortOrder })
+      .from(itemImages).where(inArray(itemImages.rmaItemId, itemIds)).orderBy(itemImages.sortOrder),
+    db.select().from(reviewActions).where(inArray(reviewActions.rmaItemId, itemIds))
+      .orderBy(desc(reviewActions.createdAt)),
+  ]);
+
+  const snapshots: VisualDecisionSnapshot[] = [];
+  const imagesByItem = new Map<string, typeof allImages>();
+  for (const image of allImages) {
+    const group = imagesByItem.get(image.rmaItemId) || [];
+    group.push(image);
+    imagesByItem.set(image.rmaItemId, group);
+  }
+  const reviewsByItem = new Map<string, typeof reviews>();
+  for (const review of reviews) {
+    const group = reviewsByItem.get(review.rmaItemId) || [];
+    group.push(review);
+    reviewsByItem.set(review.rmaItemId, group);
+  }
+  for (const itemId of itemIds) {
+    if (itemId === excludeManualItemId) continue;
+    const itemImagesInOrder = imagesByItem.get(itemId) || [];
+    const selectedImage = itemImagesInOrder.find((image) => image.imageType === "primary" || image.imageType === "front")
+      || itemImagesInOrder[0];
+    if (selectedImage?.checksumSha256 !== checksumSha256) continue;
+    const manual = getManualModelOverride(reviewsByItem.get(itemId) || []);
+    if (!manual) continue;
+    snapshots.push({
+      manual: true,
+      manufacturer: manual.predictedManufacturer,
+      model: manual.predictedModel,
+      displayAssembly: manual.predictedDisplayAssembly,
+      candidates: [],
+      cleanDecision: {
+        manufacturer: manual.predictedManufacturer,
+        model: manual.predictedModel,
+        displayName: manual.predictedDisplayAssembly,
+        confidence: 1,
+        cleanedCandidates: [],
+        reasoning: "An operator confirmed this exact image on an earlier RMA item.",
+      },
+    });
+  }
+  for (const run of runs) {
+    const request = run.rawRequest as Record<string, unknown> | null;
+    if (request?.checksumSha256 !== checksumSha256 || request?.decisionPolicy !== VISUAL_DECISION_POLICY) continue;
+    const snapshot = readVisualDecisionSnapshot(run.rawResponse);
+    if (snapshot && !(snapshot.manual && run.rmaItemId === excludeManualItemId)) snapshots.push(snapshot);
+  }
+  return snapshots;
 }
 
 export async function processRmaItem(
@@ -85,6 +167,8 @@ export async function processRmaItem(
     return;
   }
 
+  const primaryImage = images.find((img) => img.imageType === "primary" || img.imageType === "front") || images[0];
+
   const shouldRunVisual = pipeline === "all" || pipeline === "visual";
   const shouldRunOcr = pipeline === "all" || pipeline === "vendor_ocr";
 
@@ -112,11 +196,6 @@ export async function processRmaItem(
 
   const visualTask = (async () => {
     if (shouldRunVisual) {
-      // Select the best image for visual identification (front / primary screen face)
-      const primaryImage =
-        images.find((img) => img.imageType === "primary" || img.imageType === "front") ||
-        images[0];
-
       try {
         let configuredLensProvider: string | undefined = process.env.LENS_PROVIDER;
         try {
@@ -134,14 +213,28 @@ export async function processRmaItem(
           // Fallback to env
         }
 
-        const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
-        const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
-        const res = await lensProvider.identifyDisplay(imageBuffer, {
-          filename: primaryImage.originalFilename,
-          mimeType: primaryImage.mimeType,
-        });
-
-        visualResult = res;
+        const previous = await previousVisualDecisions(
+          primaryImage.checksumSha256,
+          options?.force ? itemId : undefined
+        );
+        const established = stableVisualDecision(previous);
+        if (established && !options?.force) {
+          visualResult = visualResultFromSnapshot(established, "same-image-evidence");
+        } else {
+          const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
+          const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
+          const fresh = await lensProvider.identifyDisplay(imageBuffer, {
+            filename: primaryImage.originalFilename,
+            mimeType: primaryImage.mimeType,
+          });
+          const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
+          visualResult = reconciled && (reconciled.manual || reconciled.conflict ||
+            (established && !fresh.error))
+            ? visualResultFromSnapshot(reconciled, "same-image-evidence")
+            : fresh.error && established
+              ? visualResultFromSnapshot(established, "same-image-evidence")
+              : fresh;
+        }
 
         const [run] = await db
           .insert(recognitionRuns)
@@ -153,8 +246,14 @@ export async function processRmaItem(
             status: visualResult.error ? "failed" : "completed",
             rawRequest: {
               filename: primaryImage.originalFilename,
+              checksumSha256: primaryImage.checksumSha256,
+              decisionPolicy: VISUAL_DECISION_POLICY,
             },
-            rawResponse: visualResult.rawResponse,
+            rawResponse: visualResult.error ? visualResult.rawResponse : {
+              ...visualResult.rawResponse,
+              stableDecision: readVisualDecisionSnapshot(visualResult.rawResponse)
+                || snapshotVisualDecision(visualResult),
+            },
             durationMs: visualResult.durationMs,
             errorMessage: visualResult.error || null,
           })
