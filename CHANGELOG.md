@@ -2,6 +2,23 @@
 
 Changes to the public source are recorded here.
 
+## [Unreleased]
+
+### Changed
+
+- Refresh the dashboard, navigation, RMA intake and inspection screens, catalogs, reports, login, and settings with consistent responsive layouts and motion.
+- Add searchable selection controls, action menus, persistent sidebar collapse, page titles, and application branding.
+- Show actual dashboard activity trends and keep unavailable trends hidden.
+
+### Fixed
+
+- Preserve processing updates, connection recovery, and the operator-corrected model label in the redesigned inspection drawer.
+- Allow bounded, configurable visual-search timeouts during provider slowdowns; record useful failure messages and run text recognition independently of visual search.
+- Show saved partial recognition results and explicit retry actions; keep inspection open when a retry cannot be queued.
+- Support keyboard navigation, labels, disabled options, and form values in the new dropdown controls.
+- Prevent stale list responses and repeated review shortcut submissions.
+- Remove sample login credentials and replace the unsupported password-reset flow with administrator contact instructions.
+
 ## [0.2.5] - 2026-10-14
 
 ### Fixed

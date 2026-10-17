@@ -102,9 +102,9 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
       - name: Verify camera and customer intake on desktop and mobile
         if: ${{ !inputs.full_browser_suite }}
-        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts --project=chromium --project=mobile-chrome
+        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts --project=chromium --project=mobile-chrome
       - name: Verify Safari camera and live result updates
-        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts --project=mobile-safari
+        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts --project=mobile-safari
       - name: Run the full browser suite for release validation
         if: inputs.full_browser_suite
         run: npx playwright test --project=chromium --project=mobile-chrome

@@ -3,15 +3,18 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { Plus, Search, Upload } from "lucide-react";
+import { Plus, Search, Upload, Smartphone, Layers, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
+import {
+  CardSpotlight,
+  CopyBadge,
+  ShimmerButton,
+} from "@/components/premium";
 
 export default function DisplayCatalogPage() {
   const [catalog, setCatalog] = useState<any[]>([]);
@@ -21,7 +24,9 @@ export default function DisplayCatalogPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
-  const [importErrors, setImportErrors] = useState<Array<{ row: number; column: string; message: string }>>([]);
+  const [importErrors, setImportErrors] = useState<
+    Array<{ row: number; column: string; message: string }>
+  >([]);
   const importInputRef = useRef<HTMLInputElement>(null);
 
   // Form
@@ -34,27 +39,37 @@ export default function DisplayCatalogPage() {
   const [internalSku, setInternalSku] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const listRequest = useRef<AbortController | null>(null);
+
   const fetchCatalog = async () => {
+    listRequest.current?.abort();
+    const controller = new AbortController();
+    listRequest.current = controller;
     setLoading(true);
     try {
-      const url = search ? `/api/display-catalog?q=${encodeURIComponent(search)}` : "/api/display-catalog";
-      const res = await fetch(url);
+      const url = search
+        ? `/api/display-catalog?q=${encodeURIComponent(search)}`
+        : "/api/display-catalog";
+      const res = await fetch(url, { signal: controller.signal });
       if (res.status === 401) {
         window.location.assign("/login");
         return;
       }
       const json = await res.json();
-      setCatalog(json.catalog || []);
+      if (!controller.signal.aborted) setCatalog(json.catalog || []);
     } catch (err) {
-      console.error(err);
+      if (!controller.signal.aborted) console.error(err);
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchCatalog();
-  }, []);
+    const timer = setTimeout(() => {
+      fetchCatalog();
+    }, 250);
+    return () => { clearTimeout(timer); listRequest.current?.abort(); };
+  }, [search]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,9 +82,16 @@ export default function DisplayCatalogPage() {
           manufacturer,
           modelName,
           normalizedModelIdentifier:
-            normalizedId || `${manufacturer}-${modelName}`.toLowerCase().replace(/[^a-z0-9]/g, "-"),
-          aliases: aliases.split(",").map((a) => a.trim()).filter(Boolean),
-          knownPartNumbers: partNumbers.split(",").map((p) => p.trim()).filter(Boolean),
+            normalizedId ||
+            `${manufacturer}-${modelName}`.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          aliases: aliases
+            .split(",")
+            .map((a) => a.trim())
+            .filter(Boolean),
+          knownPartNumbers: partNumbers
+            .split(",")
+            .map((p) => p.trim())
+            .filter(Boolean),
           displayTechnology,
           internalSku: internalSku || undefined,
         }),
@@ -104,13 +126,18 @@ export default function DisplayCatalogPage() {
     try {
       const form = new FormData();
       form.set("file", importFile);
-      const response = await fetch("/api/display-catalog/import", { method: "POST", body: form });
+      const response = await fetch("/api/display-catalog/import", {
+        method: "POST",
+        body: form,
+      });
       const result = await response.json();
       if (!response.ok) {
         setImportErrors(result.rowErrors || []);
         throw new Error(result.error || "The catalog import failed.");
       }
-      toast.success(`${result.importedCount} display model${result.importedCount === 1 ? "" : "s"} imported.`);
+      toast.success(
+        `${result.importedCount} display model${result.importedCount === 1 ? "" : "s"} imported.`
+      );
       setImportFile(null);
       if (importInputRef.current) importInputRef.current.value = "";
       setShowImportModal(false);
@@ -125,109 +152,187 @@ export default function DisplayCatalogPage() {
   return (
     <AppShell>
       <div className="space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Display Model Catalog
-          </h1>
+        {/* Executive Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
+              Display Model Catalog
+            </h1>
+          </div>
 
-          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
-            <Button size="sm" variant="outline" onClick={() => { setImportErrors([]); setShowImportModal(true); }} className="h-8.5 sm:h-9 text-xs justify-center">
-              <Upload className="h-3.5 w-3.5 mr-1 shrink-0" />
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setImportErrors([]);
+                setShowImportModal(true);
+              }}
+              className="h-8.5 sm:h-9 text-xs justify-center font-medium"
+            >
+              <Upload className="h-3.5 w-3.5 mr-1.5 shrink-0" />
               <span className="sm:hidden">Import</span>
               <span className="hidden sm:inline">Import XLSX</span>
             </Button>
-            <Button size="sm" variant="primary" onClick={() => setShowAddModal(true)} className="h-8.5 sm:h-9 text-xs justify-center">
-              <Plus className="h-3.5 w-3.5 mr-1 shrink-0" />
+            <ShimmerButton
+              onClick={() => setShowAddModal(true)}
+              className="h-8.5 sm:h-9 px-3.5 text-xs font-semibold gap-1.5 justify-center"
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" />
               <span className="sm:hidden">Add Model</span>
               <span className="hidden sm:inline">Add Display Model</span>
-            </Button>
+            </ShimmerButton>
           </div>
         </div>
 
-        {/* Search */}
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-neutral-400" />
-                <Input
-                  placeholder="Search model name, manufacturer, part numbers..."
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && fetchCatalog()}
-                  className="pl-9 h-9 text-xs"
-                />
-              </div>
-              <Button variant="outline" size="sm" onClick={fetchCatalog}>
-                Search
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Search Toolbar */}
+        <CardSpotlight className="p-3 bg-neutral-50/70 dark:bg-neutral-900/40">
+          <div className="relative max-w-md w-full">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400 pointer-events-none" />
+            <input
+              type="text"
+              placeholder="Search model name, manufacturer, part numbers..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full h-8.5 pl-8.5 pr-8 rounded-lg bg-white dark:bg-neutral-800/80 border border-neutral-200 dark:border-neutral-700/80 text-xs text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 focus:outline-none focus:ring-1 focus:ring-neutral-400 transition-colors"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+        </CardSpotlight>
 
-        {/* Catalog Table */}
-        <Card>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
+        {/* Mobile View: High-Density Touch Cards */}
+        <div className="sm:hidden space-y-3">
+          {loading ? (
+            <div className="space-y-3">
+              <Skeleton className="h-28 w-full rounded-xl" />
+              <Skeleton className="h-28 w-full rounded-xl" />
+            </div>
+          ) : catalog.length > 0 ? (
+            catalog.map((item) => (
+              <div
+                key={item.id}
+                className="p-4 rounded-xl bg-white dark:bg-[#121215] border border-neutral-200/90 dark:border-neutral-800 shadow-xs space-y-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-semibold text-neutral-500 uppercase tracking-wider">
+                    {item.manufacturer}
+                  </span>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 shrink-0 whitespace-nowrap leading-none">
+                    {item.displayTechnology || "Standard"}
+                  </span>
+                </div>
+
+                <h4 className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+                  {item.modelName}
+                </h4>
+
+                {item.knownPartNumbers?.length > 0 && (
+                  <div className="pt-2 border-t border-neutral-100 dark:border-zinc-800 flex flex-wrap items-center gap-1.5 text-xs">
+                    <span className="text-[10px] text-neutral-400 font-mono">Parts:</span>
+                    {item.knownPartNumbers.slice(0, 3).map((p: string, idx: number) => (
+                      <CopyBadge key={idx} value={p} />
+                    ))}
+                    {item.knownPartNumbers.length > 3 && (
+                      <span className="text-[10px] text-neutral-400 font-mono">
+                        +{item.knownPartNumbers.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          ) : (
+            <div className="p-8 text-center text-xs text-neutral-400 dark:text-neutral-500 bg-white dark:bg-[#121215] rounded-xl border border-neutral-200 dark:border-neutral-800">
+              No display catalog items found.
+            </div>
+          )}
+        </div>
+
+        {/* Desktop View: Polished Catalog Table */}
+        <CardSpotlight className="hidden sm:block p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-neutral-50/80 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">Manufacturer</th>
+                  <th className="px-5 py-3 font-semibold">Model Name</th>
+                  <th className="px-5 py-3 font-semibold">Technology</th>
+                  <th className="px-5 py-3 font-semibold">Known Part Numbers</th>
+                  <th className="px-5 py-3 font-semibold">Model Aliases</th>
+                  <th className="px-5 py-3 font-semibold">Internal SKU</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800/80">
+                {loading ? (
                   <tr>
-                    <th className="px-5 py-3">Manufacturer</th>
-                    <th className="px-5 py-3">Model Name</th>
-                    <th className="px-5 py-3">Technology</th>
-                    <th className="px-5 py-3">Known Part Numbers</th>
-                    <th className="px-5 py-3">Model Aliases</th>
-                    <th className="px-5 py-3">Internal SKU</th>
+                    <td colSpan={6} className="px-5 py-6">
+                      <Skeleton className="h-5 w-full my-1.5" />
+                      <Skeleton className="h-5 w-full my-1.5" />
+                      <Skeleton className="h-5 w-full my-1.5" />
+                    </td>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-5 py-6">
-                        <Skeleton className="h-5 w-full my-1.5" />
-                        <Skeleton className="h-5 w-full my-1.5" />
-                        <Skeleton className="h-5 w-full my-1.5" />
-                      </td>
-                    </tr>
-                  ) : catalog.map((item) => (
+                ) : catalog.length > 0 ? (
+                  catalog.map((item) => (
                     <tr
                       key={item.id}
-                      className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors"
+                      className="hover:bg-neutral-50/60 dark:hover:bg-zinc-800/40 transition-colors group"
                     >
                       <td className="px-5 py-3 font-semibold text-neutral-900 dark:text-neutral-100">
                         {item.manufacturer}
                       </td>
-                      <td className="px-5 py-3 font-medium text-neutral-800 dark:text-neutral-200">
+                      <td className="px-5 py-3 font-bold text-neutral-900 dark:text-neutral-100">
                         {item.modelName}
                       </td>
                       <td className="px-5 py-3">
-                        <Badge variant="outline">{item.displayTechnology || "Standard"}</Badge>
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300 shrink-0 whitespace-nowrap leading-none">
+                          {item.displayTechnology || "Standard"}
+                        </span>
                       </td>
                       <td className="px-5 py-3 font-mono text-neutral-600 dark:text-neutral-400">
-                        {item.knownPartNumbers?.length > 0
-                          ? item.knownPartNumbers.join(", ")
-                          : "—"}
+                        {item.knownPartNumbers?.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {item.knownPartNumbers.map((p: string, idx: number) => (
+                              <CopyBadge key={idx} value={p} />
+                            ))}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
                       </td>
                       <td className="px-5 py-3 text-neutral-500 dark:text-neutral-400">
                         {item.aliases?.join(", ") || "—"}
                       </td>
                       <td className="px-5 py-3 font-mono text-neutral-500 dark:text-neutral-400">
-                        {item.internalSku || "—"}
+                        {item.internalSku ? (
+                          <CopyBadge value={item.internalSku} />
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     </tr>
-                  ))}
-                  {!loading && catalog.length === 0 && (
-                    <tr>
-                      <td colSpan={6} className="px-5 py-8 text-center text-neutral-400 dark:text-neutral-500">
-                        No display catalog items found.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-5 py-8 text-center text-neutral-400 dark:text-neutral-500"
+                    >
+                      No display catalog items found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardSpotlight>
 
         {/* Modal: Add Display Model */}
         <Modal
@@ -236,15 +341,16 @@ export default function DisplayCatalogPage() {
           title="Add Display Model to Catalog"
           maxWidth="max-w-md"
         >
-          <form onSubmit={handleCreate} className="space-y-3">
-            <div className="grid grid-cols-2 gap-2">
+          <form onSubmit={handleCreate} className="space-y-3.5">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   Manufacturer *
                 </label>
                 <Select
                   value={manufacturer}
                   onChange={(e) => setManufacturer(e.target.value)}
+                  className="h-9 text-xs"
                 >
                   <option value="Apple">Apple</option>
                   <option value="Samsung">Samsung</option>
@@ -256,7 +362,7 @@ export default function DisplayCatalogPage() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                   Model Name *
                 </label>
                 <Input
@@ -264,60 +370,66 @@ export default function DisplayCatalogPage() {
                   placeholder="e.g. iPhone 15 Pro"
                   value={modelName}
                   onChange={(e) => setModelName(e.target.value)}
+                  className="h-9 text-xs"
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Display Technology
               </label>
               <Input
                 placeholder="e.g. Super Retina XDR OLED"
                 value={displayTechnology}
                 onChange={(e) => setDisplayTechnology(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Known Part Numbers (Comma separated)
               </label>
               <Input
                 placeholder="821-03200-A, GH82-33451A"
                 value={partNumbers}
                 onChange={(e) => setPartNumbers(e.target.value)}
+                className="h-9 text-xs font-mono"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Model Aliases (Comma separated)
               </label>
               <Input
                 placeholder="iPhone15Pro, 15 Pro, A3102"
                 value={aliases}
                 onChange={(e) => setAliases(e.target.value)}
+                className="h-9 text-xs"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+              <label className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300 mb-1">
                 Internal SKU (Optional)
               </label>
               <Input
                 placeholder="DISP-IP15P-OLED"
                 value={internalSku}
                 onChange={(e) => setInternalSku(e.target.value)}
+                className="h-9 text-xs font-mono"
               />
             </div>
 
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-neutral-800">
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-neutral-100 dark:border-zinc-800">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowAddModal(false)}
+                className="text-xs"
               >
                 Cancel
               </Button>
@@ -326,6 +438,7 @@ export default function DisplayCatalogPage() {
                 variant="primary"
                 size="sm"
                 loading={saving}
+                className="text-xs font-semibold"
               >
                 Save Model
               </Button>
@@ -341,19 +454,34 @@ export default function DisplayCatalogPage() {
           maxWidth="max-w-xl"
         >
           <form onSubmit={handleImport} className="space-y-4">
-            <div className="rounded-md border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3 text-xs text-neutral-600 dark:text-neutral-400">
+            <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3.5 text-xs text-neutral-600 dark:text-neutral-400 space-y-1.5">
               <div className="flex items-center justify-between gap-3">
-                <p><strong>Required columns:</strong> Manufacturer, Model Name.</p>
-                <Link prefetch={false} className="shrink-0 font-medium text-blue-600 dark:text-blue-400 underline" href="/api/display-catalog/import">
+                <p>
+                  <strong>Required columns:</strong> Manufacturer, Model Name.
+                </p>
+                <Link
+                  prefetch={false}
+                  className="shrink-0 font-medium text-blue-600 dark:text-blue-400 underline"
+                  href="/api/display-catalog/import"
+                >
                   Download template
                 </Link>
               </div>
-              <p className="mt-1">Optional: Normalized Model Identifier, Internal SKU, Aliases, Known Part Numbers, Display Technology, Compatible Device Models, Notes, Is Active. Separate list values with commas, semicolons, pipes, or line breaks.</p>
-              <p className="mt-1">Imports are all-or-nothing; duplicate identifiers and invalid rows prevent every row from being saved. Maximum 2,000 rows and 5 MB.</p>
+              <p>
+                Optional: Normalized Model Identifier, Internal SKU, Aliases, Known Part
+                Numbers, Display Technology, Compatible Device Models, Notes, Is Active.
+              </p>
+              <p className="text-[11px] text-neutral-500">
+                Imports are all-or-nothing; duplicate identifiers prevent the entire file from saving.
+                Maximum 2,000 rows.
+              </p>
             </div>
 
             <div>
-              <label htmlFor="catalog-xlsx" className="mb-1 block text-xs font-medium text-neutral-700 dark:text-neutral-300">
+              <label
+                htmlFor="catalog-xlsx"
+                className="mb-1.5 block text-xs font-semibold text-neutral-700 dark:text-neutral-300"
+              >
                 Excel workbook (.xlsx)
               </label>
               <Input
@@ -363,20 +491,21 @@ export default function DisplayCatalogPage() {
                 accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                 onChange={(event) => setImportFile(event.target.files?.[0] || null)}
                 disabled={importing}
+                className="h-10 text-xs"
               />
               {importFile && (
-                <p className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-                  Selected: {importFile.name}
+                <p className="mt-1.5 text-xs text-neutral-500 dark:text-neutral-400">
+                  Selected file: <strong>{importFile.name}</strong>
                 </p>
               )}
             </div>
 
             {importErrors.length > 0 && (
               <div
-                className="max-h-44 overflow-y-auto rounded-md border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 p-3 text-xs text-rose-800 dark:text-rose-300"
+                className="max-h-44 overflow-y-auto rounded-lg border border-rose-200 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 p-3 text-xs text-rose-800 dark:text-rose-300"
                 role="alert"
               >
-                <p className="mb-2 font-semibold">No rows were imported. Fix these workbook entries:</p>
+                <p className="mb-2 font-semibold">No rows were imported. Fix these entries:</p>
                 <ul className="space-y-1">
                   {importErrors.map((issue, index) => (
                     <li key={`${issue.row}-${issue.column}-${index}`}>
@@ -387,13 +516,14 @@ export default function DisplayCatalogPage() {
               </div>
             )}
 
-            <div className="flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-neutral-800 pt-3">
+            <div className="flex items-center justify-end gap-2 border-t border-neutral-100 dark:border-zinc-800 pt-3">
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 onClick={() => setShowImportModal(false)}
                 disabled={importing}
+                className="text-xs"
               >
                 Cancel
               </Button>
@@ -403,6 +533,7 @@ export default function DisplayCatalogPage() {
                 size="sm"
                 loading={importing}
                 disabled={!importFile}
+                className="text-xs font-semibold"
               >
                 Import Products
               </Button>

@@ -1,3 +1,4 @@
+import { chooseOption } from "./select-option";
 import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_TEST_PASSWORD } from "./credentials";
 import { test, expect } from "@playwright/test";
 import { db } from "@/db";
@@ -65,7 +66,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
 
     // Wait for redirect to dashboard
     await expect(page).toHaveURL(/\/dashboard/);
@@ -73,11 +74,11 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
 
     // 2. Navigate to Create RMA
     await page.goto("/rmas/new");
-    await expect(page.locator("h1")).toContainText("Create RMA Intake");
+    await expect(page.locator("h1")).toContainText("New RMA");
 
     // 3. Fill form
-    await page.locator("select").first().selectOption({ value: testCustomerId });
-    await page.locator("select").nth(1).selectOption({ value: testReasonId });
+    await chooseOption(page, page.locator("select").first(), testCustomerId);
+    await chooseOption(page, page.locator("select").nth(1), testReasonId);
     await page.fill('input[placeholder="e.g. 1Z9999999999999999"]', "TRACK-E2E-A-001");
 
     // 4. Submit
@@ -129,7 +130,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${batchRma.id}`);
@@ -204,7 +205,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
@@ -269,7 +270,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
@@ -330,11 +331,11 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
-    await expect(page.locator("body")).toContainText("review_required");
+    await expect(page.locator("body")).toContainText("Needs Review");
   });
 
   // --------------------------------------------------------------------------
@@ -393,11 +394,11 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
-    await expect(page.locator("body")).toContainText("review_required");
+    await expect(page.locator("body")).toContainText("Needs Review");
   });
 
   // --------------------------------------------------------------------------
@@ -456,12 +457,12 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
     await page.locator('button[title="Inspect Item Details"]:visible, button:has-text("Inspect"):visible').first().click();
-    await expect(page.locator("body")).toContainText("Retry OCR");
+    await expect(page.locator("body")).toContainText("Rescan Markings");
   });
 
   // --------------------------------------------------------------------------
@@ -573,14 +574,14 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', "operator@rma-system.internal");
     await page.fill('input[type="password"]', E2E_TEST_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);
     await page.locator('button[title="Inspect Item Details"]:visible, button:has-text("Inspect"):visible').first().click();
 
     // Verify Drawer opens
-    await expect(page.locator("body")).toContainText("Manual Verification & Override");
+    await expect(page.locator("body")).toContainText("Verify or Correct");
 
     // Select manual override options
     const correctionNotes = page.locator('input[placeholder*="Verified genuine"]');
@@ -598,7 +599,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     ).toBeTruthy();
 
     // Wait for drawer to close and check updated item in DB
-    await expect(page.locator("body")).not.toContainText("Manual Verification & Override");
+    await expect(page.locator("body")).not.toContainText("Verify or Correct");
     const [updatedItem] = await db.select().from(rmaItems).where(eq(rmaItems.id, item.id));
     expect(updatedItem.status).toBe("verified");
     expect(updatedItem.matchStatus).toBe("manually_verified");
@@ -623,7 +624,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', "viewer@rma-system.internal");
     await page.fill('input[type="password"]', E2E_TEST_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     // Viewer can view /rmas page
@@ -663,7 +664,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     // Verify desktop sidebar is hidden
@@ -676,7 +677,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await menuBtn.click();
 
     // Verify mobile drawer navigation opens
-    await expect(page.locator("body")).toContainText("RMA Platform");
+    await expect(page.locator("body")).toContainText("RMA Operations");
     await expect(page.locator("body")).toContainText("Display Catalog");
 
     // Navigate to a capture screen
@@ -767,7 +768,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await page.waitForURL(/\/dashboard/);
 
     await page.goto(`/rmas/${rma.id}`);

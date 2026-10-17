@@ -14,7 +14,7 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
   await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-  await page.click('button:has-text("Sign In to Platform")');
+  await page.click('button:has-text("Sign In")');
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -76,10 +76,10 @@ test.describe("Challenger 2: Settings Tabs Navigation & Rapid Interaction", () =
 
     // Navigate to other tabs
     await page.locator('[role="tab"]:has-text("Recognition")').click();
-    await expect(page.locator("text=Google Lens Visual Recognition")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Visual Recognition", exact: true })).toBeVisible();
 
     await page.locator('[role="tab"]:has-text("Appearance")').click();
-    await expect(page.getByRole("heading", { name: "Theme", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Interface Theme", exact: true })).toBeVisible();
 
     // Navigate back to General tab
     await page.locator('[role="tab"]:has-text("General")').click();
@@ -117,13 +117,13 @@ test.describe("Challenger 2: Provider Connection Testing & Diagnostics", () => {
     await loginAsAdmin(page);
     await page.goto("/settings");
     await page.locator('[role="tab"]:has-text("Recognition")').click();
-    await expect(page.locator("text=Google Lens Visual Recognition")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("heading", { name: "Visual Recognition", exact: true })).toBeVisible({ timeout: 10000 });
   });
 
   test("C2.4: Google Lens connection test displays roundtrip latency and success banner", async ({
     page,
   }) => {
-    const testBtn = page.locator('button:has-text("Test Google Lens Connection")');
+    const testBtn = page.locator('button:has-text("Test Visual Recognition Connection")');
     await expect(testBtn).toBeVisible();
 
     await testBtn.click();
@@ -162,7 +162,7 @@ test.describe("Challenger 2: Provider Connection Testing & Diagnostics", () => {
   test("C2.6: Rapid duplicate clicks on connection test trigger handle gracefully without crashing", async ({
     page,
   }) => {
-    const testBtn = page.locator('button:has-text("Test Google Lens Connection")');
+    const testBtn = page.locator('button:has-text("Test Visual Recognition Connection")');
     await expect(testBtn).toBeVisible();
 
     // Double-click rapidly
@@ -255,7 +255,7 @@ test.describe("Challenger 2: Staff Administration & Security Guards", () => {
     await expect(page.locator(`text=${testName}`)).toBeVisible();
 
     // Locate the newly created user row
-    const userRow = page.locator(`div:has-text("${testEmail}")`).last();
+    const userRow = page.getByTestId("staff-account").filter({ hasText: testEmail });
     const toggleBtn = userRow.locator('button:has-text("Deactivate")');
     await expect(toggleBtn).toBeVisible();
 
@@ -283,7 +283,7 @@ test.describe("Challenger 2: Staff Administration & Security Guards", () => {
     expect(admin).toBeTruthy();
 
     // 1. UI Attack: Attempt self-deactivation by clicking Deactivate
-    const adminRow = page.locator(`div:has-text("${admin.email}")`).last();
+    const adminRow = page.getByTestId("staff-account").filter({ hasText: admin.email });
     const deactBtn = adminRow.locator('button:has-text("Deactivate")');
     await deactBtn.click();
 

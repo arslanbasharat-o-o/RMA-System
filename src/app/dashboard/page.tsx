@@ -1,44 +1,57 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
+import { cn } from "@/lib/utils/cn";
 import {
-  PackageCheck,
-  Smartphone,
-  TrendingUp,
-  AlertCircle,
   Plus,
+  Layers,
+  ArrowRight,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import {
+  AnimatedPackageCheck,
+  AnimatedDisplayModule,
+  AnimatedGauge,
+  AnimatedAlertTriage,
+  AnimatedArrowRight,
+} from "@/components/icons/AnimatedIcons";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
-import { MotionCardGrid, MotionCardItem } from "@/components/motion/CardMotion";
+import {
+  MetricBentoCard,
+  CardSpotlight,
+  RmaStatusPipeline,
+  DataTableToolbar,
+  CopyBadge,
+  GlowingBadge,
+  ShimmerButton,
+} from "@/components/premium";
 
 export default function DashboardPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+
+  const fetchDashboard = async () => {
+    try {
+      const res = await fetch("/api/dashboard");
+      if (res.status === 401) {
+        window.location.assign("/login");
+        return;
+      }
+      if (res.ok) {
+        const json = await res.json();
+        setData(json);
+      }
+    } catch (err) {
+      console.error("Dashboard fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    async function fetchDashboard() {
-      try {
-        const res = await fetch("/api/dashboard");
-        if (res.status === 401) {
-          window.location.assign("/login");
-          return;
-        }
-        if (res.ok) {
-          const json = await res.json();
-          setData(json);
-        }
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchDashboard();
   }, []);
 
@@ -47,331 +60,406 @@ export default function DashboardPage() {
     totalDisplays: 0,
     verifiedDisplays: 0,
     reviewDisplays: 0,
+    processingDisplays: 0,
     verificationRate: 0,
   };
+
+  const formatRmaStatus = (status: string) => {
+    switch (status) {
+      case "review_required":
+        return "Needs Review";
+      case "processing":
+        return "Processing";
+      case "completed":
+        return "Completed";
+      case "receiving":
+        return "Receiving";
+      case "pending_upload":
+        return "Pending Upload";
+      case "archived":
+        return "Archived";
+      case "draft":
+        return "Draft";
+      default:
+        return (status || "Draft").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+    }
+  };
+
+  // Pipeline stages mapped to actual RMA operations
+  const pipelineStages = useMemo(() => {
+    return [
+      {
+        id: "intake",
+        name: "Shipments Received",
+        count: kpis.totalRmas || 0,
+        status: "complete" as const,
+        icon: AnimatedPackageCheck,
+      },
+      {
+        id: "optical_inspection",
+        name: "Screen Inspection",
+        count: kpis.processingDisplays || 0,
+        status: "current" as const,
+        icon: AnimatedDisplayModule,
+      },
+      {
+        id: "review",
+        name: "Manual Review",
+        count: kpis.reviewDisplays || 0,
+        status: (kpis.reviewDisplays > 0 ? "current" : "complete") as "current" | "complete",
+        icon: AnimatedAlertTriage,
+      },
+      {
+        id: "verified",
+        name: "Verified Displays",
+        count: kpis.verifiedDisplays || 0,
+        status: "complete" as const,
+        icon: AnimatedGauge,
+      },
+    ];
+  }, [kpis]);
+
+  // Filtered recent RMAs
+  const recentRmas = useMemo(() => {
+    if (!data?.recentRmas) return [];
+    return data.recentRmas.filter((rma: any) => {
+      const matchesSearch =
+        searchQuery === "" ||
+        rma.rmaNumber?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rma.customerName?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "completed" && rma.status === "completed") ||
+        (statusFilter === "review_required" &&
+          (rma.status === "review_required" || rma.status === "suggested_match")) ||
+        (statusFilter === "draft" &&
+          (rma.status === "draft" || rma.status === "processing"));
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [data, searchQuery, statusFilter]);
+
+  // Filter status options
+  const statusOptions = useMemo(() => {
+    const all = data?.recentRmas?.length || 0;
+    const completed =
+      data?.recentRmas?.filter((r: any) => r.status === "completed").length || 0;
+    const review =
+      data?.recentRmas?.filter(
+        (r: any) => r.status === "review_required" || r.status === "suggested_match"
+      ).length || 0;
+    const draft =
+      data?.recentRmas?.filter((r: any) => r.status === "draft" || r.status === "processing")
+        .length || 0;
+
+    return [
+      { label: "All Returns", value: "all", count: all },
+      { label: "Completed", value: "completed", count: completed },
+      { label: "Needs Review", value: "review_required", count: review },
+      { label: "Drafts", value: "draft", count: draft },
+    ];
+  }, [data]);
 
   return (
     <AppShell>
       <div className="space-y-6">
-        {/* Page Title & Header */}
-        <div className="flex items-center justify-between gap-3">
-          <h1 data-testid="dashboard-title" className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            Operations Dashboard
-          </h1>
+        {/* Executive Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
+          <div>
+            <h1
+              data-testid="dashboard-title"
+              className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            >
+              Operations Dashboard
+            </h1>
+          </div>
 
-          <Link href="/rmas/new" className="shrink-0">
-            <Button size="sm" variant="primary" className="gap-1.5 h-8.5 sm:h-9 text-xs">
-              <Plus className="h-3.5 w-3.5 shrink-0" />
-              <span className="sm:hidden">New RMA</span>
-              <span className="hidden sm:inline">New RMA Intake</span>
-            </Button>
-          </Link>
+          <div className="flex items-center gap-2.5">
+            <Link href="/rmas/new">
+              <ShimmerButton className="h-8.5 px-3.5 text-xs font-semibold gap-1.5">
+                <Plus className="h-3.5 w-3.5 shrink-0" />
+                <span>New Return (RMA)</span>
+              </ShimmerButton>
+            </Link>
+          </div>
         </div>
 
-        {/* Real KPI Cards */}
-        <MotionCardGrid className="grid grid-cols-2 lg:grid-cols-4 auto-rows-fr items-stretch gap-4">
-          <MotionCardItem className="h-full">
-            <Card className="h-full flex flex-col">
-              <CardHeader className="p-4 pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                    Total RMAs
-                  </CardDescription>
-                  <PackageCheck className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                </div>
-                <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
-                  {loading ? (
-                    <Skeleton className="h-8 w-16" />
-                  ) : (
-                    <AnimatedNumber value={kpis.totalRmas || 0} />
-                  )}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </MotionCardItem>
+        {/* 4 Executive KPI Cards - Symmetrical, Balanced, Clean */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 sm:gap-4 lg:gap-5">
+          <MetricBentoCard
+            title="Total Returns"
+            value={kpis.totalRmas || 0}
+            loading={loading}
+            icon={AnimatedPackageCheck}
+            iconColor="text-indigo-600 dark:text-indigo-400"
+            sparklineData={data?.kpis?.trends?.rmas}
+            sparklineColor="indigo"
+          />
 
-          <MotionCardItem className="h-full">
-            <Card className="h-full flex flex-col">
-              <CardHeader className="p-4 pb-3">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                    Displays Received
-                  </CardDescription>
-                  <Smartphone className="h-4 w-4 text-neutral-400 dark:text-neutral-500" />
-                </div>
-                <CardTitle className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mt-1">
-                  {loading ? (
-                    <Skeleton className="h-8 w-16" />
-                  ) : (
-                    <AnimatedNumber value={kpis.totalDisplays || 0} />
-                  )}
-                </CardTitle>
-              </CardHeader>
-            </Card>
-          </MotionCardItem>
+          <MetricBentoCard
+            title="Screens Received"
+            value={kpis.totalDisplays || 0}
+            loading={loading}
+            icon={AnimatedDisplayModule}
+            iconColor="text-indigo-600 dark:text-indigo-400"
+            sparklineData={data?.kpis?.trends?.displays}
+            sparklineColor="indigo"
+          />
 
-          <MotionCardItem className="h-full">
-            <Card className="h-full flex flex-col">
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                    Verification Rate
-                  </CardDescription>
-                  <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                </div>
-                <CardTitle className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">
-                  {loading ? (
-                    <Skeleton className="h-8 w-20" />
-                  ) : (
-                    <>
-                      <AnimatedNumber value={kpis.verificationRate || 0} />%
-                    </>
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-                  {loading ? (
-                    <Skeleton className="h-3.5 w-28" />
-                  ) : (
-                    <>
-                      <AnimatedNumber value={kpis.verifiedDisplays || 0} /> of{" "}
-                      <AnimatedNumber value={kpis.totalDisplays || 0} /> verified
-                    </>
-                  )}
-                </span>
-              </CardContent>
-            </Card>
-          </MotionCardItem>
+          <MetricBentoCard
+            title="Verification Rate"
+            value={kpis.verificationRate || 0}
+            loading={loading}
+            suffix="%"
+            icon={AnimatedGauge}
+            iconColor="text-slate-800 dark:text-zinc-200"
+            sparklineColor="slate"
+          />
 
-          <MotionCardItem className="h-full">
-            <Card className="h-full flex flex-col">
-              <CardHeader className="p-4 pb-2">
-                <div className="flex items-center justify-between">
-                  <CardDescription className="text-xs font-medium text-neutral-500 dark:text-neutral-400">
-                    Awaiting Review
-                  </CardDescription>
-                  <AlertCircle className="h-4 w-4 text-amber-500 dark:text-amber-400" />
-                </div>
-                <CardTitle className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1">
-                  {loading ? (
-                    <Skeleton className="h-8 w-16" />
-                  ) : (
-                    <AnimatedNumber value={kpis.reviewDisplays || 0} />
-                  )}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <Link
-                  href="/review-queue?view=all"
-                  className="text-[11px] text-amber-600 dark:text-amber-400 hover:underline font-medium"
-                >
-                  Open Review Queue &rarr;
-                </Link>
-              </CardContent>
-            </Card>
-          </MotionCardItem>
-        </MotionCardGrid>
+          <MetricBentoCard
+            title="Needs Review"
+            value={kpis.reviewDisplays || 0}
+            loading={loading}
+            icon={AnimatedAlertTriage}
+            iconColor={kpis.reviewDisplays > 0 ? "text-amber-500" : "text-slate-700 dark:text-zinc-300"}
+            sparklineData={data?.kpis?.trends?.review}
+            sparklineColor="amber"
+          />
+        </div>
 
-        {/* Analytical Breakdowns */}
-        <MotionCardGrid className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Top Vendors */}
-          <MotionCardItem className="lg:col-span-1">
-            <Card className="h-full">
-            <CardHeader className="p-5 pb-3">
-              <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                Vendor Distribution
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 space-y-2.5">
-              {loading ? (
-                <div className="space-y-2 py-1">
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                </div>
-              ) : data?.vendorBreakdown?.length > 0 ? (
-                data.vendorBreakdown.map((v: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                      {v.name}
-                    </span>
-                    <span className="font-mono text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-                      {v.count} screens
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-neutral-400 dark:text-neutral-500 py-3">
-                  No display data recorded yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          </MotionCardItem>
+        {/* RMA Operational Flow Pipeline */}
+        <RmaStatusPipeline stages={pipelineStages} loading={loading} />
 
-          {/* Top Display Models */}
-          <MotionCardItem className="lg:col-span-1">
-            <Card className="h-full">
-            <CardHeader className="p-5 pb-3">
-              <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                Top Returned Models
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 space-y-2.5">
-              {loading ? (
-                <div className="space-y-2 py-1">
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                </div>
-              ) : data?.modelBreakdown?.length > 0 ? (
-                data.modelBreakdown.map((m: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                      {m.model}
-                    </span>
-                    <span className="font-mono text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-                      {m.count}
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-neutral-400 dark:text-neutral-500 py-3">
-                  No display models identified yet.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          </MotionCardItem>
-
-          {/* Return Reasons */}
-          <MotionCardItem className="lg:col-span-1">
-            <Card className="h-full">
-            <CardHeader className="p-5 pb-3">
-              <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                Return Reasons
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-5 pt-0 space-y-2.5">
-              {loading ? (
-                <div className="space-y-2 py-1">
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                </div>
-              ) : data?.reasonBreakdown?.length > 0 ? (
-                data.reasonBreakdown.map((r: any, idx: number) => (
-                  <div key={idx} className="flex items-center justify-between text-xs">
-                    <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                      {r.label}
-                    </span>
-                    <span className="font-mono text-neutral-600 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded">
-                      {r.count} RMAs
-                    </span>
-                  </div>
-                ))
-              ) : (
-                <p className="text-xs text-neutral-400 dark:text-neutral-500 py-3">
-                  No return reasons recorded.
-                </p>
-              )}
-            </CardContent>
-          </Card>
-          </MotionCardItem>
-        </MotionCardGrid>
-
-        {/* Recent RMAs Table */}
-        <Card>
-          <CardHeader className="p-5 pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                  Recent RMA Batches
-                </CardTitle>
+        {/* Analytics Grid: Top Models & Return Reasons */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
+          {/* Card 1: Top Returned Models */}
+          <CardSpotlight className="min-h-[280px] h-auto p-4 sm:p-5 lg:p-6 flex flex-col justify-between border-neutral-200/90 dark:border-zinc-800">
+            <div className="overflow-hidden">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  Top Returned Models
+                </h3>
+                <Layers className="h-4 w-4 text-neutral-400" />
               </div>
-              <Link
-                href="/rmas?view=all"
-                className="text-xs text-neutral-600 dark:text-neutral-400 hover:text-neutral-900 dark:hover:text-neutral-100 font-medium"
-              >
-                View all RMAs &rarr;
-              </Link>
+
+              {loading ? (
+                <div className="space-y-3 py-2">
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                  <Skeleton className="h-6 w-full" />
+                </div>
+              ) : data?.modelBreakdown && data.modelBreakdown.length > 0 ? (
+                <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
+                  {data.modelBreakdown.slice(0, 6).map((m: any, idx: number) => {
+                    const maxCount = Math.max(...data.modelBreakdown.map((x: any) => x.count), 1);
+                    const percentage = Math.round((m.count / maxCount) * 100);
+                    const isPending =
+                      m.isPending ||
+                      !m.model ||
+                      m.model === "Unidentified Model" ||
+                      m.model === "Pending Identification";
+                    const displayLabel = isPending ? "Pending Identification" : m.model;
+
+                    return (
+                      <div key={idx} className="space-y-1.5 p-2 rounded-lg bg-slate-50/60 dark:bg-zinc-900/40">
+                        <div className="flex items-center justify-between text-xs">
+                          <span
+                            className={cn(
+                              "font-medium truncate max-w-[200px] sm:max-w-xs",
+                              isPending
+                                ? "text-amber-700 dark:text-amber-400"
+                                : "text-neutral-800 dark:text-neutral-200"
+                            )}
+                          >
+                            {displayLabel}
+                          </span>
+                          <span className="font-mono text-neutral-500 dark:text-neutral-400 text-[11px]">
+                            {m.count} {m.count === 1 ? "screen" : "screens"}
+                          </span>
+                        </div>
+                        <div className="h-1.5 w-full bg-neutral-200/60 dark:bg-neutral-800 rounded-sm overflow-hidden">
+                          <div
+                            className={cn(
+                              "h-full rounded-sm transition-all duration-300",
+                              isPending ? "bg-amber-500" : "bg-indigo-600 dark:bg-indigo-400"
+                            )}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400 dark:text-neutral-500 py-10 text-center">
+                  No display models cataloged yet.
+                </p>
+              )}
             </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
-                  <tr>
-                    <th className="px-5 py-2.5">RMA Number</th>
-                    <th className="px-5 py-2.5">Customer</th>
-                    <th className="px-5 py-2.5">Displays</th>
-                    <th className="px-5 py-2.5">Status</th>
-                    <th className="px-5 py-2.5">Date</th>
-                    <th className="px-5 py-2.5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800">
-                  {loading ? (
-                    <tr>
-                      <td colSpan={6} className="px-5 py-6">
-                        <Skeleton className="h-5 w-full my-1" />
-                        <Skeleton className="h-5 w-full my-1" />
-                        <Skeleton className="h-5 w-full my-1" />
-                      </td>
-                    </tr>
-                  ) : data?.recentRmas?.map((rma: any) => (
-                    <tr
-                      key={rma.id}
-                      className="hover:bg-neutral-50/50 dark:hover:bg-neutral-800/30 transition-colors"
+          </CardSpotlight>
+
+          {/* Card 2: Return Reasons Breakdown */}
+          <CardSpotlight className="min-h-[280px] h-auto p-4 sm:p-5 lg:p-6 flex flex-col justify-between border-neutral-200/90 dark:border-zinc-800">
+            <div className="overflow-hidden">
+              <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+                <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                  Return Reasons
+                </h3>
+              </div>
+
+              {loading ? (
+                <div className="space-y-2 py-2">
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                  <Skeleton className="h-8 w-full" />
+                </div>
+              ) : data?.reasonBreakdown && data.reasonBreakdown.length > 0 ? (
+                <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                  {data.reasonBreakdown.slice(0, 5).map((r: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-lg bg-slate-50 dark:bg-zinc-900 border border-slate-200/60 dark:border-zinc-800 text-xs"
                     >
-                      <td className="px-5 py-3 font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
-                        {rma.rmaNumber}
-                      </td>
-                      <td className="px-5 py-3 text-neutral-700 dark:text-neutral-300">
-                        {rma.customerName}
-                      </td>
-                      <td className="px-5 py-3 font-mono text-neutral-600 dark:text-neutral-400">
-                        {rma.itemCount || 0} screens
-                      </td>
-                      <td className="px-5 py-3">
-                        <Badge
-                          variant={
-                            rma.status === "completed"
-                              ? "success"
-                              : rma.status === "review_required"
-                              ? "warning"
-                              : "secondary"
-                          }
-                        >
-                          {rma.status}
-                        </Badge>
-                      </td>
-                      <td className="px-5 py-3 text-neutral-500 dark:text-neutral-400">
-                        {new Date(rma.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-5 py-3 text-right">
-                        <Link
-                          href={`/rmas/${rma.id}`}
-                          className="font-medium text-neutral-900 dark:text-neutral-100 hover:underline"
-                        >
-                          View &rarr;
-                        </Link>
-                      </td>
-                    </tr>
+                      <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                        {r.label}
+                      </span>
+                      <span className="font-mono text-neutral-600 dark:text-zinc-200 font-semibold px-2 py-0.5 rounded bg-white dark:bg-zinc-800 border border-neutral-200/60 dark:border-zinc-700 text-[11px]">
+                        {r.count} returns
+                      </span>
+                    </div>
                   ))}
-                  {!loading && (!data?.recentRmas || data.recentRmas.length === 0) && (
-                    <tr>
-                      <td
-                        colSpan={6}
-                        className="px-5 py-6 text-center text-neutral-400 dark:text-neutral-500"
-                      >
-                        No RMA batches recorded yet.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400 dark:text-neutral-500 py-10 text-center">
+                  No return reasons recorded yet.
+                </p>
+              )}
             </div>
-          </CardContent>
-        </Card>
+          </CardSpotlight>
+        </div>
+
+        {/* Recent RMA Batches Data Grid */}
+        <CardSpotlight className="p-0 overflow-hidden border-neutral-200/90 dark:border-neutral-800">
+          <div className="p-4 sm:p-5 flex items-center justify-between border-b border-neutral-200/80 dark:border-neutral-800">
+            <div>
+              <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                Recent Returns
+              </h3>
+            </div>
+            <Link
+              href="/rmas?view=all"
+              className="inline-flex items-center gap-1 text-xs font-semibold text-neutral-700 hover:text-neutral-950 dark:text-neutral-300 dark:hover:text-white transition-colors"
+            >
+              <span>View all returns</span>
+              <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          {/* Faceted Filter Toolbar (Dice UI) */}
+          <DataTableToolbar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            statusOptions={statusOptions}
+            placeholder="Search RMA number or customer..."
+          />
+
+          {/* Data Table */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-neutral-50/70 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
+                <tr>
+                  <th className="px-5 py-3 font-semibold">RMA Number</th>
+                  <th className="px-5 py-3 font-semibold">Customer</th>
+                  <th className="px-5 py-3 font-semibold">Screens</th>
+                  <th className="px-5 py-3 font-semibold">Status</th>
+                  <th className="px-5 py-3 font-semibold">Date Created</th>
+                  <th className="px-5 py-3 text-right font-semibold">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800/80">
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-6">
+                      <Skeleton className="h-5 w-full my-1.5" />
+                      <Skeleton className="h-5 w-full my-1.5" />
+                      <Skeleton className="h-5 w-full my-1.5" />
+                    </td>
+                  </tr>
+                ) : recentRmas.length > 0 ? (
+                  recentRmas.map((rma: any) => {
+                    const isCompleted = rma.status === "completed";
+                    const isReview =
+                      rma.status === "review_required" || rma.status === "suggested_match";
+
+                    return (
+                      <tr
+                        key={rma.id}
+                        className="hover:bg-neutral-50/60 dark:hover:bg-zinc-800/40 transition-colors group"
+                      >
+                        <td className="px-5 py-3">
+                          <CopyBadge value={rma.rmaNumber} />
+                        </td>
+                        <td className="px-5 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 rounded-md bg-neutral-100 dark:bg-neutral-800 border border-neutral-200/60 dark:border-neutral-700/60 flex items-center justify-center text-[10px] font-bold text-neutral-700 dark:text-neutral-300 shrink-0">
+                              {(rma.customerName || "C").slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="font-medium text-neutral-800 dark:text-neutral-200 truncate">
+                              {rma.customerName || "Unnamed Customer"}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3 font-mono text-neutral-600 dark:text-neutral-400">
+                          <span className="inline-flex items-center gap-1">
+                            <AnimatedDisplayModule size={13} className="text-neutral-400" />
+                            {rma.itemCount || 0} screens
+                          </span>
+                        </td>
+                        <td className="px-5 py-3">
+                          <GlowingBadge
+                            variant={
+                              isCompleted ? "success" : isReview ? "warning" : "neutral"
+                            }
+                            pulse={isReview}
+                          >
+                            {formatRmaStatus(rma.status)}
+                          </GlowingBadge>
+                        </td>
+                        <td className="px-5 py-3 text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
+                          {rma.createdAt ? new Date(rma.createdAt).toLocaleDateString() : "—"}
+                        </td>
+                        <td className="px-5 py-3 text-right">
+                          <Link
+                            href={`/rmas/${rma.id}`}
+                            className="inline-flex items-center gap-1 font-semibold text-neutral-900 hover:text-blue-600 dark:text-neutral-100 dark:hover:text-blue-400 transition-colors"
+                          >
+                            <span>View</span>
+                            <ArrowRight className="h-3 w-3 group-hover:translate-x-0.5 transition-transform" />
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={6}
+                      className="px-5 py-8 text-center text-neutral-400 dark:text-neutral-500"
+                    >
+                      {searchQuery || statusFilter !== "all"
+                        ? "No return shipments match your filters."
+                        : "No return shipments recorded yet."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardSpotlight>
       </div>
     </AppShell>
   );

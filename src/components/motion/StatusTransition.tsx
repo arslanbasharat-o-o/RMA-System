@@ -176,16 +176,16 @@ export function StatusTransition({
     <AnimatePresence mode="wait">
       <motion.span
         key={normalized}
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
         transition={{ duration: duration.fast, ease: easing.smoothOut }}
         data-status={status}
-        className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${config.bg} ${config.text} ${config.border} ${className}`}
+        className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border shrink-0 whitespace-nowrap leading-none ${config.bg} ${config.text} ${config.border} ${className}`}
       >
         {showIcon && (
           <Icon
-            className={`h-3.5 w-3.5 ${
+            className={`h-3 w-3 shrink-0 ${
               config.pulse ? "animate-spin" : ""
             }`}
           />

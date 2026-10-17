@@ -12,9 +12,12 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
   private timeoutMs: number;
   private defaultQuery?: string;
 
-  constructor(apiKey?: string, timeoutMs = 15000, defaultQuery?: string) {
+  constructor(apiKey?: string, timeoutMs?: number, defaultQuery?: string) {
     this.apiKey = apiKey || process.env.SERPAPI_API_KEY || "";
-    this.timeoutMs = timeoutMs;
+    const configuredTimeout = Number(timeoutMs ?? process.env.LENS_TIMEOUT_MS ?? 60000);
+    this.timeoutMs = Number.isFinite(configuredTimeout) && configuredTimeout >= 1000 && configuredTimeout <= 120000
+      ? Math.floor(configuredTimeout)
+      : 60000;
     this.defaultQuery = defaultQuery || process.env.LENS_FILTER_QUERY;
   }
 
@@ -30,6 +33,7 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
       );
     }
 
+    let stage = "image preparation";
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -56,6 +60,7 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
       uploadFormData.append("image", blob, context?.filename || "display.jpg");
       uploadFormData.append("api_key", this.apiKey);
 
+      stage = "image upload";
       const uploadResponse = await fetch("https://serpapi.com/image", {
         method: "POST",
         body: uploadFormData,
@@ -79,6 +84,7 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
           : this.defaultQuery || process.env.LENS_FILTER_QUERY || "";
 
       const executeLensQuery = async (queryFilter?: string) => {
+        stage = "visual search";
         const searchUrl = new URL("https://serpapi.com/search");
         searchUrl.searchParams.set("engine", "google_lens");
         searchUrl.searchParams.set("image_id", uploadData.image_id!);
@@ -131,6 +137,7 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
       }
 
       clearTimeout(timeout);
+      if (data.error) throw new Error(`SerpApi visual search failed: ${data.error}`);
 
       const candidates: VisualCandidate[] = (data.visual_matches || [])
         .slice(0, 10)
@@ -169,7 +176,9 @@ export class SerpApiLensProvider implements DisplayVisualRecognitionProvider {
       };
     } catch (err: unknown) {
       clearTimeout(timeout);
-      const message = err instanceof Error ? err.message : String(err);
+      const message = controller.signal.aborted
+        ? `Visual identification timed out after ${Math.round(this.timeoutMs / 1000)} second${this.timeoutMs === 1000 ? "" : "s"} during ${stage}. The visual provider may be slow or unavailable. Photos are retained; retry the image later or select a model manually.`
+        : err instanceof Error ? err.message : String(err);
       return {
         provider: this.name,
         candidates: [],

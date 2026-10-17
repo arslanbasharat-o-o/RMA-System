@@ -10,6 +10,7 @@ import { Modal } from "@/components/ui/modal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Users, UserPlus, Search, Shield, UserCheck, UserX } from "lucide-react";
 import { toast } from "sonner";
+import { CardSpotlight, CopyBadge, ShimmerButton } from "@/components/premium";
 
 export interface StaffUser {
   id: string;
@@ -106,27 +107,29 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="p-5 sm:p-6 pb-2">
-          <div className="flex items-center justify-between gap-3">
-            <CardTitle className="text-base font-semibold flex items-center gap-2">
-              <Users className="h-4 w-4 text-neutral-500 shrink-0" />
-              <span>Staff & Access</span>
-            </CardTitle>
-            <Button
-              size="sm"
-              variant="primary"
-              onClick={() => setShowAddModal(true)}
-              className="gap-1.5 shrink-0 h-8.5 sm:h-9 text-xs"
-            >
-              <UserPlus className="h-3.5 w-3.5 shrink-0" />
-              <span className="sm:hidden">Add Staff</span>
-              <span className="hidden sm:inline">Add Staff Account</span>
-            </Button>
+      <CardSpotlight className="p-5 sm:p-6 border-neutral-200/90 dark:border-neutral-800">
+        <div className="flex items-center justify-between pb-4 mb-4 border-b border-neutral-100 dark:border-zinc-800 gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800/80 border border-neutral-200/60 dark:border-neutral-700/50 flex items-center justify-center shrink-0">
+              <Users className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+                Staff Directory
+              </h2>
+            </div>
           </div>
-        </CardHeader>
+          <ShimmerButton
+            onClick={() => setShowAddModal(true)}
+            className="h-8.5 px-3 text-xs font-semibold gap-1.5 shrink-0"
+          >
+            <UserPlus className="h-3.5 w-3.5 shrink-0" />
+            <span className="hidden sm:inline">Add Staff Account</span>
+            <span className="sm:hidden">Add</span>
+          </ShimmerButton>
+        </div>
 
-        <CardContent className="p-5 sm:p-6 pt-4 space-y-4">
+        <div className="space-y-4">
           {/* Filters Bar */}
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1">
@@ -183,10 +186,11 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
                 return (
                   <div
                     key={u.id}
+                    data-testid="staff-account"
                     className="flex items-center justify-between p-3.5 bg-white dark:bg-[#121215] hover:bg-neutral-50/60 dark:hover:bg-neutral-800/40 transition-colors text-xs gap-3"
                   >
                     <span className="flex items-center gap-3 min-w-0">
-                      <span className="h-8 w-8 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-xs shrink-0 border border-neutral-200 dark:border-neutral-700">
+                      <span className="h-8 w-8 rounded-lg bg-neutral-100 dark:bg-neutral-800 text-neutral-800 dark:text-neutral-200 flex items-center justify-center font-bold text-xs shrink-0 border border-neutral-200 dark:border-neutral-700">
                         {initials}
                       </span>
                       <span className="min-w-0 block">
@@ -209,9 +213,9 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
                             <Badge variant="danger">Inactive</Badge>
                           )}
                         </span>
-                        <p className="text-neutral-500 dark:text-neutral-400 text-[11px] font-mono truncate mt-0.5">
-                          {u.email}
-                        </p>
+                        <div className="mt-0.5">
+                          <CopyBadge value={u.email} className="text-[11px] py-0 px-1.5" />
+                        </div>
                       </span>
                     </span>
 
@@ -235,8 +239,8 @@ export function StaffTab({ usersList, loading, onRefresh }: StaffTabProps) {
               })}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </CardSpotlight>
 
       {/* Add Staff Account Modal */}
       <Modal

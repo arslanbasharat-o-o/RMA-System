@@ -1,3 +1,4 @@
+import { chooseOption } from "./select-option";
 import { E2E_TEST_PASSWORD } from "./credentials";
 import { test, expect, Page } from "@playwright/test";
 import { db } from "@/db";
@@ -63,11 +64,11 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     // ------------------------------------------------------------------------
     await page.goto("/login");
     await expect(page).toHaveTitle(/RMA/i);
-    await expect(page.locator("h1")).toContainText(/RMA Identification Platform/i);
+    await expect(page.locator("h1")).toContainText(/RMA Operations/i);
 
     await page.fill('input[type="email"]', "operator@rma-system.internal");
     await page.fill('input[type="password"]', E2E_TEST_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
 
     await page.waitForURL(/\/dashboard/, { waitUntil: "domcontentloaded" });
     await expect(page.locator("h1")).toContainText("Operations Dashboard");
@@ -119,7 +120,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     const createRmaBtn = page.locator('a:has-text("Create RMA")').filter({ visible: true }).first();
     await createRmaBtn.click();
     await page.waitForURL(/\/rmas\/new/, { waitUntil: "domcontentloaded" });
-    await expect(page.locator("h1")).toContainText("Create RMA Intake");
+    await expect(page.locator("h1")).toContainText("New RMA");
 
     const customerSelect = page.locator("select").first();
     const optionValue = await customerSelect.evaluate((sel: HTMLSelectElement, name: string) => {
@@ -127,7 +128,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
       return opt ? opt.value : null;
     }, testCustomerName);
     expect(optionValue).toBeTruthy();
-    await customerSelect.selectOption(optionValue!);
+    await chooseOption(page, customerSelect, optionValue!);
 
     // ------------------------------------------------------------------------
     // Step 8: Select a return reason
@@ -137,7 +138,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
       return sel.options[0]?.value || null;
     });
     expect(reasonValue).toBeTruthy();
-    await reasonSelect.selectOption(reasonValue!);
+    await chooseOption(page, reasonSelect, reasonValue!);
 
     // ------------------------------------------------------------------------
     // Step 9: Leave optional RMA and tracking fields empty
@@ -262,7 +263,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
       return sel.options.length > 1 ? sel.options[1].value : null;
     });
     if (firstCatOption) {
-      await catSelect.selectOption(firstCatOption);
+      await chooseOption(page, catSelect, firstCatOption);
     }
 
     // Enter review notes
@@ -280,7 +281,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
 
     // Step 25 & 26: Refresh page and confirm correction remains saved
     await page.reload();
-    await expect(page.locator("body")).toContainText("verified");
+    await expect(page.locator("body")).toContainText(/\bverified\b/i);
 
     // ------------------------------------------------------------------------
     // Step 27: Complete the RMA
@@ -355,12 +356,13 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
 
     const logoutBtn = page.locator('button[aria-label="Sign out"], button:has-text("Logout"), button:has-text("Sign out")').filter({ visible: true }).first();
     await logoutBtn.click({ force: true });
+    await page.getByRole("dialog", { name: "Confirm Sign Out" }).getByRole("button", { name: "Sign Out", exact: true }).click();
     await page.waitForURL(/\/login/, { waitUntil: "domcontentloaded" });
-    await expect(page.locator("h1")).toContainText(/RMA Identification Platform/i);
+    await expect(page.locator("h1")).toContainText(/RMA Operations/i);
 
     // Step 35 & 36: Attempt unauthorized access
     await page.goto("/dashboard");
     await page.waitForURL(/\/login/, { waitUntil: "domcontentloaded" });
-    await expect(page.locator("h1")).toContainText(/RMA Identification Platform/i);
+    await expect(page.locator("h1")).toContainText(/RMA Operations/i);
   });
 });

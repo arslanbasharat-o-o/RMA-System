@@ -22,15 +22,11 @@ export function DetailSkeleton() {
               <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
                 <Skeleton className="h-7 w-44 rounded-lg" />
               </h1>
-              <Skeleton className="h-5 w-20 rounded-full" />
+              <Skeleton className="h-5 w-20 rounded-md" />
             </div>
             <Skeleton className="h-4 w-64 rounded" />
           </div>
-          <div className="flex items-center gap-3">
-            <Skeleton className="h-14 w-24 rounded-lg" />
-            <Skeleton className="h-14 w-24 rounded-lg" />
-            <Skeleton className="h-14 w-24 rounded-lg" />
-          </div>
+          <Skeleton className="h-10 w-56 rounded-lg" />
         </div>
       </div>
 
