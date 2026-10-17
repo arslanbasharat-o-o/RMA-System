@@ -12,16 +12,21 @@ import { processRmaItem } from "@/lib/queue/processor";
  */
 async function navigateTo(page: Page, label: string, urlPattern: RegExp) {
   const mobileToggle = page.locator('button[aria-label="Toggle navigation menu"]');
-  if (await mobileToggle.isVisible()) {
+  const isMobile = await mobileToggle.isVisible();
+  let link;
+  if (isMobile) {
     const drawer = page.locator('div[role="dialog"][aria-modal="true"]');
     if (!(await drawer.isVisible())) {
       await mobileToggle.click();
       await expect(drawer).toBeVisible({ timeout: 5000 });
       await page.waitForTimeout(200);
     }
+    link = drawer.getByRole("link", { name: label, exact: true });
+  } else {
+    link = page.locator("aside nav").getByRole("link", { name: label, exact: true });
   }
-  const link = page.locator(`a:has-text("${label}")`).filter({ visible: true }).first();
-  await link.click({ force: true });
+  await expect(link).toBeVisible();
+  await link.click();
   await page.waitForURL(urlPattern, { waitUntil: "domcontentloaded" });
 }
 
