@@ -11,6 +11,7 @@ import {
 import { generateNextRmaNumber } from "@/lib/utils/rma-sequence";
 import { storage } from "@/lib/storage";
 import { processRmaItem } from "@/lib/queue/processor";
+import { createUniqueTestImage } from "@/__tests__/helpers/image-fixtures";
 import { eq } from "drizzle-orm";
 
 describe("RMA End-to-End Workflow Integration", () => {
@@ -71,10 +72,7 @@ describe("RMA End-to-End Workflow Integration", () => {
 
   it("should store image file and attach image metadata to the display item", async () => {
     // Generate sample 100x100 white image buffer
-    const sampleBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-      "base64"
-    );
+    const sampleBuffer = await createUniqueTestImage();
 
     const stored = await storage.saveImage(
       sampleBuffer,

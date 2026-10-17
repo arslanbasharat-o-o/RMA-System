@@ -12,7 +12,7 @@ import {
   appSettings,
   reviewActions,
 } from "@/db/schema";
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService } from "@/lib/recognition/openai";
@@ -60,18 +60,18 @@ async function previousVisualDecisions(
 
   const [runs, allImages, reviews] = await Promise.all([
     db.select({ rmaItemId: recognitionRuns.rmaItemId,
-      rawRequest: recognitionRuns.rawRequest, rawResponse: recognitionRuns.rawResponse })
+      rawRequest: recognitionRuns.rawRequest, rawResponse: recognitionRuns.rawResponse,
+      createdAt: recognitionRuns.createdAt })
       .from(recognitionRuns)
       .where(and(
         inArray(recognitionRuns.rmaItemId, itemIds),
         eq(recognitionRuns.pipelineType, "visual"),
-        eq(recognitionRuns.status, "completed"),
-        sql`${recognitionRuns.rawRequest} ->> 'checksumSha256' = ${checksumSha256}`,
-        sql`${recognitionRuns.rawRequest} ->> 'decisionPolicy' = ${VISUAL_DECISION_POLICY}`
+        eq(recognitionRuns.status, "completed")
       ))
       .orderBy(desc(recognitionRuns.createdAt)).limit(100),
     db.select({ rmaItemId: itemImages.rmaItemId, imageType: itemImages.imageType,
-      checksumSha256: itemImages.checksumSha256, sortOrder: itemImages.sortOrder })
+      checksumSha256: itemImages.checksumSha256, sortOrder: itemImages.sortOrder,
+      originalFilename: itemImages.originalFilename, createdAt: itemImages.createdAt })
       .from(itemImages).where(inArray(itemImages.rmaItemId, itemIds)).orderBy(itemImages.sortOrder),
     db.select().from(reviewActions).where(inArray(reviewActions.rmaItemId, itemIds))
       .orderBy(desc(reviewActions.createdAt)),
@@ -92,9 +92,7 @@ async function previousVisualDecisions(
   }
   for (const itemId of itemIds) {
     if (itemId === excludeManualItemId) continue;
-    const itemImagesInOrder = imagesByItem.get(itemId) || [];
-    const selectedImage = itemImagesInOrder.find((image) => image.imageType === "primary" || image.imageType === "front")
-      || itemImagesInOrder[0];
+    const selectedImage = selectedRecognitionImage(imagesByItem.get(itemId) || []);
     if (selectedImage?.checksumSha256 !== checksumSha256) continue;
     const manual = getManualModelOverride(reviewsByItem.get(itemId) || []);
     if (!manual) continue;
@@ -116,11 +114,24 @@ async function previousVisualDecisions(
   }
   for (const run of runs) {
     const request = run.rawRequest as Record<string, unknown> | null;
-    if (request?.checksumSha256 !== checksumSha256 || request?.decisionPolicy !== VISUAL_DECISION_POLICY) continue;
+    if (!request) continue;
+    if (typeof request.checksumSha256 === "string" && request.checksumSha256 !== checksumSha256) continue;
+    const selectedImage = selectedRecognitionImage(imagesByItem.get(run.rmaItemId) || []);
+    if (selectedImage?.checksumSha256 !== checksumSha256) continue;
+    // Older releases did not persist image checksums. Match their filename and
+    // ensure the current primary image existed before the historical run.
+    if (typeof request.checksumSha256 !== "string" && (
+      (typeof request.filename === "string" && request.filename !== selectedImage.originalFilename) ||
+      selectedImage.createdAt > run.createdAt
+    )) continue;
     const snapshot = readVisualDecisionSnapshot(run.rawResponse);
     if (snapshot && !(snapshot.manual && run.rmaItemId === excludeManualItemId)) snapshots.push(snapshot);
   }
   return snapshots;
+}
+
+function selectedRecognitionImage<T extends { imageType: string; sortOrder: number }>(images: T[]): T | undefined {
+  return images.find((image) => image.imageType === "primary" || image.imageType === "front") || images[0];
 }
 
 export async function processRmaItem(
