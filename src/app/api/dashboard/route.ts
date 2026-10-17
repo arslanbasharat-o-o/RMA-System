@@ -35,23 +35,25 @@ export async function GET(req: NextRequest) {
   // 2. Vendor Distribution
   const vendorBreakdown = await db
     .select({
-      name: sql<string>`coalesce(${vendors.name}, 'Unidentified Vendor')`,
+      name: sql<string>`coalesce(${vendors.name}, 'Pending Identification')`,
       count: sql<number>`count(*)::int`,
+      isPending: sql<boolean>`${vendors.name} is null`,
     })
     .from(rmaItems)
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
-    .groupBy(sql`coalesce(${vendors.name}, 'Unidentified Vendor')`)
+    .groupBy(sql`coalesce(${vendors.name}, 'Pending Identification')`, sql`${vendors.name} is null`)
     .orderBy(desc(sql`count(*)`))
     .limit(6);
 
   // 3. Top Returned Display Models
   const modelBreakdown = await db
     .select({
-      model: sql<string>`coalesce(${rmaItems.predictedModel}, 'Unidentified Model')`,
+      model: sql<string>`coalesce(${rmaItems.predictedModel}, 'Pending Identification')`,
       count: sql<number>`count(*)::int`,
+      isPending: sql<boolean>`${rmaItems.predictedModel} is null`,
     })
     .from(rmaItems)
-    .groupBy(sql`coalesce(${rmaItems.predictedModel}, 'Unidentified Model')`)
+    .groupBy(sql`coalesce(${rmaItems.predictedModel}, 'Pending Identification')`, sql`${rmaItems.predictedModel} is null`)
     .orderBy(desc(sql`count(*)`))
     .limit(6);
 
@@ -108,9 +110,81 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(rmaItems.createdAt))
     .limit(20);
 
+  // 7. Real 7-day timeseries telemetry for live KPI sparklines
+  let rmaDaily: number[] | null = null;
+  let displayDaily: number[] | null = null;
+  let verifiedDaily: number[] | null = null;
+  let reviewDaily: number[] | null = null;
+
+  try {
+    const sevenDaysRma = await db.execute(sql`
+      WITH days AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '6 days',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::date AS day
+      )
+      SELECT
+        days.day,
+        COALESCE(COUNT(rmas.id), 0)::int AS rma_count
+      FROM days
+      LEFT JOIN rmas ON rmas.created_at::date = days.day
+      GROUP BY days.day
+      ORDER BY days.day ASC;
+    `);
+
+    const sevenDaysItems = await db.execute(sql`
+      WITH days AS (
+        SELECT generate_series(
+          CURRENT_DATE - INTERVAL '6 days',
+          CURRENT_DATE,
+          INTERVAL '1 day'
+        )::date AS day
+      )
+      SELECT
+        days.day,
+        COALESCE(COUNT(rma_items.id), 0)::int AS display_count,
+        COALESCE(COUNT(rma_items.id) FILTER (WHERE rma_items.status = 'verified'), 0)::int AS verified_count,
+        COALESCE(COUNT(rma_items.id) FILTER (WHERE rma_items.status IN ('review_required', 'suggested_match')), 0)::int AS review_count
+      FROM days
+      LEFT JOIN rma_items ON rma_items.created_at::date = days.day
+      GROUP BY days.day
+      ORDER BY days.day ASC;
+    `);
+
+    if (Array.isArray(sevenDaysRma.rows) && sevenDaysRma.rows.length === 7) {
+      rmaDaily = (sevenDaysRma.rows as any[]).map((r) => Number(r.rma_count || 0));
+    }
+    if (Array.isArray(sevenDaysItems.rows) && sevenDaysItems.rows.length === 7) {
+      displayDaily = (sevenDaysItems.rows as any[]).map((r) => Number(r.display_count || 0));
+      verifiedDaily = (sevenDaysItems.rows as any[]).map((r) => Number(r.verified_count || 0));
+      reviewDaily = (sevenDaysItems.rows as any[]).map((r) => Number(r.review_count || 0));
+    }
+  } catch (err) {
+    console.warn("Failed to fetch 7-day sparkline data, omitting unavailable trends", err);
+  }
+
+  const totalRmaCount = rmaCount?.count || 0;
+
+  // Cumulative trend calculation helper
+  const toCumulative = (daily: number[], targetTotal: number) => {
+    if (targetTotal === 0) return [0, 0, 0, 0, 0, 0, 0];
+    const sum = daily.reduce((a, b) => a + b, 0);
+    let running = Math.max(0, targetTotal - sum);
+    return daily.map((val, idx) => {
+      if (idx === daily.length - 1) return targetTotal;
+      running += val;
+      return running;
+    });
+  };
+
+  const rmaCumulative = rmaDaily ? toCumulative(rmaDaily, totalRmaCount) : null;
+  const displayCumulative = displayDaily ? toCumulative(displayDaily, totalDisplays) : null;
+
   return NextResponse.json({
     kpis: {
-      totalRmas: rmaCount?.count || 0,
+      totalRmas: totalRmaCount,
       totalDisplays,
       verifiedDisplays,
       reviewDisplays,
@@ -118,6 +192,14 @@ export async function GET(req: NextRequest) {
       failedDisplays,
       verificationRate,
       averageProcessingSeconds: 4.2,
+      trends: {
+        rmas: rmaCumulative,
+        rmasDaily: rmaDaily,
+        displays: displayCumulative,
+        displaysDaily: displayDaily,
+        verified: verifiedDaily,
+        review: reviewDaily,
+      },
     },
     vendorBreakdown,
     modelBreakdown,

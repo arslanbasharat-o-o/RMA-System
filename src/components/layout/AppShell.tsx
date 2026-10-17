@@ -13,7 +13,6 @@ import {
   CheckSquare,
   BarChart3,
   Settings,
-  LogOut,
   Menu,
   X,
   Plus,
@@ -21,11 +20,15 @@ import {
   PanelLeftOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
+import { AnimatedLogout } from "@/components/icons/AnimatedIcons";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { UserProfileModal } from "@/components/profile/UserProfileModal";
 import { APP_VERSION } from "@/lib/version";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { useScrollLock, useEscapeKey } from "@/lib/utils/scroll-lock";
+import { RmaLogo } from "@/components/brand/RmaLogo";
+import { useSidebar } from "@/context/SidebarContext";
 
 interface NavItem {
   label: string;
@@ -54,23 +57,14 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { sidebarCollapsed, toggleSidebar } = useSidebar();
   const [currentUser, setCurrentUser] = useState(user || null);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
-
-  useEffect(() => {
-    setSidebarCollapsed(window.localStorage.getItem("rma-sidebar-collapsed") === "true");
-  }, []);
-
-  const toggleSidebar = () => {
-    const nextCollapsed = !sidebarCollapsed;
-    window.localStorage.setItem("rma-sidebar-collapsed", String(nextCollapsed));
-    setSidebarCollapsed(nextCollapsed);
-  };
 
   // Fetch current user and verify authentication
   useEffect(() => {
@@ -114,7 +108,7 @@ export function AppShell({
   };
 
   return (
-    <div className="flex h-screen bg-[#fbfbfb] dark:bg-[#0a0a0c] text-neutral-900 dark:text-neutral-100 overflow-hidden font-sans transition-colors duration-150">
+    <div className="flex h-screen bg-neutral-50/80 dark:bg-[#09090b] text-neutral-900 dark:text-zinc-100 overflow-hidden font-sans transition-colors duration-150">
       {/* Mobile Drawer */}
       <AnimatePresence>
         {mobileOpen && (
@@ -129,7 +123,7 @@ export function AppShell({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16 }}
-              className="fixed inset-0 bg-neutral-950/60 backdrop-blur-xs"
+              className="fixed inset-0 bg-black/60 backdrop-blur-xs"
               onClick={() => setMobileOpen(false)}
             />
             <motion.div
@@ -137,21 +131,23 @@ export function AppShell({
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 380, damping: 32 }}
-              className="relative w-72 bg-white dark:bg-[#121215] flex flex-col z-10 border-r border-neutral-200 dark:border-neutral-800 shadow-2xl"
+              className="relative w-72 bg-white dark:bg-[#121215] flex flex-col z-10 border-r border-slate-200 dark:border-zinc-800 shadow-2xl"
             >
-              <div className="flex items-center justify-between h-14 px-4 border-b border-neutral-200 dark:border-neutral-800">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 font-semibold text-xs">
-                    R
-                  </div>
-                  <span className="font-semibold text-sm text-neutral-900 dark:text-white">
-                    RMA Platform
+              <div className="flex items-center justify-between h-14 px-4 border-b border-slate-200 dark:border-zinc-800">
+                <Link
+                  href="/dashboard"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center gap-2.5"
+                >
+                  <RmaLogo size={24} variant="icon" />
+                  <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">
+                    RMA Operations
                   </span>
-                </div>
+                </Link>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setMobileOpen(false)}
-                    className="p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+                    className="p-1.5 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors"
                     aria-label="Close navigation menu"
                   >
                     <X className="h-5 w-5" />
@@ -163,7 +159,7 @@ export function AppShell({
                 <Link
                   href="/rmas/new"
                   onClick={() => setMobileOpen(false)}
-                  className="flex items-center justify-center gap-2 w-full h-9 px-3 rounded-md bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shadow-xs"
+                  className="flex items-center justify-center gap-2 w-full h-9 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-xs"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Create RMA</span>
@@ -181,10 +177,10 @@ export function AppShell({
                       key={item.href}
                       href={item.href}
                       onClick={() => setMobileOpen(false)}
-                      className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                         active
-                          ? "bg-neutral-100 dark:bg-neutral-800 text-neutral-950 dark:text-white font-semibold"
-                          : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
+                          ? "bg-indigo-50 dark:bg-zinc-800/90 text-indigo-600 dark:text-white font-semibold border border-indigo-200/40 dark:border-zinc-700/60"
+                          : "text-slate-600 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-zinc-800/40"
                       }`}
                     >
                       <Icon className="h-4 w-4" />
@@ -194,7 +190,7 @@ export function AppShell({
                 })}
               </nav>
 
-              <div className="p-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/40 space-y-2">
+              <div className="p-3 border-t border-slate-200 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/50 space-y-2">
                 <div className="flex items-center justify-between">
                   <button
                     type="button"
@@ -204,7 +200,7 @@ export function AppShell({
                     }}
                     className="flex items-center gap-2.5 min-w-0 text-left cursor-pointer flex-1 mr-2"
                   >
-                    <div className="h-8 w-8 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-xs font-bold shrink-0">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-tr from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-xs">
                       {((currentUser || user)?.name || "O")
                         .split(" ")
                         .map((n: string) => n[0])
@@ -225,11 +221,14 @@ export function AppShell({
                     variant="ghost"
                     size="sm"
                     aria-label="Sign out"
-                    onClick={handleLogout}
-                    loading={loggingOut}
-                    className="text-rose-600 dark:text-rose-400 shrink-0"
+                    onClick={() => {
+                      setMobileOpen(false);
+                      setShowLogoutConfirm(true);
+                    }}
+                    className="text-rose-600 dark:text-rose-400 shrink-0 gap-1.5"
                   >
-                    Logout
+                    <AnimatedLogout size={14} />
+                    <span>Logout</span>
                   </Button>
                 </div>
 
@@ -250,27 +249,40 @@ export function AppShell({
       </AnimatePresence>
 
       {/* Desktop Sidebar */}
-      <aside className={`hidden lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-64"} shrink-0 flex-col border-r border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#121215] select-none transition-[width] duration-200 ease-in-out`}>
+      <aside className={`hidden lg:flex ${sidebarCollapsed ? "lg:w-16" : "lg:w-64"} shrink-0 flex-col border-r border-slate-200/80 dark:border-zinc-800/90 bg-white/95 dark:bg-[#121215]/95 select-none transition-[width] duration-200 ease-in-out backdrop-blur-md`}>
         {/* Brand header */}
-        <div className={`flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-5"} h-14 border-b border-neutral-200/80 dark:border-neutral-800`}>
-          {!sidebarCollapsed && <div className="flex items-center gap-2.5">
-            <div className="h-6 w-6 rounded bg-neutral-900 dark:bg-white flex items-center justify-center text-white dark:text-neutral-900 font-semibold text-xs tracking-wider">
-              R
-            </div>
-            <span className="font-semibold text-sm tracking-tight text-neutral-900 dark:text-white">
-              RMA Platform
-            </span>
-          </div>}
-          <button
-            type="button"
-            onClick={toggleSidebar}
-            aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            aria-expanded={!sidebarCollapsed}
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className="rounded-md p-1.5 text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
-          >
-            {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
-          </button>
+        <div className={`flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-5"} h-14 border-b border-slate-200/80 dark:border-zinc-800/80`}>
+          {!sidebarCollapsed ? (
+            <>
+              <Link href="/dashboard" className="flex items-center gap-2.5">
+                <RmaLogo size={26} variant="icon" />
+                <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-white">
+                  RMA Operations
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={toggleSidebar}
+                aria-label="Collapse sidebar"
+                aria-expanded={true}
+                title="Collapse sidebar (⌘B)"
+                className="rounded-md p-1.5 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+              >
+                <PanelLeftClose className="h-4 w-4" />
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Expand sidebar"
+              aria-expanded={false}
+              title="Expand sidebar (⌘B)"
+              className="rounded-md p-2 text-slate-600 hover:text-indigo-600 dark:text-zinc-300 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer flex items-center justify-center w-10 h-10 group"
+            >
+              <PanelLeftOpen className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         {/* Quick action button */}
@@ -279,7 +291,7 @@ export function AppShell({
             href="/rmas/new"
             aria-label="Create RMA"
             title={sidebarCollapsed ? "Create RMA" : undefined}
-            className="flex items-center justify-center gap-2 w-full h-8 px-3 rounded-md bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 text-xs font-medium hover:bg-neutral-800 dark:hover:bg-neutral-100 transition-colors shadow-xs"
+            className="flex items-center justify-center gap-2 w-full h-8.5 px-3 rounded-lg bg-slate-900 hover:bg-slate-800 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white text-xs font-semibold transition-all shadow-xs"
           >
             <Plus className="h-3.5 w-3.5" />
             {!sidebarCollapsed && <span>Create RMA</span>}
@@ -300,16 +312,16 @@ export function AppShell({
                 href={item.href}
                 aria-label={item.label}
                 title={sidebarCollapsed ? item.label : undefined}
-                className={`relative flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-2.5"} py-1.5 rounded-md text-xs font-medium transition-colors ${
+                className={`relative flex items-center ${sidebarCollapsed ? "justify-center px-2" : "justify-between px-2.5"} py-1.5 rounded-lg text-xs font-medium transition-colors ${
                   active
-                    ? "text-neutral-950 dark:text-white font-semibold"
-                    : "text-neutral-600 dark:text-neutral-400 hover:text-neutral-950 dark:hover:text-white hover:bg-neutral-50 dark:hover:bg-neutral-850/60"
+                    ? "text-indigo-600 dark:text-white font-semibold"
+                    : "text-slate-600 dark:text-zinc-400 hover:text-slate-950 dark:hover:text-white hover:bg-slate-100/70 dark:hover:bg-zinc-800/40"
                 }`}
               >
                 {active && (
                   <motion.div
                     layoutId="desktop-active-pill"
-                    className="absolute inset-0 bg-neutral-100 dark:bg-neutral-800 rounded-md"
+                    className="absolute inset-0 bg-indigo-50 dark:bg-zinc-800/90 rounded-lg border border-indigo-200/50 dark:border-zinc-700/60 shadow-2xs"
                     transition={{
                       type: "spring",
                       stiffness: 420,
@@ -321,14 +333,14 @@ export function AppShell({
                   <Icon
                     className={`h-4 w-4 transition-colors ${
                       active
-                        ? "text-neutral-950 dark:text-white"
-                        : "text-neutral-400 dark:text-neutral-500"
+                        ? "text-indigo-600 dark:text-indigo-400"
+                        : "text-slate-400 dark:text-zinc-500"
                     }`}
                   />
                   {!sidebarCollapsed && <span>{item.label}</span>}
                 </div>
                 {!sidebarCollapsed && item.badge ? (
-                  <span className="relative z-10 px-1.5 py-0.2 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 rounded text-[10px] font-mono">
+                  <span className="relative z-10 px-1.5 py-0.5 bg-amber-100 dark:bg-amber-900/60 text-amber-800 dark:text-amber-300 rounded text-[10px] font-mono shrink-0 whitespace-nowrap leading-none">
                     {item.badge}
                   </span>
                 ) : null}
@@ -338,16 +350,16 @@ export function AppShell({
         </nav>
 
         {/* User footer with Profile trigger and Version tracker */}
-        <div className={`p-3 ${sidebarCollapsed ? "px-2" : ""} border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-2`}>
+        <div className={`p-3 ${sidebarCollapsed ? "px-2" : ""} border-t border-slate-200/80 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 space-y-2`}>
           <div className={`flex items-center ${sidebarCollapsed ? "flex-col gap-2" : "justify-between gap-2"}`}>
             <button
               type="button"
               onClick={() => setShowProfileModal(true)}
               aria-label="View and edit profile"
-              className={`flex items-center ${sidebarCollapsed ? "justify-center" : "gap-2.5 min-w-0 flex-1 p-1 -m-1"} rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors text-left cursor-pointer group`}
+              className={`flex items-center ${sidebarCollapsed ? "justify-center" : "gap-2.5 min-w-0 flex-1 p-1 -m-1"} rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors text-left cursor-pointer group`}
               title="Click to view and edit profile"
             >
-              <div className="h-7 w-7 rounded-full bg-neutral-900 dark:bg-white text-white dark:text-neutral-900 flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs">
+              <div className="h-7 w-7 rounded-md bg-gradient-to-tr from-slate-900 to-indigo-900 dark:from-indigo-600 dark:to-violet-600 text-white flex items-center justify-center text-[11px] font-bold shrink-0 shadow-2xs">
                 {((currentUser || user)?.name || "O")
                   .split(" ")
                   .map((n: string) => n[0])
@@ -356,22 +368,21 @@ export function AppShell({
                   .toUpperCase()}
               </div>
               {!sidebarCollapsed && <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold text-neutral-900 dark:text-white truncate group-hover:text-neutral-950 dark:group-hover:text-white">
+                <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-slate-950 dark:group-hover:text-white">
                   {(currentUser || user)?.name || "Operator"}
                 </p>
-                <p className="text-[10px] text-neutral-500 dark:text-neutral-400 capitalize truncate">
+                <p className="text-[10px] text-slate-500 dark:text-zinc-400 capitalize truncate">
                   {(currentUser || user)?.role || "operator"} · Profile
                 </p>
               </div>}
             </button>
             <button
-              onClick={handleLogout}
-              disabled={loggingOut}
+              onClick={() => setShowLogoutConfirm(true)}
               title="Sign out of RMA system"
               aria-label="Sign out"
-              className="p-1.5 text-neutral-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer shrink-0"
+              className="p-1.5 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer shrink-0"
             >
-              <LogOut className="h-4 w-4" />
+              <AnimatedLogout size={16} />
             </button>
           </div>
 
@@ -379,7 +390,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setShowProfileModal(true)}
-            className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"} w-full pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800/60 text-[10px] font-mono text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors cursor-pointer`}
+            className={`flex items-center ${sidebarCollapsed ? "justify-center" : "justify-between"} w-full pt-1.5 border-t border-slate-200/60 dark:border-zinc-800/60 text-[10px] font-mono text-slate-400 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors cursor-pointer`}
             title={`Version ${APP_VERSION.version}`}
           >
             <span>{sidebarCollapsed ? `v${APP_VERSION.version}` : `Version ${APP_VERSION.version}`}</span>
@@ -390,19 +401,54 @@ export function AppShell({
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Navbar */}
-        <header className="h-14 border-b border-neutral-200/80 dark:border-neutral-800 bg-white dark:bg-[#121215] flex items-center justify-between px-4 sm:px-6 transition-colors">
+        <header className="h-14 border-b border-slate-200/80 dark:border-zinc-800 bg-white/95 dark:bg-[#121215]/95 flex items-center justify-between px-4 sm:px-6 transition-colors backdrop-blur-md">
           <div className="flex items-center gap-3">
+            {/* Mobile Drawer Trigger */}
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Toggle navigation menu"
-              className="lg:hidden p-1.5 text-neutral-600 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors cursor-pointer"
+              className="lg:hidden p-1.5 text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <Menu className="h-5 w-5" />
             </button>
-            <div className="flex items-center gap-2 text-xs font-medium text-neutral-500 dark:text-neutral-400">
+
+            {/* Desktop Sidebar Toggle Button */}
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+              title={sidebarCollapsed ? "Expand sidebar (⌘B)" : "Collapse sidebar (⌘B)"}
+              className="hidden lg:flex items-center justify-center p-1.5 text-slate-500 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
+            >
+              {sidebarCollapsed ? (
+                <PanelLeftOpen className="h-4.5 w-4.5" />
+              ) : (
+                <PanelLeftClose className="h-4.5 w-4.5" />
+              )}
+            </button>
+
+            {/* When collapsed on desktop, show RMA Logo with brand text */}
+            {sidebarCollapsed && (
+              <Link
+                href="/dashboard"
+                className="hidden lg:flex items-center gap-2 hover:opacity-85 transition-opacity"
+                title="RMA Operations Dashboard"
+              >
+                <RmaLogo size={22} variant="icon" />
+                <span className="font-bold text-xs tracking-tight text-slate-900 dark:text-white">
+                  RMA Operations
+                </span>
+              </Link>
+            )}
+
+            {sidebarCollapsed && (
+              <div className="hidden lg:block h-4 w-px bg-slate-200 dark:bg-zinc-800" />
+            )}
+
+            <div className="flex items-center gap-2 text-xs font-medium text-slate-500 dark:text-zinc-400">
               <span>Operations</span>
               <span>/</span>
-              <span className="text-neutral-900 dark:text-white capitalize font-semibold">
+              <span className="text-slate-900 dark:text-white capitalize font-semibold">
                 {pathname.split("/")[1] || "Dashboard"}
               </span>
             </div>
@@ -431,6 +477,47 @@ export function AppShell({
         }}
         onLogout={handleLogout}
       />
+
+      {/* Logout Confirmation Modal */}
+      <Modal
+        isOpen={showLogoutConfirm}
+        onClose={() => setShowLogoutConfirm(false)}
+        title="Confirm Sign Out"
+        maxWidth="max-w-sm"
+      >
+        <div className="space-y-4 text-center py-1">
+          <div className="mx-auto h-12 w-12 rounded-2xl bg-rose-50 dark:bg-rose-950/50 border border-rose-200/60 dark:border-rose-900/60 flex items-center justify-center text-rose-600 dark:text-rose-400">
+            <AnimatedLogout size={24} />
+          </div>
+          <div className="space-y-1">
+            <h4 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+              Sign Out of RMA Platform?
+            </h4>
+          </div>
+          <div className="flex items-center gap-2 pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowLogoutConfirm(false)}
+              className="flex-1 text-xs h-9 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              loading={loggingOut}
+              onClick={handleLogout}
+              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white dark:bg-rose-600 dark:text-white text-xs h-9 gap-1.5 cursor-pointer"
+            >
+              <AnimatedLogout size={14} />
+              <span>Sign Out</span>
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

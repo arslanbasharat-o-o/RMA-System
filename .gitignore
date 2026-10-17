@@ -20,6 +20,8 @@ backups/
 *.db
 
 # Build and dependencies
+next-env.d.ts
+.build/
 .next/
 out/
 node_modules/

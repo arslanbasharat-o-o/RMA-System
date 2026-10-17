@@ -3,10 +3,17 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import { ClientToaster } from "@/components/theme/ClientToaster";
 import { MotionProvider } from "@/components/motion/MotionProvider";
+import { SidebarProvider } from "@/context/SidebarContext";
 
 export const metadata: Metadata = {
-  title: "RMA Display Identification Platform",
-  description: "Enterprise RMA display intake, identification, and verification platform",
+  title: {
+    default: "RMA Operations",
+    template: "%s | RMA Operations",
+  },
+  description: "Display intake, recognition, and return processing operations",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({
@@ -29,17 +36,23 @@ export default function RootLayout({
                   } else {
                     document.documentElement.classList.remove('dark');
                   }
+                  var collapsed = localStorage.getItem('rma-sidebar-collapsed');
+                  if (collapsed === 'true') {
+                    document.documentElement.classList.add('sidebar-collapsed');
+                  }
                 } catch (e) {}
               })();
             `,
           }}
         />
       </head>
-      <body className="antialiased bg-[#fbfbfb] dark:bg-[#0a0a0c] text-neutral-900 dark:text-neutral-100 min-h-screen">
+      <body className="antialiased bg-neutral-50/80 dark:bg-[#09090b] text-neutral-900 dark:text-zinc-100 min-h-screen">
         <ThemeProvider>
           <MotionProvider>
-            {children}
-            <ClientToaster />
+            <SidebarProvider>
+              {children}
+              <ClientToaster />
+            </SidebarProvider>
           </MotionProvider>
         </ThemeProvider>
       </body>

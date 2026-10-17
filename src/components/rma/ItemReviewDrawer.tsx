@@ -165,15 +165,16 @@ export function ItemReviewDrawer({
   const handleRetryRecognition = async (pipeline: string) => {
     setSaving(true);
     try {
-      await fetch(`/api/rma-items/${itemId}/recognition`, {
+      const res = await fetch(`/api/rma-items/${itemId}/recognition`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pipeline }),
       });
+      if (!res.ok) throw new Error("Could not queue recognition. Please try again.");
       onUpdated();
       onClose();
-    } catch (err) {
-      console.error(err);
+    } catch {
+      toast.error("Could not queue recognition. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -251,13 +252,34 @@ export function ItemReviewDrawer({
         </div>
 
         {/* Scrollable Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-[max(16px,env(safe-area-inset-bottom))] sm:p-6 space-y-4 sm:space-y-6">
-          {refreshError && <div role="alert" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 p-3 text-xs text-amber-900 dark:bg-amber-950 dark:text-amber-200">
-            <span>Connection interrupted. Retrying updates…</span><Button size="sm" variant="outline" onClick={refreshNow}>Refresh</Button>
-          </div>}
-          {["queued", "processing"].includes(item?.status) && <p role="status" aria-live="polite" className="rounded-lg bg-blue-50 p-3 text-xs text-blue-800 dark:bg-blue-950 dark:text-blue-200">
-            {item.status === "queued" ? "Waiting to analyze this display…" : item.visualStatus === "pending" ? "Searching for the display model…" : item.vendorOcrStatus === "pending" ? "Visual search finished. Reading display markings…" : "Preparing recognition results…"} Results update here automatically.
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-24 sm:p-6 sm:pb-28 space-y-4 sm:space-y-6">
+          {refreshError && (
+            <div role="alert" className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 p-2.5 text-xs text-amber-800 dark:text-amber-300">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span>Connection interrupted. Reconnecting automatically…</span>
+              <Button variant="outline" size="sm" onClick={refreshNow}>Retry connection</Button>
+            </div>
+          )}
+
+          {["uploaded", "queued", "processing"].includes(item?.status) && <p role="status" className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
+            {item.status === "queued" ? "Waiting to analyze this display…" : item.visualStatus === "pending" ? item.vendorOcrStatus === "success" ? "Text recognition finished. Waiting for the display model…" : "Searching for the display model and reading markings…" : item.vendorOcrStatus === "pending" ? "Reading display markings…" : "Preparing recognition results…"} Results update here automatically.
           </p>}
+
+          {item?.visualStatus === "failed" && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 space-y-2">
+              <p className="font-semibold">Visual identification unavailable</p>
+              <p>{/abort|timed out|timeout/i.test(item.visualError || "") ? "The visual search timed out. " : "The visual provider could not identify this image. "}Your photos are saved.{item.vendorOcrStatus === "success" ? " Text recognition completed successfully." : ""} Retry the image later or select a verified model below.</p>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")}>Retry visual identification</Button>
+            </div>
+          )}
+          {item?.vendorOcrStatus === "failed" && (
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 space-y-2">
+              <p className="font-semibold">Markings recognition unavailable</p>
+              <p>Your photos are saved. Retry the markings scan later or select the vendor manually.</p>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")}>Retry markings recognition</Button>
+            </div>
+          )}
+
           {/* Images Gallery */}
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-2">
@@ -287,51 +309,44 @@ export function ItemReviewDrawer({
             </div>
           </div>
 
-          {/* Visual Model Identification */}
-          <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
+          {/* Unified Display & Attribution Details */}
+          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                  Visual Identification
+              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
+                Identified Model
+              </span>
+              {item?.modelSource === "manual" ? <Badge variant="outline">Operator corrected</Badge> : item?.modelConfidenceScore ? (
+                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 font-mono">
+                  {Math.round(item.modelConfidenceScore * 100)}% Match
                 </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Badge variant="outline">
-                  {item?.modelSource === "manual" ? "Operator corrected" : item?.modelConfidenceScore
-                    ? `${Math.round(item.modelConfidenceScore * 100)}% Match`
-                    : "Unresolved"}
-                </Badge>
-              </div>
+              ) : null}
             </div>
 
-            <div className="p-2.5 rounded-md bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 shadow-xs">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium uppercase tracking-wider">
-                  Suggested Display Name
-                </span>
-                {(() => {
-                  const matched = catalogList.find(
-                    (c) => c.id === (selectedCatalogId || item?.catalogDisplayId)
-                  );
-                  return matched?.internalSku ? (
-                    <Badge variant="outline" className="font-mono text-[10px]">
-                      SKU: {matched.internalSku}
-                    </Badge>
-                  ) : null;
-                })()}
-              </div>
-              <div className="text-sm font-semibold text-neutral-900 dark:text-neutral-100 mt-1">
-                {item?.predictedDisplayAssembly ||
-                  (item?.predictedManufacturer
-                    ? `${item?.predictedManufacturer} ${item?.predictedModel}`
-                    : "Unidentified Model")}
-              </div>
+            <div className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
+              {item?.predictedDisplayAssembly ||
+                (item?.predictedModel
+                  ? [item?.predictedManufacturer, item.predictedModel].filter(Boolean).join(" ")
+                  : "Unidentified Model")}
             </div>
 
-            {/* Cleaned Visual Candidates */}
+            <div className="pt-2.5 border-t border-neutral-200/60 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+              <span>Vendor: <strong className="text-neutral-900 dark:text-neutral-100 font-medium">{item?.identifiedVendorName || "Unidentified"}</strong></span>
+              <span>Variant: <strong className="text-neutral-900 dark:text-neutral-100 font-medium">{item?.identifiedVendorVariantName || "None"}</strong></span>
+            </div>
+
+            {/* Extracted Markings */}
+            {ocrExtractions && ocrExtractions.length > 0 && item?.extractedTextSummary && (
+              <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800 text-xs space-y-1">
+                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Extracted Markings:</span>
+                <p className="p-2 rounded bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-words">
+                  {item.extractedTextSummary}
+                </p>
+              </div>
+            )}
+
+            {/* Visual Candidates Dropdown */}
             {candidates && candidates.length > 0 && (
-              <details className="mt-2 group text-xs text-neutral-600 dark:text-neutral-400">
+              <details className="pt-1 group text-xs text-neutral-600 dark:text-neutral-400">
                 <summary className="cursor-pointer text-[11px] text-neutral-500 dark:text-neutral-400 font-medium hover:text-neutral-800 dark:hover:text-neutral-200 select-none flex items-center justify-between">
                   <span>Visual Search Candidates ({candidates.length})</span>
                   <span className="text-[10px] text-neutral-400 group-open:rotate-180 transition-transform">▼</span>
@@ -353,59 +368,22 @@ export function ItemReviewDrawer({
             )}
           </div>
 
-          {/* Vendor & Variant Attribution */}
-          <div className="p-4 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                  Vendor & Variant Attribution
-                </span>
-              </div>
-              <Badge variant="outline">
-                {item?.matchStatus || "unknown"}
-              </Badge>
-            </div>
-
-            <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100">
-              Vendor: {item?.identifiedVendorName || "Unidentified"} | Variant:{" "}
-              {item?.identifiedVendorVariantName || "Unresolved"}
-            </div>
-
-            {/* OCR Extracted Text */}
-            {ocrExtractions && ocrExtractions.length > 0 && (
-              <div className="space-y-1 text-xs">
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Extracted Text & Stamps:</span>
-                <div className="p-2 rounded bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 text-neutral-700 dark:text-neutral-300 font-mono text-[11px] break-words">
-                  {item?.extractedTextSummary || "No markings detected"}
-                </div>
-              </div>
-            )}
-
-            {item?.reviewNotes && (
-              <p className="text-[11px] text-neutral-500 dark:text-neutral-400 italic">
-                Evidence: {item.reviewNotes}
-              </p>
-            )}
-          </div>
-
-          {/* Manual Correction Controls */}
-          <div className="space-y-4 pt-2">
+          {/* Verification & Manual Overrides */}
+          <div className="space-y-3.5 pt-1">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Manual Verification & Override
+              Verify or Correct
             </h4>
 
             {/* Model Selector */}
             <div>
               <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                Select Verified Display Model:
+                Verified Display Model:
               </label>
               <Select
-                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
                 value={selectedCatalogId}
                 onChange={(e) => { editing.current = true; setSelectedCatalogId(e.target.value); }}
               >
-                <option value="">-- Leave as current --</option>
+                <option value="">-- Keep Current Model --</option>
                 {catalogList.map((cat) => (
                   <option key={cat.id} value={cat.id}>
                     {cat.manufacturer} {cat.modelName} ({cat.displayTechnology})
@@ -415,48 +393,46 @@ export function ItemReviewDrawer({
             </div>
 
             {/* Vendor Selector */}
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                  Vendor:
-                </label>
-                <Select
-                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
-                  value={selectedVendorId}
-                  onChange={(e) => {
-                    editing.current = true;
-                    setSelectedVendorId(e.target.value);
-                    setSelectedVariantId("");
-                  }}
-                >
-                  <option value="">-- Unidentified --</option>
-                  {vendorList.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name}
-                    </option>
-                  ))}
-                </Select>
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+                Vendor:
+              </label>
+              <Select
+                value={selectedVendorId}
+                onChange={(e) => {
+                  editing.current = true;
+                  setSelectedVendorId(e.target.value);
+                  setSelectedVariantId("");
+                }}
+              >
+                <option value="">-- Unidentified Vendor --</option>
+                {vendorList.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
 
+            {/* Variant Selector (shown when vendor selected) */}
+            {selectedVendorId && currentVendor?.variants && currentVendor.variants.length > 0 && (
               <div>
                 <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
                   Variant:
                 </label>
                 <Select
-                className="min-h-11 text-base sm:min-h-0 sm:text-xs"
                   value={selectedVariantId}
                   onChange={(e) => { editing.current = true; setSelectedVariantId(e.target.value); }}
-                  disabled={!selectedVendorId}
                 >
-                  <option value="">-- None / Unresolved --</option>
-                  {currentVendor?.variants?.map((va: any) => (
+                  <option value="">-- None / Standard --</option>
+                  {currentVendor.variants.map((va: any) => (
                     <option key={va.id} value={va.id}>
                       {va.name}
                     </option>
                   ))}
                 </Select>
               </div>
-            </div>
+            )}
 
             {/* Review Notes */}
             <div>
@@ -468,81 +444,75 @@ export function ItemReviewDrawer({
                 value={reviewNotes}
                 onChange={(e) => { editing.current = true; setReviewNotes(e.target.value); }}
                 placeholder="e.g. Verified genuine AMI aftermarket ink stamp"
-                className="w-full text-base sm:text-xs min-h-11 sm:min-h-0 h-8 px-2.5 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-900 dark:focus:ring-neutral-400"
+                className="w-full text-base sm:text-xs min-h-11 sm:min-h-0 h-9 px-3 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
             </div>
 
-            {/* Action Buttons */}
-            <div className="flex flex-wrap items-center gap-2 pt-2">
+            {/* Single Primary Action Button */}
+            <div className="pt-2">
               <Button
                 variant="primary"
-                size="sm"
+                size="md"
                 loading={saving}
                 onClick={() => handleApplyCorrection("manual_verify")}
-                className="bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white shrink-0"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold h-10 justify-center shadow-xs cursor-pointer"
               >
-                <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
+                <Check className="h-4 w-4 mr-1.5 shrink-0" />
                 <span>Confirm & Verify</span>
               </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                loading={saving}
-                onClick={() => handleApplyCorrection("manual_verify")}
-                className="shrink-0"
-              >
-                Save Overrides
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                loading={saving}
-                onClick={() => handleRetryRecognition("visual")}
-                title="Re-run visual search"
-                className="shrink-0"
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span>Retry Visual</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                loading={saving}
-                onClick={() => handleRetryRecognition("vendor_ocr")}
-                title="Re-run OCR markings analysis"
-                className="shrink-0"
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span>Retry OCR</span>
-              </Button>
-
-              <Button
-                variant="secondary"
-                size="sm"
-                loading={saving}
-                onClick={() => handleRetryRecognition("all")}
-                className="shrink-0"
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span>Retry All</span>
-              </Button>
-
-              <Button
-                variant="outline"
-                size="sm"
-                loading={saving}
-                onClick={() => setShowDeleteConfirm(true)}
-                title="Remove this display item from RMA"
-                className="text-red-600 dark:text-red-400 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 border-red-200 dark:border-red-900 shrink-0"
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-1 shrink-0" />
-                <span>Delete Item</span>
-              </Button>
             </div>
-          </div>
+
+              {/* Secondary Scan & Item Management Actions */}
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-zinc-800">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    loading={saving}
+                    onClick={() => handleRetryRecognition("all")}
+                    title="Rescan display and markings"
+                    className="text-xs h-8"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1 shrink-0" />
+                    <span>Rescan All</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={saving}
+                    onClick={() => handleRetryRecognition("vendor_ocr")}
+                    title="Rescan markings"
+                    className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <span>Rescan Markings</span>
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    loading={saving}
+                    onClick={() => handleRetryRecognition("visual")}
+                    title="Rescan display image"
+                    className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
+                  >
+                    <span>Rescan Image</span>
+                  </Button>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={saving}
+                  onClick={() => setShowDeleteConfirm(true)}
+                  title="Remove this display item from RMA"
+                  className="text-xs h-8 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                >
+                  <Trash2 className="h-3 w-3 mr-1 shrink-0" />
+                  <span>Delete</span>
+                </Button>
+              </div>
+            </div>
 
           {/* Audit Review History */}
           {reviewHistory && reviewHistory.length > 0 && (
@@ -577,7 +547,7 @@ export function ItemReviewDrawer({
                 e.stopPropagation();
                 setZoomedImage(null);
               }}
-              className="absolute top-4 right-4 p-2 rounded-full bg-neutral-800/80 text-white hover:bg-neutral-700 transition-colors z-70 cursor-pointer"
+              className="absolute top-4 right-4 p-2 rounded-lg bg-neutral-800/80 text-white hover:bg-neutral-700 transition-colors z-70 cursor-pointer"
               aria-label="Close image zoom"
             >
               <X className="h-5 w-5" />

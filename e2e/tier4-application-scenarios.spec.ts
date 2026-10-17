@@ -17,7 +17,7 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
   await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-  await page.click('button:has-text("Sign In to Platform")');
+  await page.click('button:has-text("Sign In")');
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -104,7 +104,7 @@ test.describe("Tier 4 - Real-World Application Scenarios", () => {
     // 3. Execute Google Lens Visual Connection Test
     const testLensBtn = page
       .locator(
-        'button:has-text("Test Visual Connection"), button:has-text("Test Connection")'
+        'button:has-text("Test Visual Recognition Connection"), button:has-text("Test Connection")'
       )
       .first();
 

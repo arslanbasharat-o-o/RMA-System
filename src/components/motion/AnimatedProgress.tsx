@@ -33,10 +33,10 @@ export function AnimatedProgress({
           <span>{safeValue}/{max}</span>
         </div>
       )}
-      <div className="relative w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-full overflow-hidden">
+      <div className="relative w-full h-2 bg-neutral-100 dark:bg-neutral-800 rounded-sm overflow-hidden">
         {indeterminate ? (
           <motion.div
-            className={`absolute top-0 bottom-0 bg-neutral-900 dark:bg-white rounded-full ${barClassName}`}
+            className={`absolute top-0 bottom-0 bg-neutral-900 dark:bg-white rounded-sm ${barClassName}`}
             style={{ width: "30%" }}
             animate={{
               x: ["-100%", "350%"],
@@ -49,7 +49,7 @@ export function AnimatedProgress({
           />
         ) : (
           <motion.div
-            className={`h-full bg-neutral-900 dark:bg-neutral-100 rounded-full ${barClassName}`}
+            className={`h-full bg-neutral-900 dark:bg-neutral-100 rounded-sm ${barClassName}`}
             initial={{ width: 0 }}
             animate={{ width: `${percentage}%` }}
             transition={{

@@ -17,7 +17,7 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
   await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-  await page.click('button:has-text("Sign In to Platform")');
+  await page.click('button:has-text("Sign In")');
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -227,7 +227,7 @@ test.describe("Tier 1 - Feature R2: Global Dark Mode & Theming System", () => {
     await page.goto("/dashboard");
 
     // Inspect main surface cards
-    const cards = page.locator("main div.rounded-xl, main div.rounded-lg, div.rounded-xl, div.border");
+    const cards = page.locator("main div.rounded-xl, main div.rounded-lg").filter({ visible: true });
     await expect(cards.first()).toBeVisible();
 
     // Verify background and text colors are valid CSS values
@@ -355,7 +355,7 @@ test.describe("Tier 1 - Feature R3: Premium Settings Page Overhaul", () => {
     page,
   }) => {
     // Locate save button
-    const saveButton = page.locator('button:has-text("Save Configuration"), button:has-text("Save Settings")');
+    const saveButton = page.locator('button:has-text("Save Recognition Settings"), button:has-text("Save Settings")');
     if ((await saveButton.count()) > 0) {
       await saveButton.first().click();
 

@@ -28,7 +28,7 @@ async function loginAsAdmin(page: Page) {
   await page.goto("/login");
   await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
   await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-  await page.click('button:has-text("Sign In to Platform")');
+  await page.click('button:has-text("Sign In")');
   await expect(page).toHaveURL(/\/dashboard/);
 }
 
@@ -208,16 +208,26 @@ test.describe("Challenger 1 Axis 2: Theme System Resilience & Edge Cases", () =>
 
     // Check header computed background color in dark mode
     const headerBg = await page.locator("header").evaluate((el) => {
-      return window.getComputedStyle(el).backgroundColor;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = window.getComputedStyle(el).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
     });
     // Expected dark background (#121215 = rgb(18, 18, 21))
-    expect(headerBg).toBe("rgb(18, 18, 21)");
+    expect(headerBg).toEqual([18, 18, 21]);
 
     // Check aside computed background color in dark mode
     const asideBg = await page.locator("aside").evaluate((el) => {
-      return window.getComputedStyle(el).backgroundColor;
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d")!;
+      context.fillStyle = window.getComputedStyle(el).backgroundColor;
+      context.fillRect(0, 0, 1, 1);
+      return Array.from(context.getImageData(0, 0, 1, 1).data).slice(0, 3);
     });
-    expect(asideBg).toBe("rgb(18, 18, 21)");
+    expect(asideBg).toEqual([18, 18, 21]);
   });
 
   test("System theme emulation: prefers-color-scheme dark vs light synchronizes cleanly", async ({

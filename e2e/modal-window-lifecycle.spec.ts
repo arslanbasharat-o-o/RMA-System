@@ -10,7 +10,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
     await page.goto("/login");
     await page.fill('input[type="email"]', E2E_ADMIN_EMAIL);
     await page.fill('input[type="password"]', E2E_ADMIN_PASSWORD);
-    await page.click('button:has-text("Sign In to Platform")');
+    await page.click('button:has-text("Sign In")');
     await expect(page).toHaveURL(/\/dashboard/);
   });
 
@@ -18,7 +18,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
     page,
   }) => {
     await page.goto("/rmas/new");
-    await expect(page.locator("h1")).toContainText("Create RMA Intake");
+    await expect(page.locator("h1")).toContainText("New RMA");
 
     // Open Modal
     await page.click('button:has-text("Quick Add Customer")');
@@ -149,7 +149,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
     expect(overflowOpen).toBe("hidden");
 
     // Test Delete Item confirmation modal inside drawer
-    await page.click('button:has-text("Delete Item")');
+    await drawer.getByRole("button", { name: "Delete", exact: true }).click();
     const deleteModal = page.locator('h3:has-text("Delete Display Item")');
     await expect(deleteModal).toBeVisible();
 

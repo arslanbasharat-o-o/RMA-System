@@ -12,15 +12,40 @@ import {
   Eye,
   Check,
   ArrowLeft,
+  Smartphone,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
-import { StatusTransition } from "@/components/motion/StatusTransition";
 import { toast } from "sonner";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
+import {
+  CardSpotlight,
+  CopyBadge,
+  GlowingBadge,
+  ShimmerButton,
+} from "@/components/premium";
+
+function formatItemStatus(status: string) {
+  switch (status) {
+    case "verified":
+      return "Verified";
+    case "review_required":
+      return "Needs Review";
+    case "processing":
+      return "Processing";
+    case "queued":
+      return "Queued";
+    case "completed":
+      return "Completed";
+    default:
+      return status ? status.replace(/_/g, " ") : "Unknown";
+  }
+}
 
 export default function RmaDetailPage({
   params,
@@ -57,6 +82,12 @@ export default function RmaDetailPage({
   });
 
   const { rma, items = [], stats = {} } = data || {};
+
+  useEffect(() => {
+    if (rma?.rmaNumber) {
+      document.title = `${rma.rmaNumber} | RMA Operations`;
+    }
+  }, [rma?.rmaNumber]);
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -139,12 +170,16 @@ export default function RmaDetailPage({
     }
   };
 
-  if (!data && refreshError) return <AppShell>
-    <div role="alert" className="space-y-3 p-4">
-      <p>Could not load this RMA. Check your connection and try again.</p>
-      <Button onClick={fetchRmaData}>Try again</Button>
-    </div>
-  </AppShell>;
+  if (!data && refreshError) {
+    return (
+      <AppShell>
+        <div role="alert" className="space-y-3 p-4">
+          <p>Could not load this RMA. Check your connection and try again.</p>
+          <Button onClick={fetchRmaData}>Try again</Button>
+        </div>
+      </AppShell>
+    );
+  }
 
   if (loading && !data) {
     return (
@@ -170,15 +205,21 @@ export default function RmaDetailPage({
   return (
     <AppShell>
       <div className="space-y-6">
-        {refreshError && <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          <span>Connection interrupted. Retrying updates…</span>
-          <Button size="sm" variant="outline" onClick={fetchRmaData}>Refresh</Button>
-        </div>}
+        {refreshError && (
+          <div
+            role="alert"
+            className="flex items-center gap-2 rounded-lg border border-amber-200/80 bg-amber-50 p-2.5 text-xs text-amber-800 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300"
+          >
+            <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>Connection interrupted. Retrying live updates automatically…</span>
+          </div>
+        )}
+
         {/* Breadcrumb & Navigation */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <Link
             href="/rmas"
-            className="inline-flex items-center text-xs font-medium text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors self-start py-0.5"
+            className="inline-flex items-center text-xs font-semibold text-neutral-500 hover:text-neutral-900 dark:text-neutral-400 dark:hover:text-white transition-colors self-start py-0.5"
           >
             <ArrowLeft className="h-3.5 w-3.5 mr-1" />
             <span>All RMAs</span>
@@ -186,105 +227,115 @@ export default function RmaDetailPage({
 
           <div className="flex items-center gap-2 flex-wrap sm:justify-end">
             <Link href={`/rmas/${rmaId}/capture`} className="flex-1 sm:flex-none">
-              <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs h-9">
+              <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs h-8.5 font-medium">
                 <Camera className="h-3.5 w-3.5 shrink-0" />
                 <span>Scan Screens</span>
               </Button>
             </Link>
 
             <a href={`/api/rmas/${rmaId}/export`} className="flex-1 sm:flex-none">
-              <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs h-9">
+              <Button size="sm" variant="outline" className="w-full gap-1.5 text-xs h-8.5 font-medium">
                 <Download className="h-3.5 w-3.5 shrink-0" />
                 <span>Export CSV</span>
               </Button>
             </a>
 
             {rma?.status !== "completed" && (
-              <Button
-                size="sm"
-                variant="primary"
+              <ShimmerButton
                 onClick={handleMarkComplete}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white text-xs h-9"
+                className="w-full sm:w-auto h-8.5 px-3.5 text-xs font-semibold gap-1.5"
               >
-                <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
+                <Check className="h-3.5 w-3.5 shrink-0" />
                 <span>Mark Completed</span>
-              </Button>
+              </ShimmerButton>
             )}
           </div>
         </div>
 
-        {/* RMA Summary Card */}
-        <Card>
-          <CardContent className="p-4 sm:p-6">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
-                  <h1 className="text-xl sm:text-2xl font-bold font-mono text-neutral-900 dark:text-neutral-100">
-                    {rma?.rmaNumber}
-                  </h1>
-                  <StatusTransition status={rmaShipmentStatus} />
-                </div>
-                <p className="text-xs text-neutral-600 dark:text-neutral-400 mt-1.5">
-                  Customer: <span className="font-semibold text-neutral-900 dark:text-neutral-100">{rma?.customerName}</span> · Reason:{" "}
-                  <span className="font-medium text-neutral-800 dark:text-neutral-200">{rma?.returnReasonLabel}</span>
-                  {rma?.trackingNumber ? ` · Tracking: ${rma.trackingNumber}` : ""}
-                </p>
+        {/* RMA Summary Card with CardSpotlight */}
+        <CardSpotlight className="p-5 sm:p-6 relative border-slate-200/90 dark:border-zinc-800 bg-white/95 dark:bg-[#121215]/95 shadow-md">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1><CopyBadge value={rma?.rmaNumber || ""} className="text-base sm:text-lg font-bold py-1 px-3" /></h1>
+                <GlowingBadge
+                  variant={
+                    rmaShipmentStatus === "completed"
+                      ? "success"
+                      : rmaShipmentStatus === "draft"
+                      ? "neutral"
+                      : "info"
+                  }
+                  pulse={rmaShipmentStatus === "receiving"}
+                >
+                  {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
+                </GlowingBadge>
               </div>
 
-              {/* Real Summary Metrics */}
-              <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-3 text-xs font-mono">
-                <div className="p-2.5 sm:px-3 sm:py-1.5 bg-neutral-100 dark:bg-neutral-800 rounded-lg text-center">
-                  <div className="text-[10px] text-neutral-500 dark:text-neutral-400 uppercase tracking-tight">
-                    <span className="sm:hidden">Displays</span>
-                    <span className="hidden sm:inline">Total Displays</span>
-                  </div>
-                  <div className="font-bold text-neutral-900 dark:text-neutral-100 text-sm mt-0.5">
-                    <AnimatedNumber value={stats.total || 0} />
-                  </div>
-                </div>
-                <div className="p-2.5 sm:px-3 sm:py-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 rounded-lg text-center border border-emerald-200/50 dark:border-emerald-800/40">
-                  <div className="text-[10px] text-emerald-600 dark:text-emerald-400 uppercase tracking-tight">
-                    Verified
-                  </div>
-                  <div className="font-bold text-sm mt-0.5">
-                    <AnimatedNumber value={stats.verified || 0} />
-                  </div>
-                </div>
-                <div className="p-2.5 sm:px-3 sm:py-1.5 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 rounded-lg text-center border border-amber-200/50 dark:border-amber-800/40">
-                  <div className="text-[10px] text-amber-600 dark:text-amber-400 uppercase tracking-tight">
-                    <span className="sm:hidden">Review</span>
-                    <span className="hidden sm:inline">Need Review</span>
-                  </div>
-                  <div className="font-bold text-sm mt-0.5">
-                    <AnimatedNumber value={stats.reviewRequired || 0} />
-                  </div>
-                </div>
-                {stats.processing > 0 && (
-                  <div className="col-span-3 sm:col-span-1 p-2.5 sm:px-3 sm:py-1.5 bg-blue-50 dark:bg-blue-950/40 text-blue-800 dark:text-blue-300 rounded-lg text-center border border-blue-200/50 dark:border-blue-800/40">
-                    <div className="text-[10px] text-blue-600 dark:text-blue-400 uppercase tracking-tight">
-                      Analyzing
-                    </div>
-                    <div className="font-bold text-sm mt-0.5">
-                      <AnimatedNumber value={stats.processing} />
-                    </div>
-                  </div>
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
+                Customer:{" "}
+                <span className="font-semibold text-slate-900 dark:text-slate-100">
+                  {rma?.customerName}
+                </span>{" "}
+                · Reason:{" "}
+                <span className="font-medium text-slate-800 dark:text-slate-200">
+                  {rma?.returnReasonLabel || "Standard Return"}
+                </span>
+                {rma?.trackingNumber ? (
+                  <>
+                    {" "}
+                    · Tracking: <span className="font-mono">{rma.trackingNumber}</span>
+                  </>
+                ) : (
+                  ""
                 )}
+              </p>
+            </div>
+
+            {/* Metric Summary Bar (Enterprise Shadcn / Linear style) */}
+            <div className="flex items-center gap-2 sm:gap-4 p-2 sm:px-3 sm:py-2 rounded-lg border border-slate-200/90 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-900/40 text-xs">
+              <div className="flex-1 sm:flex-none text-center sm:text-left px-1.5">
+                <span className="text-[10px] uppercase font-semibold text-slate-500 dark:text-zinc-400 tracking-wider block">
+                  Total Displays
+                </span>
+                <span className="font-bold font-mono text-slate-900 dark:text-slate-100 text-sm">
+                  <AnimatedNumber value={stats.total || 0} />
+                </span>
+              </div>
+              <div className="h-6 w-px bg-slate-200 dark:bg-zinc-800" />
+              <div className="flex-1 sm:flex-none text-center sm:text-left px-1.5">
+                <span className="text-[10px] uppercase font-semibold text-slate-500 dark:text-zinc-400 tracking-wider block">
+                  Verified
+                </span>
+                <span className="font-bold font-mono text-emerald-600 dark:text-emerald-400 text-sm">
+                  <AnimatedNumber value={stats.verified || 0} />
+                </span>
+              </div>
+              <div className="h-6 w-px bg-slate-200 dark:bg-zinc-800" />
+              <div className="flex-1 sm:flex-none text-center sm:text-left px-1.5">
+                <span className="text-[10px] uppercase font-semibold text-slate-500 dark:text-zinc-400 tracking-wider block">
+                  Review
+                </span>
+                <span className={`font-bold font-mono text-sm ${(stats.reviewRequired || 0) > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-600 dark:text-zinc-400"}`}>
+                  <AnimatedNumber value={stats.reviewRequired || 0} />
+                </span>
               </div>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CardSpotlight>
 
-        {/* Bulk Actions Bar */}
+        {/* Floating Bulk Actions Bar (Glasscn style) */}
         <AnimatePresence>
           {selectedItemIds.length > 0 && (
             <motion.div
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 6 }}
-              transition={{ duration: 0.16 }}
-              className="sticky bottom-4 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-neutral-900/95 dark:bg-neutral-800/95 backdrop-blur-md text-white text-xs shadow-xl border border-neutral-700/50"
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18 }}
+              className="sticky bottom-4 z-20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-zinc-900/95 dark:bg-zinc-900/95 backdrop-blur-xl text-white text-xs shadow-2xl border border-zinc-700/60"
             >
-              <span className="font-medium">
+              <span className="font-semibold flex items-center gap-2">
+                <span className="h-2 w-2 rounded-xs bg-indigo-400" />
                 {selectedItemIds.length} display(s) selected
               </span>
               <div className="flex items-center gap-2 flex-wrap">
@@ -293,7 +344,7 @@ export default function RmaDetailPage({
                   size="sm"
                   loading={bulkActionLoading}
                   onClick={handleBulkConfirm}
-                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white"
+                  className="flex-1 sm:flex-none bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold text-xs"
                 >
                   <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
                   <span>Bulk Confirm Eligible</span>
@@ -303,10 +354,10 @@ export default function RmaDetailPage({
                   size="sm"
                   loading={bulkActionLoading}
                   onClick={handleBulkReprocess}
-                  className="flex-1 sm:flex-none"
+                  className="flex-1 sm:flex-none text-xs"
                 >
                   <RotateCcw className="h-3.5 w-3.5 mr-1 shrink-0" />
-                  <span>Reprocess Selected</span>
+                  <span>Rescan Markings</span>
                 </Button>
               </div>
             </motion.div>
@@ -316,185 +367,203 @@ export default function RmaDetailPage({
         {/* Mobile Header Bar with Select All */}
         {items.length > 0 && (
           <div className="flex items-center justify-between sm:hidden px-1 text-xs">
-            <label className="flex items-center gap-2 font-medium text-neutral-700 dark:text-neutral-300 cursor-pointer">
+            <label className="flex items-center gap-2 font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
               <input
                 type="checkbox"
                 checked={items.length > 0 && selectedItemIds.length === items.length}
                 onChange={(e) => handleSelectAll(e.target.checked)}
-                className="rounded border-neutral-300 dark:border-neutral-700 h-4 w-4 accent-neutral-900 cursor-pointer"
+                className="rounded border-slate-300 dark:border-zinc-700 h-4 w-4 accent-indigo-600 cursor-pointer"
               />
-              <span>Select All Displays ({items.length})</span>
+              <span>Select All ({items.length})</span>
             </label>
-            <span className="text-[11px] text-neutral-400 dark:text-neutral-500">
-              Tap card to inspect
-            </span>
           </div>
         )}
 
-        {/* Mobile View: Display Item Cards */}
+        {/* Mobile View: High-Density Display Item Cards */}
         <div className="sm:hidden space-y-3">
-          {items.map((item: any) => (
-            <div
-              key={item.id}
-              className="p-4 rounded-xl bg-white dark:bg-[#121215] border border-neutral-200/90 dark:border-neutral-800 shadow-xs space-y-3 cursor-pointer transition-shadow hover:shadow-sm"
-              onClick={() => setInspectingItemId(item.id)}
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedItemIds.includes(item.id)}
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={() => handleToggleSelect(item.id)}
-                    className="rounded border-neutral-300 dark:border-neutral-700 h-4 w-4 accent-neutral-900 cursor-pointer"
-                    aria-label={`Select display #${item.itemNumber}`}
-                  />
-                  <span className="font-mono font-bold text-xs text-neutral-800 dark:text-neutral-200">
-                    #{item.itemNumber}
-                  </span>
-                  <StatusTransition status={item.status} />
-                </div>
-                {item.images?.length > 1 && (
-                  <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-1.5 py-0.5 rounded">
-                    {item.images.length} photos
-                  </span>
-                )}
-              </div>
-
-              <div className="flex gap-3 items-start">
-                {item.images?.[0] ? (
-                  <div className="relative h-16 w-14 rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-100 dark:bg-neutral-800 shrink-0">
-                    <img
-                      src={`/api/images/${item.images[0].id}?size=thumb`}
-                      alt={`Display #${item.itemNumber}`}
-                      className="w-full h-full object-cover"
+          {items.map((item: any) => {
+            const isVerified = item.status === "verified";
+            return (
+              <div
+                key={item.id}
+                className="p-4 rounded-xl bg-white dark:bg-[#121215] border border-slate-200/90 dark:border-zinc-800 shadow-xs space-y-3 cursor-pointer transition-all hover:border-slate-300 dark:hover:border-zinc-700"
+                onClick={() => setInspectingItemId(item.id)}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={selectedItemIds.includes(item.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => handleToggleSelect(item.id)}
+                      className="rounded border-slate-300 dark:border-zinc-700 h-4 w-4 accent-indigo-600 cursor-pointer"
+                      aria-label={`Select display #${item.itemNumber}`}
                     />
+                    <span className="font-mono font-bold text-xs text-slate-800 dark:text-zinc-200">
+                      #{item.itemNumber}
+                    </span>
+                    <GlowingBadge
+                      variant={
+                        isVerified
+                          ? "success"
+                          : item.status === "review_required"
+                          ? "warning"
+                          : "neutral"
+                      }
+                      pulse={item.status === "review_required"}
+                    >
+                      {formatItemStatus(item.status)}
+                    </GlowingBadge>
                   </div>
-                ) : (
-                  <div className="h-16 w-14 rounded-lg border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-400 dark:text-neutral-500 text-[10px] shrink-0">
-                    No img
-                  </div>
-                )}
-
-                <div className="flex-1 min-w-0 space-y-1">
-                  <p className="text-xs font-bold text-neutral-900 dark:text-neutral-100 leading-snug">
-                    {item.predictedDisplayAssembly ||
-                      (item.predictedModel
-                        ? `${item.predictedManufacturer ? item.predictedManufacturer + " " : ""}${item.predictedModel}`
-                        : "Unidentified Model")}
-                  </p>
-                  <p className="text-[11px] text-neutral-600 dark:text-neutral-400 truncate">
-                    Vendor: <span className="font-medium text-neutral-800 dark:text-neutral-200">{item.identifiedVendorName || "Unidentified"}</span>
-                    {item.identifiedVendorVariantName ? ` (${item.identifiedVendorVariantName})` : ""}
-                  </p>
-                  {item.extractedTextSummary && (
-                    <p className="text-[10px] text-neutral-500 dark:text-neutral-400 font-mono truncate bg-neutral-50 dark:bg-neutral-900/50 px-1.5 py-0.5 rounded border border-neutral-200/60 dark:border-neutral-800 inline-block max-w-full">
-                      Text: {item.extractedTextSummary}
-                    </p>
+                  {item.images?.length > 1 && (
+                    <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
+                      {item.images.length} photos
+                    </span>
                   )}
                 </div>
-              </div>
 
-              <div className="flex items-center gap-2 pt-2.5 border-t border-neutral-100 dark:border-neutral-800">
-                {item.status !== "verified" ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="flex-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 h-9 text-xs font-medium"
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          const res = await fetch(`/api/rma-items/${item.id}/review`, {
-                            method: "POST",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify({ action: "manual_verify" }),
-                          });
-                          if (res.ok) {
-                            toast.success(`Display #${item.itemNumber} verified.`);
-                            fetchRmaData();
-                          } else {
-                            const errJson = await res.json().catch(() => ({}));
-                            toast.error(errJson.error || "Failed to verify display");
+                <div className="flex gap-3 items-start">
+                  {item.images?.[0] ? (
+                    <div className="relative h-16 w-14 rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden bg-slate-100 dark:bg-zinc-800 shrink-0">
+                      <img
+                        src={`/api/images/${item.images[0].id}?size=thumb`}
+                        alt={`Display #${item.itemNumber}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-16 w-14 rounded-lg border border-dashed border-slate-300 dark:border-zinc-700 flex items-center justify-center text-slate-400 dark:text-zinc-500 text-[10px] shrink-0">
+                      No img
+                    </div>
+                  )}
+
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                      {item.predictedDisplayAssembly ||
+                        (item.predictedModel
+                          ? `${item.predictedManufacturer ? item.predictedManufacturer + " " : ""}${item.predictedModel}`
+                          : "Unidentified Model")}
+                    </p>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
+                      Vendor:{" "}
+                      <span className="font-semibold text-slate-800 dark:text-slate-200">
+                        {item.identifiedVendorName || "Unidentified"}
+                      </span>
+                      {item.identifiedVendorVariantName
+                        ? ` (${item.identifiedVendorVariantName})`
+                        : ""}
+                    </p>
+                    {item.extractedTextSummary && (
+                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono truncate bg-slate-50 dark:bg-zinc-900/50 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-zinc-800 inline-block max-w-full">
+                        Text: {item.extractedTextSummary}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2.5 border-t border-slate-100 dark:border-zinc-800">
+                  {!isVerified ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1 text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 h-9 text-xs font-medium"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const res = await fetch(`/api/rma-items/${item.id}/review`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ action: "manual_verify" }),
+                            });
+                            if (res.ok) {
+                              toast.success(`Display #${item.itemNumber} verified.`);
+                              fetchRmaData();
+                            } else {
+                              const errJson = await res.json().catch(() => ({}));
+                              toast.error(errJson.error || "Failed to verify display");
+                            }
+                          } catch {
+                            toast.error("Network error");
                           }
-                        } catch {
-                          toast.error("Network error");
-                        }
-                      }}
-                    >
-                      <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
-                      <span>Verify</span>
-                    </Button>
+                        }}
+                      >
+                        <Check className="h-3.5 w-3.5 mr-1 shrink-0" />
+                        <span>Verify</span>
+                      </Button>
 
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 h-9 text-xs font-medium"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setInspectingItemId(item.id);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5 mr-1 shrink-0" />
+                        <span>Inspect</span>
+                      </Button>
+                    </>
+                  ) : (
                     <Button
                       variant="secondary"
                       size="sm"
-                      className="flex-1 h-9 text-xs font-medium"
+                      className="w-full h-9 text-xs font-medium"
                       onClick={(e) => {
                         e.stopPropagation();
                         setInspectingItemId(item.id);
                       }}
                     >
                       <Eye className="h-3.5 w-3.5 mr-1 shrink-0" />
-                      <span>Inspect</span>
+                      <span>Inspect Details</span>
                     </Button>
-                  </>
-                ) : (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="w-full h-9 text-xs font-medium"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setInspectingItemId(item.id);
-                    }}
-                  >
-                    <Eye className="h-3.5 w-3.5 mr-1 shrink-0" />
-                    <span>Inspect Details</span>
-                  </Button>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {items.length === 0 && (
-            <div className="p-8 text-center text-xs text-neutral-400 dark:text-neutral-500 bg-white dark:bg-[#121215] rounded-xl border border-neutral-200 dark:border-neutral-800">
+            <div className="p-8 text-center text-xs text-slate-400 dark:text-zinc-500 bg-white dark:bg-[#121215] rounded-xl border border-slate-200 dark:border-zinc-800">
               No display items recorded for this RMA.
             </div>
           )}
         </div>
 
         {/* Desktop View: Displays Table */}
-        <Card className="hidden sm:block">
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-xs text-left">
-                <thead className="bg-neutral-50 dark:bg-neutral-900/60 border-b border-neutral-200 dark:border-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
-                  <tr>
-                    <th className="px-4 py-3 w-8">
-                      <input
-                        type="checkbox"
-                        checked={
-                          items.length > 0 &&
-                          selectedItemIds.length === items.length
-                        }
-                        onChange={(e) => handleSelectAll(e.target.checked)}
-                        className="rounded border-neutral-300 dark:border-neutral-700"
-                      />
-                    </th>
-                    <th className="px-3 py-3 w-12">#</th>
-                    <th className="px-4 py-3 w-16">Image</th>
-                    <th className="px-4 py-3">Identified Model</th>
-                    <th className="px-4 py-3">Vendor / Variant</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-right">Inspect</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-neutral-200/70 dark:divide-neutral-800">
-                  {items.map((item: any) => (
+        <CardSpotlight className="hidden sm:block p-0 overflow-hidden border-slate-200/90 dark:border-zinc-800">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50/80 dark:bg-zinc-900/60 border-b border-slate-200 dark:border-zinc-800 text-slate-500 dark:text-zinc-400 font-semibold">
+                <tr>
+                  <th className="px-4 py-3 w-8">
+                    <input
+                      type="checkbox"
+                      checked={
+                        items.length > 0 && selectedItemIds.length === items.length
+                      }
+                      onChange={(e) => handleSelectAll(e.target.checked)}
+                      className="rounded border-slate-300 dark:border-zinc-700 cursor-pointer"
+                    />
+                  </th>
+                  <th className="px-3 py-3 w-12 font-semibold">#</th>
+                  <th className="px-4 py-3 w-16 font-semibold">Photo</th>
+                  <th className="px-4 py-3 font-semibold">Identified Model</th>
+                  <th className="px-4 py-3 font-semibold">Vendor / Variant</th>
+                  <th className="px-4 py-3 font-semibold">Inspection Status</th>
+                  <th className="px-4 py-3 text-right font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200/70 dark:divide-zinc-800/80">
+                {items.map((item: any) => {
+                  const isVerified = item.status === "verified";
+                  return (
                     <tr
                       key={item.id}
-                      className={`hover:bg-neutral-50/70 dark:hover:bg-neutral-800/30 transition-colors cursor-pointer ${
-                        selectedItemIds.includes(item.id) ? "bg-neutral-50 dark:bg-neutral-800/40" : ""
+                      className={`hover:bg-slate-50/70 dark:hover:bg-zinc-800/40 transition-colors cursor-pointer ${
+                        selectedItemIds.includes(item.id)
+                          ? "bg-indigo-50/40 dark:bg-zinc-800/40"
+                          : ""
                       }`}
                       onClick={() => setInspectingItemId(item.id)}
                     >
@@ -509,15 +578,15 @@ export default function RmaDetailPage({
                           type="checkbox"
                           checked={selectedItemIds.includes(item.id)}
                           onChange={() => {}}
-                          className="rounded border-neutral-300 dark:border-neutral-700"
+                          className="rounded border-slate-300 dark:border-zinc-700 cursor-pointer"
                         />
                       </td>
-                      <td className="px-3 py-3 font-mono font-semibold text-neutral-700 dark:text-neutral-300">
+                      <td className="px-3 py-3 font-mono font-semibold text-slate-700 dark:text-zinc-300">
                         #{item.itemNumber}
                       </td>
                       <td className="px-4 py-2">
                         {item.images?.[0] ? (
-                          <div className="h-10 w-10 rounded border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-100 dark:bg-neutral-800">
+                          <div className="h-10 w-10 rounded-lg border border-slate-200 dark:border-zinc-800 overflow-hidden bg-slate-100 dark:bg-zinc-800">
                             <img
                               src={`/api/images/${item.images[0].id}?size=thumb`}
                               alt="thumb"
@@ -525,26 +594,32 @@ export default function RmaDetailPage({
                             />
                           </div>
                         ) : (
-                          <div className="h-10 w-10 rounded border border-dashed border-neutral-300 dark:border-neutral-700 flex items-center justify-center text-neutral-400 dark:text-neutral-500 text-[10px]">
+                          <div className="h-10 w-10 rounded-lg border border-dashed border-slate-300 dark:border-zinc-700 flex items-center justify-center text-slate-400 dark:text-zinc-500 text-[10px]">
                             No img
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-medium text-neutral-900 dark:text-neutral-100">
-                        {item.predictedDisplayAssembly || (item.predictedModel ? (
-                          <span>
-                            {item.predictedManufacturer ? `${item.predictedManufacturer} ` : ""}{item.predictedModel}
-                          </span>
-                        ) : (
-                          <span className="text-neutral-400 dark:text-neutral-500 italic">Unidentified Model</span>
-                        ))}
+                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
+                        {item.predictedDisplayAssembly ||
+                          (item.predictedModel ? (
+                            <span>
+                              {item.predictedManufacturer
+                                ? `${item.predictedManufacturer} `
+                                : ""}
+                              {item.predictedModel}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 dark:text-slate-500 italic">
+                              Unidentified Model
+                            </span>
+                          ))}
                       </td>
-                      <td className="px-4 py-3 text-neutral-800 dark:text-neutral-200">
+                      <td className="px-4 py-3 text-slate-800 dark:text-slate-200">
                         {item.identifiedVendorName ? (
                           <span>
                             {item.identifiedVendorName}
                             {item.identifiedVendorVariantName ? (
-                              <span className="text-neutral-500 dark:text-neutral-400 font-mono text-[11px] ml-1">
+                              <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] ml-1">
                                 ({item.identifiedVendorVariantName})
                               </span>
                             ) : (
@@ -554,34 +629,54 @@ export default function RmaDetailPage({
                             )}
                           </span>
                         ) : (
-                          <span className="text-neutral-400 dark:text-neutral-500 italic">Unidentified Vendor</span>
+                          <span className="text-slate-400 dark:text-slate-500 italic">
+                            Unidentified Vendor
+                          </span>
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <StatusTransition status={item.status} />
+                        <GlowingBadge
+                          variant={
+                            isVerified
+                              ? "success"
+                              : item.status === "review_required"
+                              ? "warning"
+                              : "neutral"
+                          }
+                          pulse={item.status === "review_required"}
+                        >
+                          {formatItemStatus(item.status)}
+                        </GlowingBadge>
                       </td>
                       <td className="px-4 py-3 text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          {item.status !== "verified" && (
+                        <div className="flex items-center justify-end gap-1.5">
+                          {!isVerified && (
                             <Button
                               variant="outline"
                               size="sm"
                               title="Quick Confirm & Verify"
-                              className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-200 dark:border-emerald-800 h-7 px-2 text-[11px]"
+                              className="text-emerald-700 dark:text-emerald-400 hover:text-emerald-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 h-7 px-2 text-[11px]"
                               onClick={async (e) => {
                                 e.stopPropagation();
                                 try {
-                                  const res = await fetch(`/api/rma-items/${item.id}/review`, {
-                                    method: "POST",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ action: "manual_verify" }),
-                                  });
+                                  const res = await fetch(
+                                    `/api/rma-items/${item.id}/review`,
+                                    {
+                                      method: "POST",
+                                      headers: { "Content-Type": "application/json" },
+                                      body: JSON.stringify({ action: "manual_verify" }),
+                                    }
+                                  );
                                   if (res.ok) {
-                                    toast.success(`Display #${item.itemNumber} verified.`);
+                                    toast.success(
+                                      `Display #${item.itemNumber} verified.`
+                                    );
                                     fetchRmaData();
                                   } else {
                                     const errJson = await res.json().catch(() => ({}));
-                                    toast.error(errJson.error || "Failed to verify display");
+                                    toast.error(
+                                      errJson.error || "Failed to verify display"
+                                    );
                                   }
                                 } catch {
                                   toast.error("Network error");
@@ -607,19 +702,22 @@ export default function RmaDetailPage({
                         </div>
                       </td>
                     </tr>
-                  ))}
-                  {items.length === 0 && (
-                    <tr>
-                      <td colSpan={8} className="px-5 py-12 text-center text-neutral-400 dark:text-neutral-500">
-                        No display items recorded for this RMA.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+                  );
+                })}
+                {items.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-5 py-12 text-center text-slate-400 dark:text-slate-500"
+                    >
+                      No display items recorded for this RMA.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </CardSpotlight>
 
         {/* Side-Drawer Deep Inspection */}
         {inspectingItemId && (

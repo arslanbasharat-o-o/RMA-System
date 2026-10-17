@@ -1,11 +1,11 @@
 "use client";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { CardSpotlight, ShimmerButton } from "@/components/premium";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Smartphone, Eye, Sparkles, Activity, CheckCircle2, AlertCircle } from "lucide-react";
+import { Smartphone, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ProviderStatus {
   activeLensProvider?: string;
@@ -66,21 +66,19 @@ export function ProvidersTab({
       {/* Live Provider Health Status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Visual Recognition Card */}
-        <Card>
-          <CardHeader className="p-4 sm:p-5 pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Eye className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                  Google Lens Visual Recognition
-                </CardTitle>
-              </div>
-              <Badge variant={status.serpapiConfigured ? "success" : "secondary"}>
-                {status.serpapiConfigured ? "API Key Configured" : "Unconfigured"}
-              </Badge>
+        <CardSpotlight className="p-5 border-neutral-200/90 dark:border-neutral-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                Visual Recognition
+              </h3>
             </div>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5 pt-1 space-y-3">
+            <Badge variant={status.serpapiConfigured ? "success" : "secondary"}>
+              {status.serpapiConfigured ? "API Key Configured" : "Unconfigured"}
+            </Badge>
+          </div>
+          <div className="space-y-3">
             <div className="text-xs space-y-1">
               <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
                 <span>Active Provider:</span>
@@ -127,27 +125,25 @@ export function ProvidersTab({
               onClick={() => onTestConnection("lens")}
               className="w-full text-xs"
             >
-              Test Google Lens Connection
+              Test Visual Recognition Connection
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CardSpotlight>
 
-        {/* Vision OCR Card */}
-        <Card>
-          <CardHeader className="p-4 sm:p-5 pb-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
-                <CardTitle className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
-                  OpenAI Vision Markings OCR Engine
-                </CardTitle>
-              </div>
-              <Badge variant={status.openaiConfigured ? "success" : "secondary"}>
-                {status.openaiConfigured ? "API Key Configured" : "Unconfigured"}
-              </Badge>
+        {/* Vision Markings Card */}
+        <CardSpotlight className="p-5 border-neutral-200/90 dark:border-neutral-800">
+          <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4 text-neutral-600 dark:text-neutral-400" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-neutral-600 dark:text-neutral-400">
+                Markings & Stamp Recognition
+              </h3>
             </div>
-          </CardHeader>
-          <CardContent className="p-4 sm:p-5 pt-1 space-y-3">
+            <Badge variant={status.openaiConfigured ? "success" : "secondary"}>
+              {status.openaiConfigured ? "API Key Configured" : "Unconfigured"}
+            </Badge>
+          </div>
+          <div className="space-y-3">
             <div className="text-xs space-y-1">
               <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
                 <span>Active Model:</span>
@@ -156,9 +152,9 @@ export function ProvidersTab({
                 </span>
               </div>
               <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                <span>Attribution Method:</span>
+                <span>Method:</span>
                 <span className="font-medium text-neutral-900 dark:text-white">
-                  Deterministic Regex + Vision Fallback
+                  Part Number Matching + Image Scan
                 </span>
               </div>
             </div>
@@ -196,30 +192,30 @@ export function ProvidersTab({
             >
               Test OpenAI Vision Connection
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </CardSpotlight>
       </div>
 
       {/* Configuration Form */}
-      <Card>
-        <CardHeader className="p-5 sm:p-6 pb-2">
-          <CardTitle className="text-base font-semibold">
-            Recognition Engine Parameters
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5 sm:p-6 pt-4">
+      <CardSpotlight className="p-5 sm:p-6 border-neutral-200/90 dark:border-neutral-800">
+        <div className="pb-3 mb-4 border-b border-neutral-100 dark:border-zinc-800">
+          <h2 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
+            Recognition Provider Settings
+          </h2>
+        </div>
+        <div>
           <form onSubmit={onSave} className="space-y-5">
             {/* Visual Match Provider Adapter */}
             <div>
               <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
-                Visual Identification Adapter
+                Visual Search Provider
               </label>
               <Select
                 value={lensProvider}
                 onChange={(e) => setLensProvider(e.target.value)}
               >
-                <option value="mock">Local Deterministic Provider (Offline / Dev)</option>
-                <option value="serpapi_lens">SerpApi Visual Search (Direct Image Upload)</option>
+                <option value="mock">Local Test Provider</option>
+                <option value="serpapi_lens">SerpApi Visual Search</option>
               </Select>
             </div>
 
@@ -232,6 +228,7 @@ export function ProvidersTab({
                 value={lensFilterQuery}
                 onChange={(e) => setLensFilterQuery(e.target.value)}
                 placeholder="e.g. display screen, replacement screen"
+                className="h-9 text-xs"
               />
               <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                 <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Suggestions:</span>
@@ -251,27 +248,27 @@ export function ProvidersTab({
             {/* OpenAI Vision Model */}
             <div>
               <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
-                Vision OCR Markings Model
+                Markings Recognition Model
               </label>
               <Select
                 value={openaiModel}
                 onChange={(e) => setOpenaiModel(e.target.value)}
               >
-                <option value="gpt-5.6-terra">Terra: gpt-5.6-terra (Balanced High-Precision Vision OCR & Reasoning)</option>
-                <option value="gpt-5.6-luna">Luna: gpt-5.6-luna (High-Speed Exact Markings Vision OCR)</option>
-                <option value="gpt-4o">gpt-4o (Standard Flagship Multimodal Vision)</option>
-                <option value="gpt-4o-mini">gpt-4o-mini (Lightweight High-Speed OCR)</option>
+                <option value="gpt-5.6-terra">GPT-5.6 Terra</option>
+                <option value="gpt-5.6-luna">GPT-5.6 Luna</option>
+                <option value="gpt-4o">GPT-4o Vision</option>
+                <option value="gpt-4o-mini">GPT-4o Mini</option>
               </Select>
             </div>
 
             <div className="pt-3 border-t border-neutral-100 dark:border-neutral-800 flex justify-end">
-              <Button type="submit" variant="primary" loading={saving} size="sm">
+              <ShimmerButton type="submit" loading={saving} className="h-9 px-4 text-xs font-semibold">
                 Save Recognition Settings
-              </Button>
+              </ShimmerButton>
             </div>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </CardSpotlight>
     </div>
   );
 }

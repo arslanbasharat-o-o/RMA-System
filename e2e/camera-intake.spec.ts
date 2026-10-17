@@ -42,10 +42,11 @@ test("customer choice is explicit before scanner creation", async ({ page }) => 
   page.on("request", (req) => { if (new URL(req.url()).pathname === "/api/rmas" && req.method() === "POST") creates++; });
   await page.goto("/rmas/new");
   const customer = page.getByLabel("Customer / Business Name");
-  await expect(customer).toHaveValue("");
+  await expect(customer).toHaveAttribute("aria-expanded", "false");
   await expect(page.getByRole("button", { name: "Create RMA & Open Scanner" })).toBeDisabled();
   expect(creates).toBe(0);
-  await customer.selectOption(customerId);
+  await customer.click();
+  await page.getByRole("option", { name: "Test Customer", exact: true }).click();
   await page.getByRole("button", { name: "Create RMA & Open Scanner" }).click();
   await expect(page).toHaveURL(/test-rma\/capture/);
   expect(creates).toBe(1);
