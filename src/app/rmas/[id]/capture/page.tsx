@@ -4,7 +4,8 @@ import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CameraScanner } from "@/components/scanner/CameraScanner";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { LoadingMessage } from "@/components/ui/loading-message";
 
 interface CaptureRma { rmaNumber: string; customerName: string | null }
 
@@ -34,7 +35,7 @@ export default function RmaCapturePage({ params }: { params: Promise<{ id: strin
       {error || (rma && !rma.customerName?.trim()) ? <div className="m-auto max-w-sm space-y-4 p-6 text-center">
         <p role="alert">{error || "Add customer information to this RMA before uploading or processing images."}</p>
         <Link href={`/rmas/${rmaId}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-800 px-4 text-sm"><ArrowLeft className="size-4" /> Return to RMA details</Link>
-      </div> : rma ? <CameraScanner rmaId={rmaId} rmaNumber={rma.rmaNumber} customerName={rma.customerName!} onComplete={() => router.push(`/rmas/${rmaId}`)} /> : <div role="status" className="m-auto flex items-center gap-3 text-sm text-neutral-400"><Loader2 className="size-5 animate-spin" /> Loading scanner…</div>}
+      </div> : rma ? <CameraScanner rmaId={rmaId} rmaNumber={rma.rmaNumber} customerName={rma.customerName!} onComplete={() => router.push(`/rmas/${rmaId}`)} /> : <LoadingMessage label="Loading camera…" className="m-auto" />}
     </main>
   );
 }

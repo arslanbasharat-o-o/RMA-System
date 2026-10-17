@@ -14,6 +14,7 @@ export interface DecisionContext {
   ocrText?: string[];
   partNumbers?: string[];
   filename?: string;
+  aiOverview?: string;
   isMock?: boolean;
 }
 
@@ -41,7 +42,7 @@ export function cleanVisualCandidatesHeuristic(
   }
 
   const cleanedTitles = candidates.map((candidate) => cleanRawCandidateTitle(candidate.title));
-  const appleEvidence = appleVisualEvidence(candidates);
+  const appleEvidence = appleVisualEvidence(candidates, context?.aiOverview);
 
   // Combine top candidate texts for device identification
   const combinedText = candidates

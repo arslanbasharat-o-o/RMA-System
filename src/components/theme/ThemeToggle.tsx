@@ -21,10 +21,8 @@ export function ThemeToggle({ className, variant = "icon" }: ThemeToggleProps) {
   if (!mounted) {
     return (
       <div
-        className={cn(
-          "w-8 h-8 rounded-md bg-neutral-100 dark:bg-neutral-800 animate-pulse",
-          className
-        )}
+        aria-hidden="true"
+        className={cn("w-8 h-8", className)}
       />
     );
   }

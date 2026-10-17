@@ -19,14 +19,14 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { PageLoading } from "@/components/ui/loading-message";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { toast } from "sonner";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import {
   CardSpotlight,
   CopyBadge,
-  GlowingBadge,
+  StatusText,
   ShimmerButton,
 } from "@/components/premium";
 
@@ -182,15 +182,7 @@ export default function RmaDetailPage({
   }
 
   if (loading && !data) {
-    return (
-      <AppShell>
-        <div className="space-y-6 max-w-7xl mx-auto">
-          <Skeleton className="h-6 w-32" />
-          <Skeleton className="h-28 w-full rounded-xl" />
-          <Skeleton className="h-96 w-full rounded-xl" />
-        </div>
-      </AppShell>
-    );
+    return <PageLoading label="Loading RMA details…" />;
   }
 
   const rmaShipmentStatus =
@@ -258,7 +250,7 @@ export default function RmaDetailPage({
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1><CopyBadge value={rma?.rmaNumber || ""} className="text-base sm:text-lg font-bold py-1 px-3" /></h1>
-                <GlowingBadge
+                <StatusText
                   variant={
                     rmaShipmentStatus === "completed"
                       ? "success"
@@ -266,10 +258,9 @@ export default function RmaDetailPage({
                       ? "neutral"
                       : "info"
                   }
-                  pulse={rmaShipmentStatus === "receiving"}
                 >
                   {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
-                </GlowingBadge>
+                </StatusText>
               </div>
 
               <p className="text-xs text-slate-600 dark:text-slate-400 mt-2">
@@ -402,7 +393,7 @@ export default function RmaDetailPage({
                     <span className="font-mono font-bold text-xs text-slate-800 dark:text-zinc-200">
                       #{item.itemNumber}
                     </span>
-                    <GlowingBadge
+                    <StatusText
                       variant={
                         isVerified
                           ? "success"
@@ -410,10 +401,9 @@ export default function RmaDetailPage({
                           ? "warning"
                           : "neutral"
                       }
-                      pulse={item.status === "review_required"}
                     >
                       {formatItemStatus(item.status)}
-                    </GlowingBadge>
+                    </StatusText>
                   </div>
                   {item.images?.length > 1 && (
                     <span className="text-[10px] font-mono text-slate-500 dark:text-zinc-400 bg-slate-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded">
@@ -635,7 +625,7 @@ export default function RmaDetailPage({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <GlowingBadge
+                        <StatusText
                           variant={
                             isVerified
                               ? "success"
@@ -643,10 +633,9 @@ export default function RmaDetailPage({
                               ? "warning"
                               : "neutral"
                           }
-                          pulse={item.status === "review_required"}
                         >
                           {formatItemStatus(item.status)}
-                        </GlowingBadge>
+                        </StatusText>
                       </td>
                       <td className="px-4 py-3 text-right">
                         <div className="flex items-center justify-end gap-1.5">

@@ -131,6 +131,31 @@ describe("SelfHostedLensProvider", () => {
     expect((calls[0].init?.body as FormData).get("image")).toBeInstanceOf(Blob);
   });
 
+  it("keeps a visible AI Overview separate and maps up to 30 listing candidates", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const visual_matches = Array.from({ length: 35 }, (_, index) => ({
+      title: `iPhone 14 Plus display panel listing ${index + 1}`,
+      link: `https://parts-${index + 1}.example/display`,
+    }));
+    vi.stubGlobal("fetch", vi.fn(async () => jsonResponse({
+      ai_overview: "This is an iPhone 14 Plus replacement display.",
+      visual_matches,
+    })));
+
+    const provider = new SelfHostedLensProvider({
+      apiKey: "overview-test-key",
+      baseUrl: "http://lens.internal/api/search",
+      mode: "direct",
+    });
+    const result = await provider.identifyDisplay(Buffer.from("image-bytes"));
+
+    expect(result.error).toBeUndefined();
+    expect(result.aiOverview).toBe("This is an iPhone 14 Plus replacement display.");
+    expect(result.candidates).toHaveLength(30);
+    expect(result.cleanDecision?.model).toBe("iPhone 14 Plus");
+    expect(result.cleanDecision?.reasoning).toContain("AI Overview names the same exact model");
+  });
+
   it("polls a queued direct response until the normalized result is ready", async () => {
     const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {

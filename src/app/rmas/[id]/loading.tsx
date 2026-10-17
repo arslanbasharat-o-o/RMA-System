@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/layout/AppShell";
-import { DetailSkeleton } from "@/components/ui/skeletons/DetailSkeleton";
+import { PageLoading } from "@/components/ui/loading-message";
 
 export default function Loading() {
-  return (
-    <AppShell>
-      <DetailSkeleton />
-    </AppShell>
-  );
+  return <PageLoading label="Loading RMA details…" />;
 }

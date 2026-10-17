@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -173,11 +173,7 @@ export default function CreateRmaPage() {
           >
 
             {loading ? (
-              <div className="space-y-4">
-                <Skeleton className="h-14 w-full rounded-lg" />
-                <Skeleton className="h-14 w-full rounded-lg" />
-                <Skeleton className="h-20 w-full rounded-lg" />
-              </div>
+              <LoadingMessage label="Preparing the intake form…" detail="Loading customer and return options." className="justify-center py-12" />
             ) : (
               <form onSubmit={handleSubmit} className="space-y-4">
                 {/* Inline Error Banner */}

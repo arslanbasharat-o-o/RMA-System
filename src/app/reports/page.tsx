@@ -3,12 +3,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Download, FileText, Smartphone, Users, CheckCircle2 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import {
   CardSpotlight,
   DataTableToolbar,
   CopyBadge,
-  GlowingBadge,
+  StatusText,
   MetricBentoCard,
   ShimmerButton,
 } from "@/components/premium";
@@ -119,6 +119,23 @@ export default function ReportsPage() {
     }
   };
 
+  const matchStatusVariant = (status: string): "success" | "warning" | "danger" | "info" | "neutral" => {
+    switch (status) {
+      case "auto_matched":
+      case "exact_match":
+        return "success";
+      case "manual_verified":
+      case "manual_match":
+        return "info";
+      case "suggested_match":
+        return "warning";
+      case "failed":
+        return "danger";
+      default:
+        return "neutral";
+    }
+  };
+
   return (
     <AppShell>
       <div className="space-y-6 max-w-full min-w-0">
@@ -203,10 +220,7 @@ export default function ReportsPage() {
           {/* Mobile View: High-density touch cards */}
           <div className="sm:hidden p-3 space-y-3">
             {loading ? (
-              <div className="space-y-3">
-                <Skeleton className="h-32 w-full rounded-xl" />
-                <Skeleton className="h-32 w-full rounded-xl" />
-              </div>
+              <LoadingMessage label="Loading report data…" compact className="justify-center py-8" />
             ) : filteredRecords.length > 0 ? (
               filteredRecords.map((r, idx) => (
                 <div
@@ -215,7 +229,7 @@ export default function ReportsPage() {
                 >
                   <div className="flex items-center justify-between">
                     <CopyBadge value={r.rmaNumber} />
-                    <GlowingBadge
+                    <StatusText
                       variant={
                         r.itemStatus === "verified"
                           ? "success"
@@ -223,10 +237,9 @@ export default function ReportsPage() {
                           ? "warning"
                           : "neutral"
                       }
-                      pulse={r.itemStatus === "review_required"}
                     >
                       {formatReportItemStatus(r.itemStatus)}
-                    </GlowingBadge>
+                    </StatusText>
                   </div>
 
                   <div>
@@ -273,9 +286,7 @@ export default function ReportsPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={8} className="px-5 py-6">
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
+                      <LoadingMessage label="Loading report rows…" compact className="justify-center" />
                     </td>
                   </tr>
                 ) : filteredRecords.length > 0 ? (
@@ -304,12 +315,12 @@ export default function ReportsPage() {
                         {r.variantName ? ` (${r.variantName})` : ""}
                       </td>
                       <td className="px-5 py-3">
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-neutral-50 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 shrink-0 whitespace-nowrap leading-none inline-block">
+                        <StatusText variant={matchStatusVariant(r.matchStatus)} showIcon={false} className="text-[10px] font-mono">
                           {formatMatchStatus(r.matchStatus)}
-                        </span>
+                        </StatusText>
                       </td>
                       <td className="px-5 py-3">
-                        <GlowingBadge
+                        <StatusText
                           variant={
                             r.itemStatus === "verified"
                               ? "success"
@@ -317,10 +328,9 @@ export default function ReportsPage() {
                               ? "warning"
                               : "neutral"
                           }
-                          pulse={r.itemStatus === "review_required"}
                         >
                           {formatReportItemStatus(r.itemStatus)}
-                        </GlowingBadge>
+                        </StatusText>
                       </td>
                       <td className="px-5 py-3 text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
                         {new Date(r.createdAt).toLocaleDateString()}
