@@ -1,0 +1,46 @@
+FROM python:3.12.4-slim-bookworm
+
+ARG APP_VERSION=1.0.0
+ARG VCS_REF=unknown
+
+LABEL org.opencontainers.image.title="RMA System Scrapling Chrome Worker" \
+    org.opencontainers.image.description="Private background worker that searches customer-supplied display photos with Scrapling and Google Chrome." \
+    org.opencontainers.image.source="https://github.com/arslanbasharat-o-o/RMA-System" \
+    org.opencontainers.image.licenses="MIT" \
+    org.opencontainers.image.version="$APP_VERSION" \
+    org.opencontainers.image.revision="$VCS_REF"
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    SCRAPLING_WORKER_MODE=disabled \
+    IMAGE_STORAGE_DIR=/data/images
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y \
+        ca-certificates \
+        curl \
+        fonts-liberation \
+    && curl -fsSL https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb -o /tmp/google-chrome.deb \
+    && apt-get install --no-install-recommends -y /tmp/google-chrome.deb \
+    && rm /tmp/google-chrome.deb \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY pyproject.toml uv.lock requirements.lock .python-version ./
+RUN pip install --no-cache-dir uv==0.12.17 \
+    && uv sync --frozen --no-dev --no-install-project
+
+COPY scrapling_worker ./scrapling_worker
+COPY docs/scrapling-worker.md ./docs/scrapling-worker.md
+RUN uv sync --frozen --no-dev --reinstall-package standalone-google-lens-scrapling-worker
+
+RUN mkdir -p /data/images \
+    && useradd --create-home --uid 1000 worker \
+    && chown -R worker:worker /app /data
+USER worker
+
+RUN /app/.venv/bin/python -m scrapling_worker.browser_smoke
+
+ENTRYPOINT ["/app/.venv/bin/python", "-m", "scrapling_worker"]

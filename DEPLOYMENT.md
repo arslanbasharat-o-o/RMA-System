@@ -51,6 +51,11 @@ service root and the worker sends `POST <base>/upload`, then
 the worker sends the image as multipart form data in one `POST`. Both response
 shapes use the SerpApi-compatible `visual_matches` array.
 
+For the bundled production API and Scrapling Chrome worker, follow the
+[self-hosted Lens deployment guide](docs/self-hosted-lens.md). It attaches the
+API to the existing RMA network, keeps the diagnostic port on loopback, and
+uses private Redis and image-storage volumes. No database migration is needed.
+
 ## Start services
 
 ```bash

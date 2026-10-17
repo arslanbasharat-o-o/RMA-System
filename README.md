@@ -3,7 +3,7 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/arslanbasharat-o-o/RMA-System/ci.yml?branch=main&label=CI)](https://github.com/arslanbasharat-o-o/RMA-System/actions/workflows/ci.yml)
 [![Latest release](https://img.shields.io/github/v/release/arslanbasharat-o-o/RMA-System?label=release)](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest)
 [![License](https://img.shields.io/github/license/arslanbasharat-o-o/RMA-System)](LICENSE)
-[![Container images](https://img.shields.io/badge/GHCR-public%20images-2496ED?logo=docker&logoColor=white)](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system)
+[![Container images](https://img.shields.io/badge/GHCR-public%20images-2496ED?logo=docker&logoColor=white)](https://github.com/orgs/arslanbasharat-o-o/packages?repo_name=RMA-System)
 
 RMA System helps repair teams manage returned mobile displays from intake through review. Keep customer and shipment details with each return, capture inspection photos from a phone or computer, and review model and vendor suggestions in one place. Staff can check uncertain results before marking them as verified.
 
@@ -17,7 +17,7 @@ RMA System helps repair teams manage returned mobile displays from intake throug
 
 - Records customers, return reasons, RMA shipments, and individual display assemblies.
 - Captures multiple views of a display with a mobile camera or file upload.
-- Sends visual identification through a Google Lens-compatible SerpApi adapter or a reversible self-hosted Lens-compatible adapter, and reads markings with OpenAI Vision OCR when configured.
+- Sends visual identification through SerpApi or the bundled self-hosted Google Lens API and Scrapling Chrome worker, and reads markings with OpenAI Vision OCR when configured.
 - Runs recognition outside the web request in a durable `pg-boss` worker queue.
 - Matches evidence against display and vendor catalogs, then routes uncertain results to a staff review queue.
 - Supports administrator, operator, and viewer roles, with authenticated image delivery and reports.
@@ -69,7 +69,7 @@ The repository includes additional screenshots for the RMA list, intake form, mo
 
 ## Architecture
 
-The Next.js App Router serves the interface and API routes. PostgreSQL stores operational records, audit evidence, and the durable queue. A separate worker processes recognition jobs and stores its results. Uploaded images live in a private Docker volume and are delivered through authenticated routes. Docker Compose describes the app, worker, database, and optional Caddy proxy.
+The Next.js App Router serves the interface and API routes. PostgreSQL stores operational records, audit evidence, and the durable queue. A separate RMA worker processes recognition jobs. Visual searches can use the bundled self-hosted Lens API and Scrapling Chrome worker, which share a private image volume and an internal Redis queue. Uploaded RMA images stay in private Docker volumes and are delivered through authenticated routes.
 
 ```mermaid
 flowchart LR
@@ -77,7 +77,8 @@ flowchart LR
   Web --> DB[(PostgreSQL)]
   Web --> Queue[pg-boss queue]
   Queue --> Worker[Background worker]
-  Worker --> Lens[SerpApi or self-hosted Lens adapter]
+  Worker --> Lens[SerpApi or private Lens API]
+  Lens --> Scrapling[Scrapling and Google Chrome]
   Worker --> OCR[OpenAI Vision OCR]
   Worker --> DB
   Web --> Store[(Private image volume)]
@@ -123,11 +124,8 @@ npm run worker
 See [CONTRIBUTING.md](CONTRIBUTING.md) for disposable test databases and browser checks. For Docker deployment, persistent storage, and backups, see [DEPLOYMENT.md](DEPLOYMENT.md).
 
 For production visual recognition, keep `LENS_PROVIDER=serpapi_lens` with
-`SERPAPI_API_KEY` to use the existing provider, or switch to
-`LENS_PROVIDER=self_hosted_lens` with `LENS_API_BASE_URL` and `LENS_API_KEY`.
-The self-hosted adapter supports the upload-then-search contract and direct
-multipart search endpoints; see [DEPLOYMENT.md](DEPLOYMENT.md) for the mode
-setting.
+`SERPAPI_API_KEY` to use the existing provider, or set `LENS_PROVIDER=self_hosted_lens`
+with the private Lens service URL and key. See [the self-hosted Lens deployment guide](docs/self-hosted-lens.md).
 
 ## Checks
 
@@ -148,22 +146,26 @@ The application is self-hosted. This repository does not deploy to a production 
 
 ## Project status
 
-The application version is recorded in `release.json`. Version tags publish a GitHub Release and the web application and worker container images after the full release checks pass. Publishing these artifacts does not deploy or change a running installation; see [the release process](docs/release-process.md).
+The application version is recorded in `release.json`. Version tags publish a GitHub Release and four versioned container images after the full release checks pass. Publishing these artifacts does not deploy or change a running installation; see [the release process](docs/release-process.md).
 
 ## Releases and container images
 
-The current release is [RMA System v0.2.5](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.5). The public GitHub Container Registry package contains separate web-app and background-worker tags:
+The current release is [RMA System v0.2.8](https://github.com/arslanbasharat-o-o/RMA-System/releases/tag/v0.2.8). GitHub Container Registry publishes separate packages for the web app, RMA worker, Lens API, and Scrapling worker:
 
 | Image | Purpose | Versioned tag | Current tag |
 | --- | --- | --- | --- |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.5` | `latest` |
-| `ghcr.io/arslanbasharat-o-o/rma-system` | Background worker | `worker-0.2.5` | `worker-latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | Web application | `0.2.8` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system` | RMA background worker | `worker-0.2.8` | `worker-latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system-lens-api` | Authenticated image-search API | `0.2.8` | `latest` |
+| `ghcr.io/arslanbasharat-o-o/rma-system-lens-worker` | Scrapling and Chrome worker | `0.2.8` | `latest` |
 
 Pull both images with Docker:
 
 ```bash
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.5
-docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.5
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:0.2.8
+docker pull ghcr.io/arslanbasharat-o-o/rma-system:worker-0.2.8
+docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.8
+docker pull ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.8
 ```
 
 The [container package page](https://github.com/arslanbasharat-o-o/RMA-System/pkgs/container/rma-system) lists available tags and image details. For an existing Compose installation, set `RMA_APP_IMAGE` and `RMA_WORKER_IMAGE` to the selected tags, then follow [the deployment guide](DEPLOYMENT.md). Releases do not roll out to a server automatically.

@@ -81,7 +81,7 @@ describe("SelfHostedLensProvider", () => {
     ]);
     expect(result.normalizedManufacturer).toBe("Samsung");
     expect(result.normalizedModel).toBe("Galaxy A15");
-    expect(result.usedQuery).toBe("replacement display");
+    expect(result.usedQuery).toBeUndefined();
     expect(calls).toHaveLength(2);
 
     const uploadCall = calls[0];
@@ -97,7 +97,7 @@ describe("SelfHostedLensProvider", () => {
     const searchUrl = new URL(calls[1].url);
     expect(searchUrl.pathname).toBe("/api/search");
     expect(searchUrl.searchParams.get("image_id")).toBe("uploaded-image-42");
-    expect(searchUrl.searchParams.get("q")).toBe("replacement display");
+    expect(searchUrl.searchParams.has("q")).toBe(false);
     expect(calls[1].init?.method).toBe("GET");
     expect(calls[1].init?.headers).toMatchObject({
       Authorization: "Bearer self-hosted-test-key",
@@ -155,6 +155,7 @@ describe("SelfHostedLensProvider", () => {
       apiKey: "queued-test-key",
       baseUrl: "http://lens.internal/v1/search",
       mode: "direct",
+      pollIntervalMs: 1,
     });
     const result = await provider.identifyDisplay(Buffer.from("image-bytes"));
 

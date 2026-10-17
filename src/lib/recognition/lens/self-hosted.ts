@@ -12,6 +12,7 @@ export interface SelfHostedLensProviderOptions {
   apiKey?: string;
   baseUrl?: string;
   timeoutMs?: number;
+  pollIntervalMs?: number;
   defaultQuery?: string;
   mode?: SelfHostedLensApiMode;
 }
@@ -21,6 +22,9 @@ type JsonObject = Record<string, unknown>;
 const DEFAULT_TIMEOUT_MS = 60_000;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 120_000;
+const DEFAULT_POLL_INTERVAL_MS = 1_000;
+const MIN_POLL_INTERVAL_MS = 100;
+const MAX_POLL_INTERVAL_MS = 10_000;
 
 function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -31,6 +35,15 @@ function getConfiguredTimeout(timeoutMs?: number): number {
   return Number.isFinite(configured) && configured >= MIN_TIMEOUT_MS && configured <= MAX_TIMEOUT_MS
     ? Math.floor(configured)
     : DEFAULT_TIMEOUT_MS;
+}
+
+function getConfiguredPollInterval(intervalMs?: number): number {
+  const configured = Number(intervalMs ?? process.env.LENS_API_POLL_INTERVAL_MS ?? DEFAULT_POLL_INTERVAL_MS);
+  return Number.isFinite(configured)
+    && configured >= MIN_POLL_INTERVAL_MS
+    && configured <= MAX_POLL_INTERVAL_MS
+    ? Math.floor(configured)
+    : DEFAULT_POLL_INTERVAL_MS;
 }
 
 function getNestedObjects(payload: JsonObject): JsonObject[] {
@@ -105,7 +118,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly timeoutMs: number;
-  private readonly defaultQuery?: string;
+  private readonly pollIntervalMs: number;
   private readonly mode?: SelfHostedLensApiMode;
 
   public constructor(options?: SelfHostedLensProviderOptions);
@@ -114,24 +127,25 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     baseUrl?: string,
     timeoutMs?: number,
     defaultQuery?: string,
-    mode?: SelfHostedLensApiMode
+    mode?: SelfHostedLensApiMode,
+    pollIntervalMs?: number
   );
   public constructor(
     optionsOrApiKey: SelfHostedLensProviderOptions | string = {},
     baseUrl?: string,
     timeoutMs?: number,
     defaultQuery?: string,
-    mode?: SelfHostedLensApiMode
+    mode?: SelfHostedLensApiMode,
+    pollIntervalMs?: number
   ) {
     const options = typeof optionsOrApiKey === "string"
-      ? { apiKey: optionsOrApiKey, baseUrl, timeoutMs, defaultQuery, mode }
+      ? { apiKey: optionsOrApiKey, baseUrl, timeoutMs, defaultQuery, mode, pollIntervalMs }
       : optionsOrApiKey;
 
     this.apiKey = options.apiKey || process.env.LENS_API_KEY || "";
     this.baseUrl = (options.baseUrl || process.env.LENS_API_BASE_URL || "").trim().replace(/\/+$/, "");
     this.timeoutMs = getConfiguredTimeout(options.timeoutMs);
-    this.defaultQuery = options.defaultQuery || process.env.LENS_FILTER_QUERY;
-
+    this.pollIntervalMs = getConfiguredPollInterval(options.pollIntervalMs);
     const configuredMode = options.mode || process.env.LENS_API_MODE;
     this.mode = configuredMode === "direct" || configuredMode === "upload_search"
       ? configuredMode
@@ -162,10 +176,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     try {
       const uploadMime = context?.mimeType || "image/jpeg";
       const filename = context?.filename || "display.jpg";
-      const targetQuery = context?.q !== undefined
-        ? context.q
-        : this.defaultQuery || process.env.LENS_FILTER_QUERY || "";
-      const query = targetQuery.trim();
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
@@ -174,7 +184,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           imageBuffer,
           uploadMime,
           filename,
-          query,
           controller.signal
         );
         payload = await this.waitForResult(payload, controller.signal);
@@ -201,13 +210,13 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           }
 
           stage = "visual search";
-          payload = await this.requestSearch(imageId, query, controller.signal);
+          payload = await this.requestSearch(imageId, controller.signal);
           payload = await this.waitForResult(payload, controller.signal);
         }
       }
 
       clearTimeout(timeout);
-      return this.toIdentificationResult(payload, context, query, startTime);
+      return this.toIdentificationResult(payload, context, startTime);
     } catch (err: unknown) {
       clearTimeout(timeout);
       const message = controller.signal.aborted
@@ -252,11 +261,9 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     imageBuffer: Buffer,
     mimeType: string,
     filename: string,
-    query: string,
     signal: AbortSignal
   ): Promise<JsonObject> {
     const formData = this.createFormData(imageBuffer, mimeType, filename);
-    if (query) formData.append("q", query);
 
     const response = await fetch(this.baseUrl, {
       method: "POST",
@@ -284,12 +291,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
   private async requestSearch(
     imageId: string,
-    query: string,
     signal: AbortSignal
   ): Promise<JsonObject> {
     const searchUrl = new URL(joinServicePath(this.baseUrl, "search"));
     searchUrl.searchParams.set("image_id", imageId);
-    if (query) searchUrl.searchParams.set("q", query);
 
     const response = await fetch(searchUrl.toString(), {
       method: "GET",
@@ -319,7 +324,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
         timer = setTimeout(() => {
           signal.removeEventListener("abort", onAbort);
           resolve();
-        }, 100);
+        }, this.pollIntervalMs);
         signal.addEventListener("abort", onAbort, { once: true });
       });
 
@@ -368,7 +373,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   private toIdentificationResult(
     payload: JsonObject,
     context: DisplayVisualRecognitionContext | undefined,
-    query: string,
     startTime: number
   ): VisualIdentificationResult {
     const visualPayload = getVisualPayload(payload);
@@ -402,7 +406,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       normalizedManufacturer,
       normalizedModel,
       detectedDisplayAssembly: cleanDecision.displayName || undefined,
-      usedQuery: query || undefined,
       rawResponse: { ...payload, cleanDecision },
       durationMs: Date.now() - startTime,
     };

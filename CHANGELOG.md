@@ -4,6 +4,26 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.2.8] - 2026-10-17
+
+### Added
+
+- Package the authenticated self-hosted Lens API and Scrapling Chrome worker with the RMA source and publish versioned container images.
+- Add a production Compose stack that keeps the Lens API private to the existing RMA Docker network and exposes only a loopback health port.
+- Show the self-hosted Lens API and worker readiness in provider settings without exposing the service key.
+
+### Fixed
+
+- Upload extensionless RMA image-store files to Chrome with the real image filename and MIME type detected from their bytes.
+- Reduce provider status polling to one request per second to stay within the Lens API rate limit.
+- Require exact, corroborated model evidence before treating Apple display suggestions as confident; compatibility listings and conflicting or unparseable results stay in human review.
+- Keep environment-managed production provider settings authoritative over saved UI settings.
+
+### Verification
+
+- The real RMA provider completed 15 runs over 13 production-stored image files with zero request failures; slowest cold run was 3.541 seconds. Repeated content used the service cache.
+- Local RMA checks passed: typecheck, lint, and 121 tests. Local Lens API checks passed: typecheck, build, audit, 50 API tests, 26 worker tests, and Redis recovery integration.
+
 ## [0.2.7] - 2026-10-17
 
 ### Fixed

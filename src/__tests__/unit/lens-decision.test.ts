@@ -158,6 +158,29 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.confidence).toBeLessThan(0.5);
     });
 
+    it("treats repeated-generation compatibility listings as ambiguous", () => {
+      const decision = cleanVisualCandidatesHeuristic([
+        { title: "Wholesale display for iPhone 12 / 12 Mini", rank: 1 },
+      ]);
+      expect(decision.model).toBeNull();
+      expect(decision.confidence).toBeLessThan(0.5);
+    });
+
+    it("does not mark a model confident when another result lacks parseable model evidence", () => {
+      const decision = cleanVisualCandidatesHeuristic([
+        { title: "OLED Frame Assembly for Apple iPhone 14", rank: 1 },
+        { title: "تسوق شاشة LCD لهاتف ابل ايفون 15", rank: 2 },
+      ]);
+      expect(decision.model).toBe("iPhone 14");
+      expect(decision.confidence).toBeLessThan(0.5);
+    });
+
+    it("keeps a single Lens listing at review confidence", () => {
+      const decision = cleanVisualCandidatesHeuristic([{ title: "iPhone 15 Pro Screen", rank: 1 }]);
+      expect(decision.model).toBe("iPhone 15 Pro");
+      expect(decision.confidence).toBeLessThan(0.5);
+    });
+
     it("does not decide a device from a multi-device compatibility listing", async () => {
       const decision = await cleanVisualCandidatesWithOpenAi([
         { title: "iPhone 16 Pro / iPhone 16 Pro Max screen parts", rank: 1 },
@@ -178,7 +201,7 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.manufacturer).toBe("Apple");
       expect(decision.model).toBe("iPhone 13 Pro");
       expect(decision.displayName).toBe("Apple iPhone 13 Pro Display");
-      expect(decision.confidence).toBeGreaterThanOrEqual(0.8);
+      expect(decision.confidence).toBeLessThanOrEqual(0.45);
       expect(decision.reasoning).toBeDefined();
     });
   });

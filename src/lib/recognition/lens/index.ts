@@ -45,7 +45,6 @@ export function getVisualRecognitionProvider(
       return new SelfHostedLensProvider({
         apiKey: selfHostedApiKey,
         baseUrl: selfHostedBaseUrl,
-        defaultQuery,
       });
     }
     case "mock":

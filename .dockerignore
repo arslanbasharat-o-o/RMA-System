@@ -3,6 +3,7 @@
 .agents
 .next
 node_modules
+services/lens-api
 .env
 .env.*
 .local
