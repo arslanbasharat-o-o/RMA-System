@@ -140,6 +140,12 @@ export function matchDisplayToCatalog(
     return null;
   }
 
+  // Do not turn one weak or conflicting visual result into a catalog identity
+  // merely because its title happens to match one stored alias.
+  if (visualResult.cleanDecision && visualResult.cleanDecision.confidence < 0.5) {
+    return null;
+  }
+
   // 2. Second priority: Match normalized visual result manufacturer + model (including OpenAI decision)
   const mfg =
     visualResult.cleanDecision?.manufacturer ||
@@ -327,11 +333,10 @@ export function synthesizeRecognition(
     visualResult?.normalizedManufacturer ||
     null;
 
-  let rawModel =
-    displayMatch?.modelName ||
-    visualResult?.cleanDecision?.model ||
-    visualResult?.normalizedModel ||
-    null;
+  const visualModelIsUsable = !visualResult?.cleanDecision || visualResult.cleanDecision.confidence >= 0.5;
+  let rawModel = displayMatch?.modelName || (visualModelIsUsable
+    ? visualResult?.cleanDecision?.model || visualResult?.normalizedModel || null
+    : null);
 
   // Clean redundant manufacturer prefix if present
   if (

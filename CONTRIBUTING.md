@@ -47,7 +47,7 @@ npm run build
 npm run test:e2e
 ```
 
-The fixture loader refuses to run outside test mode. The CI workflow creates its own PostgreSQL service, generates temporary credentials, uses mock recognition, and runs desktop and mobile camera-intake browser checks. Do not add CI credentials that can reach production. Tests must not call OpenAI, SerpApi, Google Lens, or another paid provider.
+The fixture loader refuses to run outside test mode. The CI workflow creates its own PostgreSQL service, generates temporary credentials, uses mock recognition, and runs desktop and mobile camera-intake browser checks. Do not add CI credentials that can reach production. Tests must not call OpenAI, Google Lens, or another paid provider.
 
 ## Pull requests
 
