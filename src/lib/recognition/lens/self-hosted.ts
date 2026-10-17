@@ -382,6 +382,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           ? match.title
           : "Unknown Display Assembly",
         sourceUrl: typeof match.link === "string" ? match.link : undefined,
+        sourceName: typeof match.source === "string" ? match.source : undefined,
         thumbnailUrl: typeof match.thumbnail === "string" ? match.thumbnail : undefined,
         price: getPrice(match.price),
         rank: index + 1,

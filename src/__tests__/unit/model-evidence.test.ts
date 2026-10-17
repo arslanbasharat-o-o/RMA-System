@@ -75,6 +75,35 @@ describe("ranked Apple display evidence", () => {
     expect(evidence?.reasoning).toContain("unattributed results ignored");
   });
 
+  it("uses Google Lens publisher labels when result links redirect through Google", () => {
+    const evidence = appleVisualEvidence([
+      { title: "iPhone 15 Pro OLED display assembly", sourceUrl: "https://www.google.com/search?q=listing-1", sourceName: "MobileSentrix", rank: 1 },
+      { title: "iPhone 15 Pro LCD replacement screen", sourceUrl: "https://www.google.com/search?q=listing-2", sourceName: "Fixez", rank: 2 },
+      { title: "iPhone 15 Pro display assembly", sourceUrl: "https://www.google.com/search?q=listing-3", sourceName: "Spares Nordic", rank: 3 },
+    ]);
+    expect(evidence?.model).toBe("iPhone 15 Pro");
+    expect(evidence?.confidence).toBeLessThan(1);
+    expect(evidence?.reasoning).toContain("3 independent display sources");
+  });
+
+  it("collapses country-specific publisher labels and rejects Google as a source", () => {
+    const sameMarketplace = appleVisualEvidence([
+      { title: "iPhone 14 Plus LCD display assembly", sourceUrl: "https://www.google.com/search?q=a", sourceName: "Amazon.com", rank: 1 },
+      { title: "iPhone 14 Plus OLED replacement screen", sourceUrl: "https://www.google.com/search?q=b", sourceName: "Amazon.ae", rank: 2 },
+      { title: "iPhone 14 Plus display panel", sourceUrl: "https://www.google.com/search?q=c", sourceName: "Amazon", rank: 3 },
+    ]);
+    expect(sameMarketplace?.model).toBeNull();
+    expect(sameMarketplace?.reasoning).toContain("1 independent display source(s)");
+
+    const googleOnly = appleVisualEvidence([
+      { title: "iPhone 14 Plus LCD display assembly", sourceUrl: "https://www.google.com/search?q=a", sourceName: "Google", rank: 1 },
+      { title: "iPhone 14 Plus OLED replacement screen", sourceUrl: "https://www.google.com/search?q=b", sourceName: "Google Lens", rank: 2 },
+      { title: "iPhone 14 Plus display panel", sourceUrl: "https://www.google.com/search?q=c", sourceName: "Google Search", rank: 3 },
+    ]);
+    expect(googleOnly?.model).toBeNull();
+    expect(googleOnly?.reasoning).toContain("unattributed results ignored");
+  });
+
   it("ignores mixed compatibility listings and accessories", () => {
     const evidence = appleVisualEvidence(matches([
       ["iPhone 14 Plus / iPhone 15 Plus compatible replacement screen", "mixed.example"],
