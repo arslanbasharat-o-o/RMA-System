@@ -4,6 +4,8 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-10-17
+
 ### Changed
 
 - Refresh the dashboard, navigation, RMA intake and inspection screens, catalogs, reports, login, and settings with consistent responsive layouts and motion.
