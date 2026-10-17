@@ -1,6 +1,8 @@
 export interface VisualCandidate {
   title: string;
   sourceUrl?: string;
+  /** Google Lens' displayed publisher label when its link is a Google redirect. */
+  sourceName?: string;
   thumbnailUrl?: string;
   price?: string;
   rank: number;
