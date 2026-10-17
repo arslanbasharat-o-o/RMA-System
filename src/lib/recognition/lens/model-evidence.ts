@@ -74,24 +74,10 @@ export function appleVisualEvidence(candidates: VisualCandidate[]) {
       continue;
     }
 
-    if (!candidate.sourceUrl) {
-      // Titles are not independent sources. Without an attributable result URL,
-      // it must remain a review suggestion even if several titles agree.
-      unattributedListings += 1;
-      continue;
-    }
-
-    let source: string;
-    try {
-      const url = new URL(candidate.sourceUrl);
-      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported result URL scheme");
-      source = url.hostname.toLowerCase().replace(/^www\./, "");
-      if (!source || /(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(source)) {
-        unattributedListings += 1;
-        continue;
-      }
-    } catch {
-      // A malformed or aggregated search URL is not allowed to improve confidence.
+    const source = independentSource(candidate.sourceUrl, candidate.sourceName);
+    if (!source) {
+      // Titles alone are not independent sources. Keep these results in review
+      // when neither a publisher URL nor a publisher label is attributable.
       unattributedListings += 1;
       continue;
     }
@@ -137,4 +123,28 @@ export function appleVisualEvidence(candidates: VisualCandidate[]) {
     confidence: 0.88,
     reasoning: `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}). This is a suggestion, not a confirmed identification.`,
   };
+}
+
+function independentSource(sourceUrl?: string, sourceName?: string): string | undefined {
+  if (sourceUrl) {
+    try {
+      const url = new URL(sourceUrl);
+      if (url.protocol === "http:" || url.protocol === "https:") {
+        const host = url.hostname.toLowerCase().replace(/^www\./, "");
+        if (host && !/(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(host)) return host;
+      }
+    } catch {
+      // Google Lens sometimes provides a publisher label instead of a direct URL.
+    }
+  }
+
+  const label = sourceName?.trim().toLowerCase().replace(/^www\./, "").replace(/[.,:;]+$/g, "");
+  if (!label || /^google(?:\b|\.)/i.test(label) || /^(?:unknown|visual match)$/i.test(label)) {
+    return undefined;
+  }
+
+  // Collapse country-specific marketplace labels such as Amazon.com/Amazon.ae
+  // so one publisher cannot count as multiple independent sources.
+  const domainLabel = label.match(/^([a-z0-9-]+)\.(?:com|net|org|co|ae|uk|de|fr|it|es|nl|se|no|dk|ca|us|au|nz|jp|cn|in)$/i);
+  return (domainLabel?.[1] ?? label).replace(/\s+/g, " ");
 }

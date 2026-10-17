@@ -4,6 +4,18 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-10-17
+
+### Fixed
+
+- Use Google Lens' displayed publisher when its result link is a Google redirect, while collapsing regional marketplace labels so one seller cannot count multiple times.
+- Keep Google-origin labels and close or conflicting model evidence out of confident Apple display suggestions.
+
+### Verification
+
+- Add regression coverage for Google redirects, regional marketplace aliases, and Google labels.
+- Pass 118 unit tests, lint, TypeScript checks, and a production build.
+
 ## [0.3.0] - 2026-10-17
 
 ### Changed
