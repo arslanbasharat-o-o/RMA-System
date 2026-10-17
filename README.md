@@ -17,7 +17,7 @@ RMA System helps repair teams manage returned mobile displays from intake throug
 
 - Records customers, return reasons, RMA shipments, and individual display assemblies.
 - Captures multiple views of a display with a mobile camera or file upload.
-- Sends visual identification through a Google Lens-compatible SerpApi adapter and reads markings with OpenAI Vision OCR when configured.
+- Sends visual identification through a Google Lens-compatible SerpApi adapter or a reversible self-hosted Lens-compatible adapter, and reads markings with OpenAI Vision OCR when configured.
 - Runs recognition outside the web request in a durable `pg-boss` worker queue.
 - Matches evidence against display and vendor catalogs, then routes uncertain results to a staff review queue.
 - Supports administrator, operator, and viewer roles, with authenticated image delivery and reports.
@@ -77,7 +77,7 @@ flowchart LR
   Web --> DB[(PostgreSQL)]
   Web --> Queue[pg-boss queue]
   Queue --> Worker[Background worker]
-  Worker --> Lens[SerpApi Lens adapter]
+  Worker --> Lens[SerpApi or self-hosted Lens adapter]
   Worker --> OCR[OpenAI Vision OCR]
   Worker --> DB
   Web --> Store[(Private image volume)]
@@ -89,11 +89,13 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for the data boundaries and processing fl
 
 ## Quick start
 
-You need Node.js 24, npm, and a local PostgreSQL 16 database. Create a disposable development database before running migrations or tests.
+You need Node.js 24 (the repository pins 24.21.0 in `.nvmrc`), npm, and a local PostgreSQL 16 database. Create a disposable development database before running migrations or tests.
 
 ```bash
 git clone https://github.com/arslanbasharat-o-o/RMA-System.git
 cd RMA-System
+nvm install
+nvm use
 npm ci
 cp .env.example .env.local
 ```
@@ -119,6 +121,13 @@ npm run worker
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for disposable test databases and browser checks. For Docker deployment, persistent storage, and backups, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
+For production visual recognition, keep `LENS_PROVIDER=serpapi_lens` with
+`SERPAPI_API_KEY` to use the existing provider, or switch to
+`LENS_PROVIDER=self_hosted_lens` with `LENS_API_BASE_URL` and `LENS_API_KEY`.
+The self-hosted adapter supports the upload-then-search contract and direct
+multipart search endpoints; see [DEPLOYMENT.md](DEPLOYMENT.md) for the mode
+setting.
 
 ## Checks
 
