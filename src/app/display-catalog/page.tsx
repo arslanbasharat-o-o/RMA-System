@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { toast } from "sonner";
 import {
   CardSpotlight,
@@ -211,10 +211,7 @@ export default function DisplayCatalogPage() {
         {/* Mobile View: High-Density Touch Cards */}
         <div className="sm:hidden space-y-3">
           {loading ? (
-            <div className="space-y-3">
-              <Skeleton className="h-28 w-full rounded-xl" />
-              <Skeleton className="h-28 w-full rounded-xl" />
-            </div>
+            <LoadingMessage label="Loading display models…" compact className="justify-center py-8" />
           ) : catalog.length > 0 ? (
             catalog.map((item) => (
               <div
@@ -274,9 +271,7 @@ export default function DisplayCatalogPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-6">
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
+                      <LoadingMessage label="Loading display models…" compact className="justify-center" />
                     </td>
                   </tr>
                 ) : catalog.length > 0 ? (

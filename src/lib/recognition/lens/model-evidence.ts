@@ -34,14 +34,34 @@ export function extractAppleModels(title: string): string[] {
   return [...models];
 }
 
-export function appleVisualEvidence(candidates: VisualCandidate[]) {
+interface AiOverviewModelEvidence {
+  models: string[];
+  specificModel: string | null;
+  hedged: boolean;
+  ambiguous: boolean;
+}
+
+function aiOverviewModelEvidence(text?: string): AiOverviewModelEvidence {
+  if (!text?.trim()) return { models: [], specificModel: null, hedged: false, ambiguous: false };
+  const models = extractAppleModels(text);
+  const hedged = /\b(?:such as|for example|e\.g\.|similar|compatible|or equivalent|may be|might be|could be|possibly|appears to be)\b/i.test(text);
+  return {
+    models,
+    specificModel: models.length === 1 && !hedged ? models[0] : null,
+    hedged,
+    ambiguous: models.length > 1 && !hedged,
+  };
+}
+
+export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: string) {
+  const overviewEvidence = aiOverviewModelEvidence(aiOverview);
   const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola)\b/i;
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
   const accessory = /\b(?:case|cover|screen\s*protector|protector|tempered\s*glass|camera\s*lens|lens\s*protector|charger|cable|battery|adhesive|glue|tools?|repair\s*kit)\b/i;
   const rankedCandidates = [...candidates]
     .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
     .sort((a, b) => a.rank - b.rank)
-    .slice(0, 20);
+    .slice(0, 30);
   const firstSpecific = rankedCandidates.find((candidate) => extractAppleModels(candidate.title).length || otherDevice.test(candidate.title));
   if (firstSpecific && !extractAppleModels(firstSpecific.title).length) return null;
 
@@ -92,21 +112,39 @@ export function appleVisualEvidence(candidates: VisualCandidate[]) {
   }
 
   const detail = `${corroboratedListings} independent display listings; ${mixedListings} mixed-model, ${accessoryListings} accessory, ${irrelevantListings} unrelated or non-display, ${unattributedListings} unattributed results ignored`;
-  if (!scores.size) return mixedListings || appleModelMentions ? {
+  if (!scores.size) return mixedListings || appleModelMentions || overviewEvidence.models.length ? {
     model: null,
     confidence: 0.45,
-    reasoning: `No attributable single-device display listing was decisive across the top ${rankedCandidates.length} results (${detail}). Manual review is required.`,
+    reasoning: overviewEvidence.models.length
+      ? `Google AI Overview mentions ${overviewEvidence.models.join(" / ")}, but no attributable listing evidence confirms that model (${detail}). Manual review is required.`
+      : `No attributable single-device display listing was decisive across the top ${rankedCandidates.length} results (${detail}). Manual review is required.`,
   } : null;
 
   const ranked = [...scores].sort((a, b) => b[1].score - a[1].score);
   const [winner, runner] = ranked;
   const ratio = runner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
   const decisive = winner[1].sources.size >= 3 && ratio >= 1.8;
+  if (overviewEvidence.ambiguous) {
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `Independent listings favor ${winner[0]}, but the unhedged Google AI Overview names multiple models (${overviewEvidence.models.join(" / ")}). The evidence is ambiguous, so manual review is required (${detail}).`,
+    };
+  }
+  if (overviewEvidence.specificModel && overviewEvidence.specificModel !== winner[0]) {
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `Independent listings favor ${winner[0]}, but the specific Google AI Overview names ${overviewEvidence.specificModel}. The evidence conflicts, so manual review is required (${detail}).`,
+    };
+  }
   if (!decisive && runner) {
     return {
       model: null,
       confidence: 0.45,
-      reasoning: `The top ${rankedCandidates.length} results split between ${winner[0]} and ${runner[0]} without a decisive margin (${detail}). Manual review is required.`,
+      reasoning: overviewEvidence.specificModel === winner[0]
+        ? `The Google AI Overview agrees with ${winner[0]}, but the top ${rankedCandidates.length} listings still split with ${runner[0]} without a decisive margin (${detail}). Manual review is required.`
+        : `The top ${rankedCandidates.length} results split between ${winner[0]} and ${runner[0]} without a decisive margin (${detail}). Manual review is required.`,
     };
   }
 
@@ -114,14 +152,20 @@ export function appleVisualEvidence(candidates: VisualCandidate[]) {
     return {
       model: null,
       confidence: 0.45,
-      reasoning: `${winner[0]} is only a leading suggestion with ${winner[1].sources.size} independent display source(s) (${detail}). Manual review is required.`,
+      reasoning: overviewEvidence.specificModel === winner[0]
+        ? `The Google AI Overview agrees with ${winner[0]}, but it has only ${winner[1].sources.size} independent display source(s) (${detail}). Manual review is required.`
+        : `The Google AI Overview is not enough to resolve the leading suggestion, which has ${winner[1].sources.size} independent display source(s) (${detail}). Manual review is required.`,
     };
   }
 
   return {
     model: winner[0],
     confidence: 0.88,
-    reasoning: `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}). This is a suggestion, not a confirmed identification.`,
+    reasoning: overviewEvidence.specificModel === winner[0]
+      ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources and the Google AI Overview names the same exact model (${detail}). This is a suggestion, not a confirmed identification.`
+      : overviewEvidence.hedged && overviewEvidence.models.length
+        ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results. The AI Overview mentions ${overviewEvidence.models.join(" / ")} with hedged wording, so it was not treated as an exact variant (${detail}). This is a suggestion, not a confirmed identification.`
+        : `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}). This is a suggestion, not a confirmed identification.`,
   };
 }
 

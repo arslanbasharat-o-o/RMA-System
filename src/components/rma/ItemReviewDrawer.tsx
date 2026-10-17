@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { useScrollLock } from "@/lib/utils/scroll-lock";
 import { toast } from "sonner";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
@@ -188,13 +188,13 @@ export function ItemReviewDrawer({
           onClick={onClose}
           aria-hidden="true"
         />
-        <div className="relative w-full sm:w-[480px] lg:w-[560px] h-full bg-white dark:bg-[#121215] border-l border-neutral-200 dark:border-neutral-800 shadow-2xl p-6 flex flex-col justify-between">
-          <div className="space-y-4">
-            <Skeleton className="h-8 w-48" />
-            <Skeleton className="h-32 w-full rounded-xl" />
-            <Skeleton className="h-40 w-full rounded-xl" />
-            <Skeleton className="h-40 w-full rounded-xl" />
-          </div>
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Loading display details"
+          className="relative flex h-full w-full flex-col items-center justify-center gap-3 bg-white p-6 text-center shadow-2xl dark:bg-[#121215] sm:w-[480px] sm:border-l sm:border-neutral-200 lg:w-[560px] dark:sm:border-neutral-800"
+        >
+          <LoadingMessage label="Loading display details…" detail="This usually takes a moment." />
         </div>
       </div>
     );
@@ -261,9 +261,20 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {["uploaded", "queued", "processing"].includes(item?.status) && <p role="status" className="rounded-lg bg-indigo-50 p-3 text-sm text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">
-            {item.status === "queued" ? "Waiting to analyze this display…" : item.visualStatus === "pending" ? item.vendorOcrStatus === "success" ? "Text recognition finished. Waiting for the display model…" : "Searching for the display model and reading markings…" : item.vendorOcrStatus === "pending" ? "Reading display markings…" : "Preparing recognition results…"} Results update here automatically.
-          </p>}
+          {["uploaded", "queued", "processing"].includes(item?.status) && (
+            <LoadingMessage
+              label={item.status === "queued"
+                ? "Waiting to analyze this display…"
+                : item.visualStatus === "pending"
+                  ? item.vendorOcrStatus === "success"
+                    ? "Text recognition finished. Waiting for the display model…"
+                    : "Searching for the display model and reading markings…"
+                  : item.vendorOcrStatus === "pending"
+                    ? "Reading display markings…"
+                    : "Preparing recognition results…"}
+              detail="Results update here automatically."
+            />
+          )}
 
           {item?.visualStatus === "failed" && (
             <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 space-y-2">

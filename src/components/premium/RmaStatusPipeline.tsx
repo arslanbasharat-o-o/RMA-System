@@ -3,7 +3,7 @@
 import React from "react";
 import { cn } from "@/lib/utils/cn";
 import { CheckCircle2, Clock, Sparkles, Building2, Activity } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 
 export interface PipelineStage {
   id: string;
@@ -83,21 +83,7 @@ export function RmaStatusPipeline({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 relative">
         {loading ? (
-          Array.from({ length: 4 }).map((_, idx) => (
-            <div
-              key={idx}
-              className="flex items-center gap-3.5 p-3 rounded-lg border border-neutral-200/50 dark:border-zinc-800 bg-neutral-50/40 dark:bg-zinc-900/30"
-            >
-              <Skeleton className="h-9 w-9 rounded-lg shrink-0" />
-              <div className="min-w-0 flex-1 space-y-1.5">
-                <div className="flex items-center justify-between gap-1">
-                  <Skeleton className="h-3.5 w-20" />
-                  <Skeleton className="h-3.5 w-6" />
-                </div>
-                <Skeleton className="h-2.5 w-28" />
-              </div>
-            </div>
-          ))
+          <LoadingMessage label="Loading processing status…" compact className="col-span-full justify-center py-8" />
         ) : (
           activeStages.map((stage, idx) => {
             const Icon = stage.icon;

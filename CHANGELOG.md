@@ -4,6 +4,25 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-10-18
+
+### Added
+
+- Read the visible Google AI Overview when the Lens page has an explicit overview heading, and pass it to the RMA scorer as optional supporting evidence.
+- Score up to 30 independently attributable Lens listings and require manual review when a specific overview conflicts with listing consensus or names multiple unhedged models.
+- Replace repetitive skeletons with accessible loading and status messages across intake, dashboards, catalogs, reports, settings, and review screens.
+
+### Fixed
+
+- Prevent low-confidence visual guesses from becoming catalog identities or model-bearing display labels; retain exact physical part-number matches.
+- Keep the loading inspection drawer full-height and expose its loading state as a dialog on mobile and desktop.
+
+### Verification
+
+- Local checks: 125 unit and integration tests, lint, TypeScript checks, and production build passed.
+- Targeted Playwright checks passed for camera intake, responsive navigation, and live recognition on desktop Chrome, mobile Chrome, Safari, and mobile Safari; 3 desktop-only checks were skipped on mobile profiles.
+- All Google Lens and recognition test requests use fixtures or mocks; no paid recognition API was called.
+
 ## [0.3.1] - 2026-10-17
 
 ### Fixed

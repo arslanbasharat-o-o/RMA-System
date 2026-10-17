@@ -18,12 +18,12 @@ LENS_API_BASE_URL=http://lens-api:3000
 LENS_API_KEY=<private Lens service key>
 LENS_API_MODE=upload_search
 LENS_API_POLL_INTERVAL_MS=250
-LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.0
-LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.0
+LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.1
+LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.1
 RMA_DOCKER_NETWORK=rma-system_rma_network
 ```
 
-The API retains search images for at most 15 minutes. RMA stores the 20 highest
+The API retains search images for at most 15 minutes. RMA scores up to 30
 ranked matches and keeps uncertain model evidence in the review queue. The
 worker reports Google verification or browser failures; it does not bypass
 those checks.

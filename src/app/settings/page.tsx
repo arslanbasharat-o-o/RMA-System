@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useTransition, Suspense, lazy } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { toast } from "sonner";
 import { Sliders, Eye, Users, Palette } from "lucide-react";
 
@@ -23,10 +23,7 @@ const AppearanceTab = lazy(() =>
 
 function TabFallback() {
   return (
-    <div className="space-y-4">
-      <Skeleton className="h-44 w-full rounded-xl" />
-      <Skeleton className="h-64 w-full rounded-xl" />
-    </div>
+    <LoadingMessage label="Loading settings…" className="justify-center py-12" />
   );
 }
 

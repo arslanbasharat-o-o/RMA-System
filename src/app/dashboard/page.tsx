@@ -16,14 +16,14 @@ import {
   AnimatedAlertTriage,
   AnimatedArrowRight,
 } from "@/components/icons/AnimatedIcons";
-import { Skeleton } from "@/components/ui/skeleton";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import {
   MetricBentoCard,
   CardSpotlight,
   RmaStatusPipeline,
   DataTableToolbar,
   CopyBadge,
-  GlowingBadge,
+  StatusText,
   ShimmerButton,
 } from "@/components/premium";
 
@@ -244,12 +244,7 @@ export default function DashboardPage() {
               </div>
 
               {loading ? (
-                <div className="space-y-3 py-2">
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                  <Skeleton className="h-6 w-full" />
-                </div>
+                <LoadingMessage label="Loading model totals…" compact className="justify-center py-8" />
               ) : data?.modelBreakdown && data.modelBreakdown.length > 0 ? (
                 <div className="space-y-2.5 max-h-[220px] overflow-y-auto pr-1">
                   {data.modelBreakdown.slice(0, 6).map((m: any, idx: number) => {
@@ -310,11 +305,7 @@ export default function DashboardPage() {
               </div>
 
               {loading ? (
-                <div className="space-y-2 py-2">
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                  <Skeleton className="h-8 w-full" />
-                </div>
+                <LoadingMessage label="Loading return reasons…" compact className="justify-center py-8" />
               ) : data?.reasonBreakdown && data.reasonBreakdown.length > 0 ? (
                 <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
                   {data.reasonBreakdown.slice(0, 5).map((r: any, idx: number) => (
@@ -384,9 +375,7 @@ export default function DashboardPage() {
                 {loading ? (
                   <tr>
                     <td colSpan={6} className="px-5 py-6">
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
-                      <Skeleton className="h-5 w-full my-1.5" />
+                      <LoadingMessage label="Loading recent RMAs…" compact className="justify-center" />
                     </td>
                   </tr>
                 ) : recentRmas.length > 0 ? (
@@ -420,14 +409,13 @@ export default function DashboardPage() {
                           </span>
                         </td>
                         <td className="px-5 py-3">
-                          <GlowingBadge
+                          <StatusText
                             variant={
                               isCompleted ? "success" : isReview ? "warning" : "neutral"
                             }
-                            pulse={isReview}
                           >
                             {formatRmaStatus(rma.status)}
-                          </GlowingBadge>
+                          </StatusText>
                         </td>
                         <td className="px-5 py-3 text-neutral-500 dark:text-neutral-400 font-mono text-[11px]">
                           {rma.createdAt ? new Date(rma.createdAt).toLocaleDateString() : "—"}

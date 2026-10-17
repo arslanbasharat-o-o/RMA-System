@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Scan, ArrowUpRight, Cpu } from "lucide-react";
 import { CardSpotlight } from "./CardSpotlight";
+import { StatusText } from "@/components/ui/status-text";
 import { cn } from "@/lib/utils/cn";
 
 interface AiLensInspectorCardProps {
@@ -42,9 +43,9 @@ export function AiLensInspectorCard({
             </div>
           </div>
 
-          <span className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 bg-neutral-100 dark:bg-neutral-800 px-2 py-0.5 rounded border border-neutral-200/60 dark:border-neutral-700/60 shrink-0 whitespace-nowrap leading-none">
+          <StatusText variant="success" showIcon={false} className="shrink-0 text-[10px] font-mono">
             Active
-          </span>
+          </StatusText>
         </div>
 
         {/* Recognition Stats Grid */}
@@ -73,9 +74,12 @@ export function AiLensInspectorCard({
 
       {/* Action Footer */}
       <div className="pt-2 border-t border-neutral-100 dark:border-zinc-800 flex items-center justify-between">
-        <span className="text-[11px] font-medium text-neutral-500 dark:text-neutral-400">
-          {reviewCount > 0 ? `${reviewCount} In Queue` : "Queue Clear"}
-        </span>
+        <StatusText
+          variant={reviewCount > 0 ? "warning" : "success"}
+          className="text-[11px]"
+        >
+          {reviewCount > 0 ? `${reviewCount} pending` : "Queue clear"}
+        </StatusText>
 
         <Link
           href="/review-queue?view=all"

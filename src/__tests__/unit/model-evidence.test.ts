@@ -11,7 +11,7 @@ function matches(entries: Array<[string, string]>): VisualCandidate[] {
 }
 
 describe("ranked Apple display evidence", () => {
-  it("uses up to 20 results and favors independent iPhone 14 Plus display listings", () => {
+  it("uses up to 30 results and favors independent iPhone 14 Plus display listings", () => {
     const candidates = matches([
       ["LCD assembly for iPhone 14 Plus", "parts-one.example"],
       ["Soft OLED replacement display iPhone 14 Plus", "parts-two.example"],
@@ -25,18 +25,19 @@ describe("ranked Apple display evidence", () => {
       ["iPhone 15 Plus screen protector", "protector.example"],
       ["iPhone 15 Plus display assembly", "parts-seven.example"],
     ]);
-    // Keep the candidate set at 20 and ensure later listings are still considered.
-    while (candidates.length < 19) {
+    // Keep the candidate set at 30 and ensure later listings are still considered.
+    while (candidates.length < 29) {
       const rank = candidates.length + 1;
       candidates.push({ title: `Generic replacement accessory ${rank}`, rank, sourceUrl: `https://noise-${rank}.example/item` });
     }
-    candidates.push({ title: "iPhone 15 Plus OLED display assembly", rank: 20, sourceUrl: "https://parts-eight.example/item" });
+    candidates.push({ title: "iPhone 15 Plus OLED display assembly", rank: 30, sourceUrl: "https://parts-eight.example/item" });
 
     const evidence = appleVisualEvidence(candidates);
     expect(evidence?.model).toBe("iPhone 14 Plus");
     expect(evidence?.confidence).toBeLessThan(1);
     expect(evidence?.reasoning).toContain("independent display sources");
     expect(evidence?.reasoning).toContain("accessory");
+    expect(evidence?.reasoning).toContain("top 30 results");
   });
 
   it("leaves close 14 Plus and 15 Plus evidence unresolved", () => {
@@ -115,5 +116,61 @@ describe("ranked Apple display evidence", () => {
     expect(evidence?.model).toBe("iPhone 14 Plus");
     expect(evidence?.confidence).toBeGreaterThan(0.5);
     expect(evidence?.reasoning).toContain("mixed-model");
+  });
+
+  it("uses an exact AI Overview as corroboration when independent listings already agree", () => {
+    const evidence = appleVisualEvidence(matches([
+      ["iPhone 14 Plus LCD display assembly", "fourteen-a.example"],
+      ["iPhone 14 Plus OLED replacement screen", "fourteen-b.example"],
+      ["iPhone 14 Plus display panel", "fourteen-c.example"],
+    ]), "The image shows an iPhone 14 Plus replacement display.");
+
+    expect(evidence?.model).toBe("iPhone 14 Plus");
+    expect(evidence?.reasoning).toContain("AI Overview names the same exact model");
+  });
+
+  it("does not let a conflicting exact AI Overview overrule listing consensus", () => {
+    const evidence = appleVisualEvidence(matches([
+      ["iPhone 14 Plus LCD display assembly", "fourteen-a.example"],
+      ["iPhone 14 Plus OLED replacement screen", "fourteen-b.example"],
+      ["iPhone 14 Plus display panel", "fourteen-c.example"],
+    ]), "This is an iPhone 15 Plus display assembly.");
+
+    expect(evidence?.model).toBeNull();
+    expect(evidence?.confidence).toBeLessThan(0.5);
+    expect(evidence?.reasoning).toContain("evidence conflicts");
+  });
+
+  it("requires review when an unhedged AI Overview names multiple model variants", () => {
+    const evidence = appleVisualEvidence(matches([
+      ["iPhone 14 Plus LCD display assembly", "fourteen-a.example"],
+      ["iPhone 14 Plus OLED replacement screen", "fourteen-b.example"],
+      ["iPhone 14 Plus display panel", "fourteen-c.example"],
+    ]), "The image shows an iPhone 14 Plus or iPhone 15 Plus display.");
+
+    expect(evidence?.model).toBeNull();
+    expect(evidence?.confidence).toBeLessThan(0.5);
+    expect(evidence?.reasoning).toContain("names multiple models");
+  });
+
+  it("does not let a hedged AI Overview choose a close model variant", () => {
+    const evidence = appleVisualEvidence(matches([
+      ["iPhone 14 Plus LCD display assembly", "fourteen-a.example"],
+      ["iPhone 14 Plus OLED replacement screen", "fourteen-b.example"],
+      ["iPhone 14 Plus display panel", "fourteen-c.example"],
+    ]), "This may be for an iPhone 15 Plus or a similar compatible model.");
+
+    expect(evidence?.model).toBe("iPhone 14 Plus");
+    expect(evidence?.reasoning).toContain("hedged wording");
+  });
+
+  it("keeps an AI Overview suggestion unresolved without independent listing corroboration", () => {
+    const evidence = appleVisualEvidence([
+      { title: "iPhone 14 Plus display panel", rank: 1 },
+    ], "This is an iPhone 14 Plus display.");
+
+    expect(evidence?.model).toBeNull();
+    expect(evidence?.confidence).toBeLessThan(0.5);
+    expect(evidence?.reasoning).toContain("no attributable listing evidence confirms");
   });
 });

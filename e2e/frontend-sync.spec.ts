@@ -99,7 +99,7 @@ test("review shortcuts ignore dropdown typing and submit once while pending", as
   await page.keyboard.press("y");
   await expect.poll(() => writes).toBe(1);
   release!();
-  await expect(page.getByText("Queue Clear", { exact: true })).toBeVisible();
+  await expect(page.getByText("Queue clear", { exact: true })).toBeVisible();
 });
 
 test("search matches customer names and contacts instead of stored IDs", async ({ page }) => {
