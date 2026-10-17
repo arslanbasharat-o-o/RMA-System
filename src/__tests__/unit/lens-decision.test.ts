@@ -29,7 +29,7 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
   });
 
   describe("cleanVisualCandidatesHeuristic", () => {
-    it("should resolve clean Apple iPhone 13 Pro display decision", () => {
+    it("keeps close Apple display variants unresolved without attributable sources", () => {
       const candidates: VisualCandidate[] = [
         {
           title: "OEM Apple iPhone 13 Pro OLED Screen Replacement Display Assembly eBay",
@@ -43,10 +43,10 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
 
       const decision = cleanVisualCandidatesHeuristic(candidates);
       expect(decision.manufacturer).toBe("Apple");
-      expect(decision.model).toBe("iPhone 13 Pro");
-      expect(decision.displayName).toBe("Apple iPhone 13 Pro Display");
+      expect(decision.model).toBeNull();
+      expect(decision.displayName).toBe("Unidentified Apple Display");
       expect(decision.confidence).toBeLessThan(0.5);
-      expect(decision.reasoning).toContain("different devices");
+      expect(decision.reasoning).toContain("unattributed results ignored");
       expect(decision.cleanedCandidates.length).toBeGreaterThan(0);
       expect(decision.cleanedCandidates[0]).not.toContain("eBay");
     });
@@ -121,7 +121,7 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
   });
 
   describe("cleanVisualCandidatesWithOpenAi", () => {
-    it("preserves the leading 16Pro evidence despite conflicting Pro Max and other generations", async () => {
+    it("keeps close 16 Pro and Pro Max visual evidence unresolved", async () => {
       const candidates: VisualCandidate[] = [
         { title: "16Pro bad lcd Bad glass, lcd damage, only screen", rank: 1 },
         { title: "iPhone 17 A3520 OLED Assembly", rank: 2 },
@@ -129,20 +129,20 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
         { title: "iPhone 16 Pro Screen", rank: 9 },
       ];
       const decision = await cleanVisualCandidatesWithOpenAi(candidates, { isMock: true });
-      expect(decision.model).toBe("iPhone 16 Pro");
+      expect(decision.model).toBeNull();
       expect(decision.confidence).toBeLessThan(0.5);
       expect(decision.cleanedCandidates).toHaveLength(candidates.length);
       expect(decision.cleanedCandidates[0]).toContain("16Pro");
       expect(decision.cleanedCandidates[1]).toContain("iPhone 17");
     });
 
-    it("keeps a consistent Pro Max identity distinct from Pro", async () => {
+    it("does not assign a model from two unattributed matching titles", async () => {
       const decision = await cleanVisualCandidatesWithOpenAi([
         { title: "iPhone 16 Pro Max OLED Screen", rank: 1 },
         { title: "16ProMax lcd display", rank: 2 },
       ], { isMock: true });
-      expect(decision.model).toBe("iPhone 16 Pro Max");
-      expect(decision.confidence).toBeGreaterThan(0.8);
+      expect(decision.model).toBeNull();
+      expect(decision.confidence).toBeLessThan(0.5);
     });
 
     it("does not mistake a leading Pixel or Galaxy result for an iPhone shorthand", () => {
@@ -171,13 +171,13 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
         { title: "OLED Frame Assembly for Apple iPhone 14", rank: 1 },
         { title: "تسوق شاشة LCD لهاتف ابل ايفون 15", rank: 2 },
       ]);
-      expect(decision.model).toBe("iPhone 14");
+      expect(decision.model).toBeNull();
       expect(decision.confidence).toBeLessThan(0.5);
     });
 
     it("keeps a single Lens listing at review confidence", () => {
       const decision = cleanVisualCandidatesHeuristic([{ title: "iPhone 15 Pro Screen", rank: 1 }]);
-      expect(decision.model).toBe("iPhone 15 Pro");
+      expect(decision.model).toBeNull();
       expect(decision.confidence).toBeLessThan(0.5);
     });
 
@@ -199,8 +199,8 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
 
       const decision = await cleanVisualCandidatesWithOpenAi(candidates, { isMock: true });
       expect(decision.manufacturer).toBe("Apple");
-      expect(decision.model).toBe("iPhone 13 Pro");
-      expect(decision.displayName).toBe("Apple iPhone 13 Pro Display");
+      expect(decision.model).toBeNull();
+      expect(decision.displayName).toBe("Unidentified Apple Display");
       expect(decision.confidence).toBeLessThanOrEqual(0.45);
       expect(decision.reasoning).toBeDefined();
     });

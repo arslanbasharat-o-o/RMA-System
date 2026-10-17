@@ -36,31 +36,105 @@ export function extractAppleModels(title: string): string[] {
 
 export function appleVisualEvidence(candidates: VisualCandidate[]) {
   const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola)\b/i;
-  const firstSpecific = candidates.find((candidate) => extractAppleModels(candidate.title).length || otherDevice.test(candidate.title));
+  const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
+  const accessory = /\b(?:case|cover|screen\s*protector|protector|tempered\s*glass|camera\s*lens|lens\s*protector|charger|cable|battery|adhesive|glue|tools?|repair\s*kit)\b/i;
+  const rankedCandidates = [...candidates]
+    .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 20);
+  const firstSpecific = rankedCandidates.find((candidate) => extractAppleModels(candidate.title).length || otherDevice.test(candidate.title));
   if (firstSpecific && !extractAppleModels(firstSpecific.title).length) return null;
-  const scores = new Map<string, number>();
-  let mixedListing = false;
-  let unconfirmedListing = false;
-  for (const candidate of candidates) {
+
+  const scores = new Map<string, { score: number; sources: Set<string> }>();
+  const seenSources = new Set<string>();
+  let mixedListings = 0;
+  let accessoryListings = 0;
+  let irrelevantListings = 0;
+  let unattributedListings = 0;
+  let appleModelMentions = 0;
+  let corroboratedListings = 0;
+
+  for (const candidate of rankedCandidates) {
     const models = extractAppleModels(candidate.title);
-    if (models.length > 1) mixedListing = true;
-    if (models.length !== 1 || otherDevice.test(candidate.title)) unconfirmedListing = true;
-    // A multi-device listing cannot identify one physical assembly.
-    if (models.length !== 1) continue;
-    scores.set(models[0], (scores.get(models[0]) || 0) + 1 / Math.max(1, candidate.rank));
+    if (models.length) appleModelMentions += 1;
+    if (models.length > 1 || (models.length && otherDevice.test(candidate.title))) {
+      mixedListings += 1;
+      continue;
+    }
+    if (models.length !== 1 || otherDevice.test(candidate.title)) {
+      irrelevantListings += 1;
+      continue;
+    }
+    if (accessory.test(candidate.title)) {
+      accessoryListings += 1;
+      continue;
+    }
+    if (!displayListing.test(candidate.title)) {
+      irrelevantListings += 1;
+      continue;
+    }
+
+    if (!candidate.sourceUrl) {
+      // Titles are not independent sources. Without an attributable result URL,
+      // it must remain a review suggestion even if several titles agree.
+      unattributedListings += 1;
+      continue;
+    }
+
+    let source: string;
+    try {
+      const url = new URL(candidate.sourceUrl);
+      if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("unsupported result URL scheme");
+      source = url.hostname.toLowerCase().replace(/^www\./, "");
+      if (!source || /(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(source)) {
+        unattributedListings += 1;
+        continue;
+      }
+    } catch {
+      // A malformed or aggregated search URL is not allowed to improve confidence.
+      unattributedListings += 1;
+      continue;
+    }
+    if (seenSources.has(source)) continue;
+    seenSources.add(source);
+
+    const entry = scores.get(models[0]) || { score: 0, sources: new Set<string>() };
+    entry.score += 1 / Math.log2(candidate.rank + 1);
+    entry.sources.add(source);
+    scores.set(models[0], entry);
+    corroboratedListings += 1;
   }
-  if (!scores.size) return mixedListing ? {
+
+  const detail = `${corroboratedListings} independent display listings; ${mixedListings} mixed-model, ${accessoryListings} accessory, ${irrelevantListings} unrelated or non-display, ${unattributedListings} unattributed results ignored`;
+  if (!scores.size) return mixedListings || appleModelMentions ? {
     model: null,
     confidence: 0.45,
-    reasoning: "The source listing names multiple devices and requires review.",
+    reasoning: `No attributable single-device display listing was decisive across the top ${rankedCandidates.length} results (${detail}). Manual review is required.`,
   } : null;
-  const ranked = [...scores].sort((a, b) => b[1] - a[1]);
-  const conflicting = ranked.length > 1 || mixedListing || unconfirmedListing;
+
+  const ranked = [...scores].sort((a, b) => b[1].score - a[1].score);
+  const [winner, runner] = ranked;
+  const ratio = runner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
+  const decisive = winner[1].sources.size >= 3 && ratio >= 1.8;
+  if (!decisive && runner) {
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `The top ${rankedCandidates.length} results split between ${winner[0]} and ${runner[0]} without a decisive margin (${detail}). Manual review is required.`,
+    };
+  }
+
+  if (!decisive) {
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `${winner[0]} is only a leading suggestion with ${winner[1].sources.size} independent display source(s) (${detail}). Manual review is required.`,
+    };
+  }
+
   return {
-    model: ranked[0][0],
-    confidence: conflicting ? 0.45 : 0.88,
-    reasoning: conflicting
-      ? `Visual matches include different devices (${ranked.map(([model]) => model).join(", ")}). The leading ranked suggestion requires review.`
-      : `Source titles identify ${ranked[0][0]}.`,
+    model: winner[0],
+    confidence: 0.88,
+    reasoning: `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}). This is a suggestion, not a confirmed identification.`,
   };
 }

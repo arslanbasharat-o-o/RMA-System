@@ -57,7 +57,6 @@ export default defineConfig([
     "dist/**",
     "coverage/**",
     "node_modules/**",
-    "services/lens-api/**",
     "drizzle/**",
   ]),
 ]);

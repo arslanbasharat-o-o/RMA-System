@@ -20,17 +20,17 @@ export class MockLensProvider implements DisplayVisualRecognitionProvider {
     let candidates: import("./types").VisualCandidate[] = [
       {
         title: "OEM Apple iPhone 13 Pro OLED Screen Replacement Display Assembly",
-        sourceUrl: "https://example.com/item/iphone-13-pro-screen",
+        sourceUrl: "https://parts-a.example.test/item/iphone-13-pro-screen",
         rank: 1,
       },
       {
         title: "Apple iPhone 13 Pro Display Panel",
-        sourceUrl: "https://example.com/item/iphone-13-pro-panel",
+        sourceUrl: "https://parts-b.example.test/item/iphone-13-pro-panel",
         rank: 2,
       },
       {
         title: "iPhone 13 Pro OLED Screen",
-        sourceUrl: "https://example.com/item/iphone-13-pro-oled",
+        sourceUrl: "https://parts-c.example.test/item/iphone-13-pro-oled",
         rank: 3,
       },
     ];

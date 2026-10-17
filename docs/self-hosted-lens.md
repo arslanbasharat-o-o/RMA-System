@@ -1,66 +1,60 @@
-# Self-hosted Google Lens service
+# Google Lens service
 
-The repository includes an authenticated Lens-compatible API and a separate
-Scrapling worker that uses installed Google Chrome. The RMA app reaches the API
-over the existing Docker network. The diagnostic host port binds to loopback;
-the worker and Redis are not published.
+The [Google Lens API repository](https://github.com/arslanbasharat-o-o/Google-Lens-API)
+is the single maintained source for the authenticated API and Scrapling worker images. The worker uses
+Google Chrome through Scrapling. RMA reaches the API over its existing Docker
+network; the diagnostic port binds to loopback and Redis stays private.
 
-## Production configuration
+## Production settings
 
-Add these values to the existing untracked RMA `.env` file. Generate a unique
-key and use the same value for the API and RMA app:
+Keep the existing untracked environment file and its current database, session,
+OpenAI, Lens API, and image-storage credentials. The API and RMA app share the
+same private Lens key.
 
 ```dotenv
 LENS_PROVIDER=self_hosted_lens
 LENS_TIMEOUT_MS=10000
 LENS_API_BASE_URL=http://lens-api:3000
-LENS_API_KEY=<unique 64-character hex key>
+LENS_API_KEY=<private Lens service key>
 LENS_API_MODE=upload_search
-LENS_API_POLL_INTERVAL_MS=1000
-LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-api:0.2.9
-LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/rma-system-lens-worker:0.2.9
+LENS_API_POLL_INTERVAL_MS=250
+LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.0
+LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.0
 RMA_DOCKER_NETWORK=rma-system_rma_network
 ```
 
-Keep the existing database, session, SerpApi, OpenAI, and image-storage
-credentials unchanged. The worker does not attempt to solve Google verification
-or bot challenges. It reports those states as failures so the item remains
-available for staff review.
+The API retains search images for at most 15 minutes. RMA stores the 20 highest
+ranked matches and keeps uncertain model evidence in the review queue. The
+worker reports Google verification or browser failures; it does not bypass
+those checks.
 
-## Start and connect the service
+## Start and verify
 
-From the deployment checkout, start the API stack first:
+On the VPS, check out the selected Google Lens API release at
+`/opt/rma-lens/app`. Start or update the Lens stack using the existing RMA
+environment file:
 
 ```bash
-chmod 600 .env
-docker compose --project-name rma-lens \
-  --env-file .env \
-  -f services/lens-api/docker-compose.production.yml up -d
+docker compose --project-name rma-lens --env-file /opt/rma-system/.env \
+  -f /opt/rma-lens/app/docker-compose.production.yml up -d
 curl -fsS http://127.0.0.1:23900/readyz
 ```
 
-Wait for `/readyz` to report a ready Scrapling worker. Then recreate only the
-application and RMA worker so they receive the self-hosted provider settings:
+After the API and browser worker report ready, update only the RMA app and
+background worker so they receive the new provider configuration:
 
 ```bash
 docker compose --env-file .env up -d --no-deps app worker
 ```
 
-This provider change needs no database migration. It preserves the existing
-PostgreSQL and image-storage volumes. Check the Settings provider health, app
-and worker status, and Lens worker logs before processing a new RMA.
+This does not require a database migration. It preserves the existing
+PostgreSQL, Redis, and image-storage volumes. Check HTTPS, `/api/health`, the
+Settings provider health, container health, and recent logs before processing a
+new RMA.
 
-Redis has a `redis-cli ping` healthcheck. Compose waits for Redis readiness
-before starting the API and Scrapling worker.
+## Rollback
 
-The API keeps uploaded search images in its private volume for at most 15
-minutes. Redis is internal to the Lens stack. The API is rate-limited and the
-RMA app polls status once per second. The Chrome worker has an 8-second browser
-deadline, and the RMA provider has a 10-second overall deadline.
-
-## Roll back
-
-Set `LENS_PROVIDER` back to the provider that was active before the change and
-recreate only `app` and `worker` with `--no-deps`. Existing RMA records and
-images remain in their original volumes. Stop the Lens stack after the previous
-provider has been restored and verified.
+Pin the RMA app, worker, Lens API, and Scrapling worker to their previous image
+tags, then recreate only those services. Do not recreate or remove PostgreSQL,
+Redis, or image-storage volumes during rollback. Verify API and RMA health
+before resuming image processing.

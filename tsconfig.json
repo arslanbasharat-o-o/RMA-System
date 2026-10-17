@@ -37,7 +37,6 @@
     ".next/dev/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules",
-    "services/lens-api"
+    "node_modules"
   ]
 }
