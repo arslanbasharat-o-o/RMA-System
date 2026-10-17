@@ -113,6 +113,7 @@ export function AppShell({
       <AnimatePresence>
         {mobileOpen && (
           <div
+            id="mobile-navigation-drawer"
             role="dialog"
             aria-modal="true"
             aria-label="Mobile Navigation Drawer"
@@ -407,6 +408,8 @@ export function AppShell({
             <button
               onClick={() => setMobileOpen(true)}
               aria-label="Toggle navigation menu"
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-navigation-drawer"
               className="lg:hidden p-1.5 text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white rounded-md hover:bg-slate-100 dark:hover:bg-zinc-800 transition-colors cursor-pointer"
             >
               <Menu className="h-5 w-5" />

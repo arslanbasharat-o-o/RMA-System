@@ -18,6 +18,14 @@ async function navigateTo(page: Page, label: string, urlPattern: RegExp) {
     const drawer = page.getByRole("dialog", { name: "Mobile Navigation Drawer" });
     if (!(await drawer.isVisible())) {
       await mobileToggle.click();
+      try {
+        await expect(mobileToggle).toHaveAttribute("aria-expanded", "true", { timeout: 1000 });
+      } catch {
+        // The server-rendered dashboard may be visible before its click handler hydrates.
+        // Repeating this set-open action is safe and avoids a false navigation failure.
+        await mobileToggle.click();
+        await expect(mobileToggle).toHaveAttribute("aria-expanded", "true", { timeout: 5000 });
+      }
       await expect(drawer).toBeVisible({ timeout: 5000 });
     }
     link = drawer.getByRole("link", { name: label, exact: true });

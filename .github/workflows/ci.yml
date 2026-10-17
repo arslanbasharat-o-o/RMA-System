@@ -66,6 +66,12 @@ jobs:
       - run: npm run test:fixtures
         env:
           NODE_ENV: test
+      - name: Install Chromium for the early mobile navigation gate
+        if: inputs.full_browser_suite
+        run: npx playwright install --with-deps chromium
+      - name: Check mobile navigation before the full release validation
+        if: inputs.full_browser_suite
+        run: npx playwright test e2e/mobile-navigation-smoke.spec.ts --project=mobile-chrome --max-failures=1
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -102,7 +108,7 @@ jobs:
         run: npx playwright install --with-deps chromium webkit
       - name: Verify camera and customer intake on desktop and mobile
         if: ${{ !inputs.full_browser_suite }}
-        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts --project=chromium --project=mobile-chrome
+        run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts e2e/mobile-navigation-smoke.spec.ts --project=chromium --project=mobile-chrome
       - name: Verify Safari camera and live result updates
         run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts --project=mobile-safari
       - name: Run the full browser suite for release validation

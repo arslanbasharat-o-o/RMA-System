@@ -29,25 +29,44 @@ export function snapshotVisualDecision(result: VisualIdentificationResult): Visu
 
 export function readVisualDecisionSnapshot(rawResponse: unknown): VisualDecisionSnapshot | null {
   if (!rawResponse || typeof rawResponse !== "object" || Array.isArray(rawResponse)) return null;
-  const value = (rawResponse as Record<string, unknown>).stableDecision;
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const snapshot = value as Partial<VisualDecisionSnapshot>;
-  if (!Array.isArray(snapshot.candidates)) return null;
-  if (snapshot.cleanDecision && (
-    typeof snapshot.cleanDecision.confidence !== "number" ||
-    typeof snapshot.cleanDecision.displayName !== "string"
-  )) return null;
+  const root = rawResponse as Record<string, unknown>;
+  const value = root.stableDecision && typeof root.stableDecision === "object" && !Array.isArray(root.stableDecision)
+    ? root.stableDecision as Record<string, unknown>
+    : root;
+  const decisionValue = value.cleanDecision;
+  if (!decisionValue || typeof decisionValue !== "object" || Array.isArray(decisionValue)) return null;
+  const rawDecision = decisionValue as Record<string, unknown>;
+  if (typeof rawDecision.confidence !== "number" || typeof rawDecision.displayName !== "string") return null;
+  const candidates = Array.isArray(value.candidates) ? value.candidates : [];
+  const cleanedCandidates = Array.isArray(rawDecision.cleanedCandidates)
+    ? rawDecision.cleanedCandidates.filter((candidate): candidate is string => typeof candidate === "string")
+    : [];
+  const cleanDecision: CleanDisplayDecision = {
+    manufacturer: typeof rawDecision.manufacturer === "string" ? rawDecision.manufacturer : null,
+    model: typeof rawDecision.model === "string" ? rawDecision.model : null,
+    displayName: rawDecision.displayName,
+    confidence: rawDecision.confidence,
+    cleanedCandidates,
+    reasoning: typeof rawDecision.reasoning === "string" ? rawDecision.reasoning : "Stored visual recognition decision",
+  };
   return {
-    manufacturer: typeof snapshot.manufacturer === "string" ? snapshot.manufacturer : undefined,
-    model: typeof snapshot.model === "string" ? snapshot.model : undefined,
-    displayAssembly: typeof snapshot.displayAssembly === "string" ? snapshot.displayAssembly : undefined,
-    candidates: snapshot.candidates.filter((candidate): candidate is VisualCandidate =>
+    manufacturer: typeof value.manufacturer === "string" ? value.manufacturer
+      : typeof root.normalizedManufacturer === "string" ? root.normalizedManufacturer
+      : cleanDecision.manufacturer || undefined,
+    model: typeof value.model === "string" ? value.model
+      : typeof root.normalizedModel === "string" ? root.normalizedModel
+      : cleanDecision.model || undefined,
+    displayAssembly: typeof value.displayAssembly === "string" ? value.displayAssembly
+      : typeof root.detectedDisplayAssembly === "string" ? root.detectedDisplayAssembly
+      : cleanDecision.displayName,
+    candidates: candidates.filter((candidate): candidate is VisualCandidate =>
       Boolean(candidate && typeof candidate.title === "string" && typeof candidate.rank === "number")
     ).slice(0, 30),
-    aiOverview: typeof snapshot.aiOverview === "string" ? snapshot.aiOverview : undefined,
-    cleanDecision: snapshot.cleanDecision,
-    manual: snapshot.manual === true,
-    conflict: snapshot.conflict === true,
+    aiOverview: typeof value.aiOverview === "string" ? value.aiOverview
+      : typeof root.aiOverview === "string" ? root.aiOverview : undefined,
+    cleanDecision,
+    manual: value.manual === true,
+    conflict: value.conflict === true,
   };
 }
 
@@ -57,11 +76,22 @@ function identityKey(snapshot: VisualDecisionSnapshot): string | null {
   return `${decision.manufacturer} ${decision.model}`.toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
+function observedModelKey(snapshot: VisualDecisionSnapshot): string | null {
+  const manufacturer = snapshot.cleanDecision?.manufacturer || snapshot.manufacturer;
+  const model = snapshot.cleanDecision?.model || snapshot.model;
+  if (!manufacturer || !model) return null;
+  return `${manufacturer} ${model}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSnapshot {
-  const manufacturers = [...new Set(snapshots.map((entry) => entry.cleanDecision?.manufacturer).filter(Boolean))];
+  const manufacturers = [...new Set(snapshots.map((entry) =>
+    entry.cleanDecision?.manufacturer || entry.manufacturer
+  ).filter(Boolean))];
   const manufacturer = manufacturers.length === 1 ? manufacturers[0] as string : null;
   const displayName = manufacturer ? `Unidentified ${manufacturer} Display` : "Unidentified Display";
-  const models = [...new Set(snapshots.map((entry) => entry.cleanDecision?.model).filter(Boolean))];
+  const models = [...new Set(snapshots.map((entry) =>
+    entry.cleanDecision?.model || entry.model
+  ).filter(Boolean))];
   return {
     manufacturer: manufacturer || undefined,
     candidates: snapshots[0]?.candidates || [],
@@ -88,6 +118,8 @@ export function stableVisualDecision(
   }
 
   if (previous.some((entry) => entry.conflict)) return conflictSnapshot(previous);
+  const observed = [...previous, ...(fresh ? [fresh] : [])].filter((entry) => observedModelKey(entry));
+  if (new Set(observed.map(observedModelKey)).size > 1) return conflictSnapshot(observed);
   const credible = previous.filter((entry) => identityKey(entry));
   if (new Set(credible.map(identityKey)).size > 1) return conflictSnapshot(credible);
   const established = credible[0];
