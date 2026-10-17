@@ -31,7 +31,6 @@ export async function POST(req: NextRequest) {
   if (parsed.data.provider === "lens") {
     try {
       let configuredProvider: string | undefined = process.env.LENS_PROVIDER;
-      let configuredQuery: string | undefined;
       try {
         const [lensSetting] = await db
           .select()
@@ -41,28 +40,18 @@ export async function POST(req: NextRequest) {
           configuredProvider = lensSetting.value;
         }
 
-        const [querySetting] = await db
-          .select()
-          .from(appSettings)
-          .where(eq(appSettings.key, "LENS_FILTER_QUERY"));
-        if (querySetting?.value && typeof querySetting.value === "string") {
-          configuredQuery = querySetting.value;
-        }
       } catch {
         // Fallback to env default
       }
 
       if (
         process.env.NODE_ENV === "test" ||
-        process.env.LENS_PROVIDER === "mock" ||
-        (process.env.NODE_ENV !== "production" &&
-          !process.env.SERPAPI_API_KEY &&
-          (configuredProvider === "serpapi_lens" || configuredProvider === "serpapi"))
+        process.env.LENS_PROVIDER === "mock"
       ) {
         configuredProvider = "mock";
       }
 
-      const provider = getVisualRecognitionProvider(configuredProvider, undefined, configuredQuery);
+      const provider = getVisualRecognitionProvider(configuredProvider);
       if (provider.name === "self_hosted_lens") {
         const readinessUrl = new URL("/readyz", process.env.LENS_API_BASE_URL);
         const response = await fetch(readinessUrl, {
@@ -88,7 +77,6 @@ export async function POST(req: NextRequest) {
       const res = await provider.identifyDisplay(testBuffer, {
         filename: "test.png",
         mimeType: "image/png",
-        q: configuredQuery,
       });
 
       return NextResponse.json({
@@ -97,7 +85,7 @@ export async function POST(req: NextRequest) {
         durationMs: res.durationMs,
         message: res.error
           ? `Provider error: ${res.error}`
-          : `Successfully connected to ${provider.name}${res.usedQuery ? ` (filter q='${res.usedQuery}')` : ""}.`,
+          : `Successfully connected to ${provider.name}.`,
       });
     } catch (err) {
       return NextResponse.json({

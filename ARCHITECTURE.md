@@ -7,7 +7,7 @@
 - **pg-boss worker:** processes queued image recognition independently from HTTP requests.
 - **Private image volume:** stores original uploads and derived previews outside the web root. Image reads go through authenticated handlers.
 - **Reverse proxy:** terminates HTTPS and forwards requests to the app. Caddy is available as an optional Compose profile.
-- **External adapters:** SerpApi or the reversible self-hosted Lens-compatible adapter provides visual search; OpenAI Vision extracts visible text. Local build and mock-backed tests do not require either provider.
+- **Recognition adapters:** The private Google Lens API and Scrapling Chrome worker provide visual search; OpenAI Vision extracts visible markings when configured. Local build and mock-backed tests do not call paid services.
 
 ## Recognition flow
 
@@ -17,7 +17,7 @@ sequenceDiagram
   participant App
   participant DB as PostgreSQL / pg-boss
   participant Worker
-  participant Providers as SerpApi or self-hosted Lens and OpenAI
+  participant Providers as private Google Lens and OpenAI
   participant Review as Staff review queue
   Staff->>App: Create RMA and upload display images
   App->>DB: Store metadata and enqueue work

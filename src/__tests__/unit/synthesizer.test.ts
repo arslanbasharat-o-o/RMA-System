@@ -60,12 +60,35 @@ describe("Unified Synthesizer", () => {
     expect(match?.matchType).toBe("alias");
   });
 
-  it("does not promote a low-confidence visual decision to a 95 percent catalog match", () => {
+  it("does not promote a low-confidence visual decision into a catalog identity", () => {
     const visual: VisualIdentificationResult = {
       provider: "mock", candidates: [], durationMs: 0, rawResponse: {},
       cleanDecision: { manufacturer: "Apple", model: "iPhone 13 Pro", displayName: "Apple iPhone 13 Pro Display", confidence: 0.35, cleanedCandidates: [], reasoning: "Conflicting models" },
     };
-    expect(matchDisplayToCatalog(visual, catalog)?.confidenceScore).toBe(0.35);
+    expect(matchDisplayToCatalog(visual, catalog)).toBeNull();
+    const unresolved = synthesizeRecognition(null, {
+      vendorId: null,
+      vendorName: null,
+      vendorVariantId: null,
+      vendorVariantName: null,
+      matchedRuleId: null,
+      matchedPattern: null,
+      confidenceScore: 0,
+      matchStatus: "unknown",
+      evidenceNotes: [],
+      candidateAlternatives: [],
+    }, {
+      raw_text: [],
+      detected_codes: [],
+      part_numbers: [],
+      vendor_markings: [],
+      technology_markings: [],
+      possible_vendor_aliases: [],
+      unreadable_regions: [],
+      extraction_notes: [],
+    }, visual);
+    expect(unresolved.predictedModel).toBeNull();
+    expect(unresolved.itemStatus).toBe("review_required");
   });
 
   it("leaves assembly selection unresolved when the same device has several catalog SKUs", () => {

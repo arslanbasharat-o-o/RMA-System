@@ -36,7 +36,7 @@ describe("SelfHostedLensProvider", () => {
     expect(() => getVisualRecognitionProvider("self_hosted_lens")).toThrow(/LENS_API_BASE_URL is required/i);
   });
 
-  it("uploads an image, searches by image_id, and maps SerpApi-compatible visual_matches", async () => {
+  it("uploads an image, searches by image_id, and maps normalized visual_matches", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("OPENAI_API_KEY", "must-not-be-used");
 
@@ -65,7 +65,6 @@ describe("SelfHostedLensProvider", () => {
     const result = await provider.identifyDisplay(Buffer.from("image-bytes"), {
       filename: "display.jpg",
       mimeType: "image/jpeg",
-      q: "replacement display",
     });
 
     expect(result.error).toBeUndefined();
@@ -81,7 +80,6 @@ describe("SelfHostedLensProvider", () => {
     ]);
     expect(result.normalizedManufacturer).toBe("Samsung");
     expect(result.normalizedModel).toBe("Galaxy A15");
-    expect(result.usedQuery).toBeUndefined();
     expect(calls).toHaveLength(2);
 
     const uploadCall = calls[0];
@@ -123,7 +121,9 @@ describe("SelfHostedLensProvider", () => {
 
     expect(result.error).toBeUndefined();
     expect(result.normalizedManufacturer).toBe("Apple");
-    expect(result.normalizedModel).toBe("iPhone 13 Pro");
+    expect(result.normalizedModel).toBeUndefined();
+    expect(result.cleanDecision?.model).toBeNull();
+    expect(result.cleanDecision?.confidence).toBeLessThan(0.5);
     expect(calls).toHaveLength(1);
     expect(calls[0].url).toBe("http://lens.internal/api/search");
     expect(calls[0].init?.method).toBe("POST");
@@ -131,7 +131,7 @@ describe("SelfHostedLensProvider", () => {
     expect((calls[0].init?.body as FormData).get("image")).toBeInstanceOf(Blob);
   });
 
-  it("polls a queued direct response until the SerpApi-compatible result is ready", async () => {
+  it("polls a queued direct response until the normalized result is ready", async () => {
     const calls: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {
       calls.push(url.toString());

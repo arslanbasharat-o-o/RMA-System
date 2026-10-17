@@ -2,16 +2,13 @@
 
 import { CardSpotlight, ShimmerButton } from "@/components/premium";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Smartphone, Eye, CheckCircle2, AlertCircle } from "lucide-react";
 
 interface ProviderStatus {
   activeLensProvider?: string;
-  activeLensFilterQuery?: string;
   activeOpenAiModel?: string;
-  serpapiConfigured?: boolean;
   selfHostedConfigured?: boolean;
   providerManagedByEnvironment?: boolean;
   openaiConfigured?: boolean;
@@ -26,8 +23,6 @@ interface TestResult {
 interface ProvidersTabProps {
   lensProvider: string;
   setLensProvider: (val: string) => void;
-  lensFilterQuery: string;
-  setLensFilterQuery: (val: string) => void;
   openaiModel: string;
   setOpenaiModel: (val: string) => void;
   status: ProviderStatus;
@@ -40,21 +35,12 @@ interface ProvidersTabProps {
   saving: boolean;
 }
 
-const FILTER_PRESETS = [
-  "display screen",
-  "replacement screen",
-  "phone screen assembly",
-  "lcd digitizer",
-];
-
 const isSelfHosted = (provider: string) => provider === "self_hosted_lens"
   || provider === "self-hosted-lens" || provider === "self_hosted";
 
 export function ProvidersTab({
   lensProvider,
   setLensProvider,
-  lensFilterQuery,
-  setLensFilterQuery,
   openaiModel,
   setOpenaiModel,
   status,
@@ -69,7 +55,7 @@ export function ProvidersTab({
   const activeProvider = status.activeLensProvider || lensProvider;
   const visualConfigured = isSelfHosted(activeProvider)
     ? status.selfHostedConfigured
-    : activeProvider === "mock" || status.serpapiConfigured;
+    : activeProvider === "mock";
 
   return (
     <div className="space-y-6">
@@ -96,14 +82,6 @@ export function ProvidersTab({
                   {activeProvider}
                 </span>
               </div>
-              {!isSelfHosted(activeProvider) && (
-                <div className="flex justify-between text-neutral-600 dark:text-neutral-400">
-                  <span>Query Filter:</span>
-                  <span className="font-mono font-medium text-neutral-900 dark:text-white">
-                    {status.activeLensFilterQuery || lensFilterQuery || "None"}
-                  </span>
-                </div>
-              )}
             </div>
 
             {lensTestResult && (
@@ -228,7 +206,6 @@ export function ProvidersTab({
                 disabled={status.providerManagedByEnvironment}
               >
                 <option value="mock">Local Test Provider</option>
-                <option value="serpapi_lens">SerpApi Visual Search</option>
                 <option value="self_hosted_lens">Self-hosted Google Lens API</option>
               </Select>
               {status.providerManagedByEnvironment && (
@@ -237,32 +214,6 @@ export function ProvidersTab({
                 </p>
               )}
             </div>
-
-            {/* Filter Query */}
-            {!isSelfHosted(lensProvider) && <div>
-              <label className="block text-xs font-semibold text-neutral-800 dark:text-neutral-200 mb-1">
-                Visual Match Query Filter (<code className="font-mono text-neutral-600 dark:text-neutral-300">q</code> parameter)
-              </label>
-              <Input
-                value={lensFilterQuery}
-                onChange={(e) => setLensFilterQuery(e.target.value)}
-                placeholder="e.g. display screen, replacement screen"
-                className="h-9 text-xs"
-              />
-              <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">Suggestions:</span>
-                {FILTER_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setLensFilterQuery(preset)}
-                    className="px-2 py-0.5 rounded text-[10px] bg-neutral-100 dark:bg-neutral-800 hover:bg-neutral-200 dark:hover:bg-neutral-700 text-neutral-700 dark:text-neutral-300 transition-colors cursor-pointer"
-                  >
-                    {preset}
-                  </button>
-                ))}
-              </div>
-            </div>}
 
             {/* OpenAI Vision Model */}
             <div>
