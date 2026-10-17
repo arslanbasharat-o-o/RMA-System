@@ -4,6 +4,17 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.2.9] - 2026-10-17
+
+### Fixed
+
+- Add a Redis healthcheck so the production Lens API and Scrapling worker start only after their queue backend is ready.
+- Exercise the production Redis health dependency in CI to catch Compose startup failures before a release.
+
+### Verification
+
+- Validate the production Compose Redis health dependency with a real local startup check and an automated CI smoke test.
+
 ## [0.2.8] - 2026-10-17
 
 ### Added
