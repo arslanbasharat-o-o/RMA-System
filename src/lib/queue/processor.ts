@@ -155,7 +155,7 @@ async function previousVisualDecisions(
       selectedImage.createdAt > run.createdAt
     )) continue;
     const snapshot = readVisualDecisionSnapshot(run.rawResponse);
-    if (snapshot && !(snapshot.manual && run.rmaItemId === excludeManualItemId)) snapshots.push(snapshot);
+    if (snapshot && !(excludeManualItemId && run.rmaItemId === excludeManualItemId)) snapshots.push(snapshot);
   }
   return snapshots;
 }
