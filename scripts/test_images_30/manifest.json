@@ -1,0 +1,302 @@
+[
+  {
+    "id": 1,
+    "filename": "01_Apple_iPhone_8.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/01_Apple_iPhone_8.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 8",
+    "expectedTech": "LCD",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-8-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/products/oVDfFueSYBQganjO_19f6e8b2-9987-453f-a2c0-28c087300d5a.jpg"
+  },
+  {
+    "id": 2,
+    "filename": "02_Apple_iPhone_8_Plus.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/02_Apple_iPhone_8_Plus.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 8 Plus",
+    "expectedTech": "LCD",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-8-plus-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/products/uCBlWlKTxPYiF5tX_59fd13db-982d-4a59-bea8-161e246e7eca.jpg"
+  },
+  {
+    "id": 3,
+    "filename": "03_Apple_iPhone_X.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/03_Apple_iPhone_X.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone X",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-x-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/RTYPgC25HOIUtgmO.jpg"
+  },
+  {
+    "id": 4,
+    "filename": "04_Apple_iPhone_XR.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/04_Apple_iPhone_XR.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone XR",
+    "expectedTech": "In-cell LCD",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-xr-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/s1uZOZDPXEMPkBeB.jpg"
+  },
+  {
+    "id": 5,
+    "filename": "05_Apple_iPhone_XS.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/05_Apple_iPhone_XS.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone XS",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-xs-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/CrNVThVvG2xdZxDt_898dab7a-b26b-47ca-b917-a5d329ac45af.jpg"
+  },
+  {
+    "id": 6,
+    "filename": "06_Apple_iPhone_XS_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/06_Apple_iPhone_XS_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone XS Max",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-xs-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/dlCEcmmZiJJspMkZ.jpg"
+  },
+  {
+    "id": 7,
+    "filename": "07_Apple_iPhone_11.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/07_Apple_iPhone_11.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 11",
+    "expectedTech": "In-cell LCD",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-11-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/MYqprKdT5pPheYim.jpg"
+  },
+  {
+    "id": 8,
+    "filename": "08_Apple_iPhone_11_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/08_Apple_iPhone_11_Pro.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 11 Pro",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-11-pro-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/uymwYC3IOMtMmfKK_96a11b31-eb10-4acf-bb77-a0c8080fdef9.jpg"
+  },
+  {
+    "id": 9,
+    "filename": "09_Apple_iPhone_11_Pro_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/09_Apple_iPhone_11_Pro_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 11 Pro Max",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-11-pro-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/N2yGqEFYCfNNQbmX.jpg"
+  },
+  {
+    "id": 10,
+    "filename": "10_Apple_iPhone_12___12_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/10_Apple_iPhone_12___12_Pro.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 12 / 12 Pro",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-12-12-pro-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/YBOoXjIcRWPAKrse.jpg"
+  },
+  {
+    "id": 11,
+    "filename": "11_Apple_iPhone_12_Mini.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/11_Apple_iPhone_12_Mini.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 12 Mini",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-12-mini-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/iAg5PhAILBWrIyfA.jpg"
+  },
+  {
+    "id": 12,
+    "filename": "12_Apple_iPhone_12_Pro_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/12_Apple_iPhone_12_Pro_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 12 Pro Max",
+    "expectedTech": "Soft OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-12-pro-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/VCR1BuUBRvtE6Vq4_a6d17f12-dadd-483d-a2ac-27a2ece56856.jpg"
+  },
+  {
+    "id": 13,
+    "filename": "13_Apple_iPhone_13.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/13_Apple_iPhone_13.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 13",
+    "expectedTech": "OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-13-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/HoDbvBYEJcAKHKIY.jpg"
+  },
+  {
+    "id": 14,
+    "filename": "14_Apple_iPhone_13_Mini.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/14_Apple_iPhone_13_Mini.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 13 Mini",
+    "expectedTech": "OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-13-mini-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/AIvjxGJVGFUhUAqg.jpg"
+  },
+  {
+    "id": 15,
+    "filename": "15_Apple_iPhone_13_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/15_Apple_iPhone_13_Pro.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 13 Pro",
+    "expectedTech": "COF LCD / OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-13-pro-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/jpyJL1SK1oOIyDlJ.jpg"
+  },
+  {
+    "id": 16,
+    "filename": "16_Apple_iPhone_13_Pro_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/16_Apple_iPhone_13_Pro_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 13 Pro Max",
+    "expectedTech": "COF LCD / OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-13-pro-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/sXhaLbhdjPQ6WMKP_35a89439-c5bc-4fd2-b8f1-bf0eb0c3f9e0.jpg"
+  },
+  {
+    "id": 17,
+    "filename": "17_Apple_iPhone_14.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/17_Apple_iPhone_14.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 14",
+    "expectedTech": "OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-14-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/OrDs2oJdkl2xkPcO.jpg"
+  },
+  {
+    "id": 18,
+    "filename": "18_Apple_iPhone_14_Plus.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/18_Apple_iPhone_14_Plus.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 14 Plus",
+    "expectedTech": "OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-14-plus-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/KTAgMvJBCvxoCpom_f961858f-7c9f-426b-82fc-78546100ce5b.jpg"
+  },
+  {
+    "id": 19,
+    "filename": "19_Apple_iPhone_14_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/19_Apple_iPhone_14_Pro.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 14 Pro",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-14-pro-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/JS6XmimX43FCrIAB.jpg"
+  },
+  {
+    "id": 20,
+    "filename": "20_Apple_iPhone_14_Pro_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/20_Apple_iPhone_14_Pro_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 14 Pro Max",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-14-pro-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/rINbFiM1ULpfWcwe_d6b58be5-8a55-4d70-82e4-a4e7f1405a2d.jpg"
+  },
+  {
+    "id": 21,
+    "filename": "21_Apple_iPhone_15.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/21_Apple_iPhone_15.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 15",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-15-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/h5OYA1WpeD1lOFmT_7fc8ab23-0942-48eb-b4d8-26c5d352f609.jpg"
+  },
+  {
+    "id": 22,
+    "filename": "22_Apple_iPhone_15_Plus.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/22_Apple_iPhone_15_Plus.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 15 Plus",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-15-plus-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/TjPrMVa6ltHdRCEt_cad3237a-5a5b-4181-8dbc-5ff6f82422e6.jpg"
+  },
+  {
+    "id": 23,
+    "filename": "23_Apple_iPhone_15_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/23_Apple_iPhone_15_Pro.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 15 Pro",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-15-pro-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/SWPlHORLUjdckInV.jpg"
+  },
+  {
+    "id": 24,
+    "filename": "24_Apple_iPhone_15_Pro_Max.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/24_Apple_iPhone_15_Pro_Max.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPhone 15 Pro Max",
+    "expectedTech": "Dynamic Island OLED",
+    "sourceUrl": "https://www.ifixit.com/products/iphone-15-pro-max-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/XsDGLRdUcLc2eSjq_7a230f1b-d93a-40d3-bb0b-4d9becb8aee5.jpg"
+  },
+  {
+    "id": 25,
+    "filename": "25_Apple_iPad_Pro_12.9.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/25_Apple_iPad_Pro_12.9.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPad Pro 12.9",
+    "expectedTech": "FOG LCD",
+    "sourceUrl": "https://www.ifixit.com/products/ipad-pro-12-9-2018-2020-gen-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/products/UAMSaNSFvafS4d3a.jpg"
+  },
+  {
+    "id": 26,
+    "filename": "26_Apple_iPad_Pro_11.jpg",
+    "path": "scripts/test_images_30/26_Apple_iPad_Pro_11.jpg",
+    "expectedManufacturer": "Apple",
+    "expectedModel": "iPad Pro 11",
+    "expectedTech": "FOG LCD",
+    "sourceUrl": "https://www.ifixit.com/products/ipad-pro-11-2018-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/tfRTTmcAiYvpJfuX.jpg"
+  },
+  {
+    "id": 27,
+    "filename": "27_Samsung_Galaxy_S21_Ultra.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/27_Samsung_Galaxy_S21_Ultra.jpg",
+    "expectedManufacturer": "Samsung",
+    "expectedModel": "Galaxy S21 Ultra",
+    "expectedTech": "Dynamic AMOLED",
+    "sourceUrl": "https://www.ifixit.com/products/galaxy-s21-ultra-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/bUaISMaILApyr2cn.jpg"
+  },
+  {
+    "id": 28,
+    "filename": "28_Samsung_Galaxy_S22_Ultra.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/28_Samsung_Galaxy_S22_Ultra.jpg",
+    "expectedManufacturer": "Samsung",
+    "expectedModel": "Galaxy S22 Ultra",
+    "expectedTech": "Dynamic AMOLED",
+    "sourceUrl": "https://www.ifixit.com/products/galaxy-s22-ultra-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/1OwQoppMwTZWu6ey_6c2a5b4f-7c3d-4d7e-956c-7848a3aae23b.jpg"
+  },
+  {
+    "id": 29,
+    "filename": "29_Samsung_Galaxy_S23_Ultra.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/29_Samsung_Galaxy_S23_Ultra.jpg",
+    "expectedManufacturer": "Samsung",
+    "expectedModel": "Galaxy S23 Ultra",
+    "expectedTech": "Dynamic AMOLED",
+    "sourceUrl": "https://www.ifixit.com/products/galaxy-s23-ultra-screen",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/meni1eYQyQJgFHo5.jpg"
+  },
+  {
+    "id": 30,
+    "filename": "30_Google_Pixel_7_Pro.jpg",
+    "path": "/Users/arslanbasharat/Documents/RMA System./scripts/test_images_30/30_Google_Pixel_7_Pro.jpg",
+    "expectedManufacturer": "Google",
+    "expectedModel": "Pixel 7 Pro",
+    "expectedTech": "LTPO OLED",
+    "sourceUrl": "https://www.ifixit.com/products/google-pixel-7-pro-screen-genuine",
+    "imageUrl": "https://cdn.shopify.com/s/files/1/0045/4092/4007/files/IG1kUFDME5fVCUfU.jpg"
+  }
+]
