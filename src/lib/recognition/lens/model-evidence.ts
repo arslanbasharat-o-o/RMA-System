@@ -67,6 +67,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
 
   const scores = new Map<string, { score: number; sources: Set<string> }>();
   const seenSources = new Set<string>();
+  const attributableModels = new Set<string>();
   let mixedListings = 0;
   let accessoryListings = 0;
   let irrelevantListings = 0;
@@ -101,6 +102,9 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
       unattributedListings += 1;
       continue;
     }
+    // Keep variant disagreements even when one publisher has multiple cards.
+    // Deduplication may reduce votes; it must not erase contrary evidence.
+    attributableModels.add(models[0]);
     if (seenSources.has(source)) continue;
     seenSources.add(source);
 
@@ -127,6 +131,19 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
       model: null,
       confidence: 0.45,
       reasoning: `The listings name the iPhone SE family without establishing its exact generation. Similar or compatible assemblies cannot establish the intended device (${detail}). Operator review is required.`,
+    };
+  }
+  const family = (name: string) => name.match(/^iPhone\s+(\d+|SE|XR|XS|X)\b/i)?.[1]?.toUpperCase();
+  const competingVariants = [...attributableModels].filter(name =>
+    name !== winner[0] && family(name) === family(winner[0])
+  );
+  const credibleRunners = ranked.slice(1).filter(([, evidence]) => evidence.sources.size >= 2);
+  if (competingVariants.length || credibleRunners.length) {
+    const conflicts = [...new Set([...competingVariants, ...credibleRunners.map(([name]) => name)])];
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `Listings disagree between ${winner[0]} and ${conflicts.join(" / ")} across the top ${rankedCandidates.length} results. A larger vote does not establish an exact device variant (${detail}). Operator review is required.`,
     };
   }
   const ratio = runner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;

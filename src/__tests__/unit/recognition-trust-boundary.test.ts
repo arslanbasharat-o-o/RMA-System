@@ -16,6 +16,26 @@ function online() {
 }
 
 describe("recognition evidence trust boundary", () => {
+  it("does not let a larger Pro vote erase an attributable Pro Max listing", () => {
+    const dominant = [...candidates, ...candidates.map((c, i) => ({ ...c,
+      sourceUrl: `https://extra-${i}.test/display`, rank: i + 5,
+    }))].map(c => ({ ...c, title: "iPhone 15 Pro OLED display assembly" }));
+    const result = cleanVisualCandidatesHeuristic([...dominant, {
+      title: "iPhone 15 Pro Max Soft OLED display assembly", sourceUrl: "https://max-source.test/display", rank: 9,
+    }]);
+    expect(result.model).toBeNull();
+    expect(result.confidence).toBeLessThan(0.5);
+    expect(result.reasoning).toContain("larger vote");
+  });
+
+  it("retains variant conflicts hidden behind publisher deduplication", () => {
+    const result = cleanVisualCandidatesHeuristic([
+      ...candidates.map(c => ({ ...c, title: "iPhone 15 Pro OLED display assembly" })),
+      { title: "iPhone 15 Pro Max OLED display assembly", sourceUrl: candidates[0].sourceUrl, rank: 9 },
+    ]);
+    expect(result.model).toBeNull();
+    expect(result.confidence).toBeLessThan(0.5);
+  });
   it("does not count publisher subdomains as independent evidence", () => {
     const result = cleanVisualCandidatesHeuristic(candidates.map((c, i) => ({
       ...c, sourceUrl: `https://shop${i}.same-publisher.test/display`,
