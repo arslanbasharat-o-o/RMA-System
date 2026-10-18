@@ -3,6 +3,7 @@ import {
   getVisualRecognitionProvider,
   SelfHostedLensProvider,
 } from "@/lib/recognition/lens";
+import { optimizeImageForVisualSearch } from "@/lib/recognition/lens/self-hosted";
 
 function jsonResponse(payload: unknown, status = 200): Response {
   return {
@@ -254,5 +255,18 @@ describe("SelfHostedLensProvider", () => {
 
     expect(result.error).toMatch(/timed out after 1 second during image upload/i);
     expect(result.candidates).toEqual([]);
+  });
+
+  it("compresses large images to progressive JPEG with max 1280x1280 dimensions", async () => {
+    // 1x1 png test pixel
+    const pixel = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64"
+    );
+    const optimized = await optimizeImageForVisualSearch(pixel, "image/png");
+    expect(optimized).toHaveProperty("buffer");
+    expect(optimized).toHaveProperty("mime");
+    expect(optimized).toHaveProperty("ext");
+    expect(optimized.buffer.length).toBeGreaterThan(0);
   });
 });

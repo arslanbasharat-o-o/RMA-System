@@ -156,7 +156,7 @@ function detectImageMimeType(buffer: Buffer, declared?: string): { mime: string;
  * Bounds display image dimensions to max 1280x1280 and compresses to progressive JPEG (85% quality).
  * Slashes proxy payload by 70-90% (down to 100-300KB) and cuts upload transfer latency over proxies.
  */
-async function optimizeImageForVisualSearch(
+export async function optimizeImageForVisualSearch(
   imageBuffer: Buffer,
   declaredMime?: string
 ): Promise<{ buffer: Buffer; mime: string; ext: string }> {
