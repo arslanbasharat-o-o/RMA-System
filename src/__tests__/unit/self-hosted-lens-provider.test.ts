@@ -16,6 +16,18 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("SelfHostedLensProvider", () => {
+  it("honors the configured request deadline through the application provider factory", async () => {
+    vi.stubEnv("LENS_API_KEY", "unit-key");
+    vi.stubEnv("LENS_API_BASE_URL", "http://lens.internal");
+    vi.stubEnv("LENS_TIMEOUT_MS", "1000");
+    vi.stubGlobal("fetch", vi.fn((_url: string | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    })));
+    const result = await getVisualRecognitionProvider("self_hosted_lens").identifyDisplay(Buffer.from("photo"));
+    expect(result.error).toContain("timed out after 1 second");
+    expect(result.durationMs).toBeLessThan(2500);
+  });
+
   it.each(["succeeded", "queued"])("follows an asynchronous %s receipt to its actual result payload", async (status) => {
     const requests: string[] = [];
     vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {
