@@ -294,7 +294,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
 
     // Step 25 & 26: Refresh page and confirm correction remains saved
     await page.reload();
-    await expect(page.locator("body")).toContainText(/\bverified\b/i);
+    await expect(page.locator("body")).toContainText("Verified");
 
     // ------------------------------------------------------------------------
     // Step 27: Complete the RMA
