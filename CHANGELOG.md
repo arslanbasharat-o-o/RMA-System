@@ -2,6 +2,20 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.11] - 2026-10-18
+
+### Fixed
+
+- Fixed Display Catalog infinite loading trap caused by abort-signal handling, and added server-side pagination with search filtering across 2,400+ display items.
+- Enhanced recognition synthesizer to resolve multi-variant catalog SKUs (e.g., Soft OLED, Hard OLED, COF) using candidate titles and technology keywords rather than dropping internal SKU.
+- Deduplicated UI loading spinners in display inspection drawer and unified status badge terminology across the RMA view.
+- Added recognized internal SKU badges to RMA items table and mobile drawer with one-click copy.
+
+### Verification
+
+- Comprehensive unit tests for multi-variant SKU resolution and catalog containment matching pass.
+- Playwright E2E and browser test suites pass across desktop, mobile Chrome, and Safari.
+
 ## [0.3.10] - 2026-10-18
 
 ### Added
