@@ -1,3 +1,5 @@
+name: rma-system
+
 services:
   # ----------------------------------------------------------------------------
   # 1. Reverse Proxy (Caddy: Automatic TLS & HTTPS Termination)
