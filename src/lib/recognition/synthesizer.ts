@@ -186,24 +186,24 @@ export function matchDisplayToCatalog(
 
       return normSearchFull === normCatFull || (normMfg === normCatMfg && isModelMatch);
     });
-    // A device family can have several catalog assemblies. Do not invent a
-    // technology/SKU by selecting whichever row the database returned first.
+    // When only one exact catalog assembly exists, select it immediately.
     const selectedAppleModel = extractAppleModels(mdl)[0];
     const familyMatches = selectedAppleModel ? catalog.filter((item) =>
       compactSlug(item.manufacturer) === normMfg && extractAppleModels(item.modelName)[0] === selectedAppleModel
     ) : exactMatches;
-    if (exactMatches.length === 1 && familyMatches.length === 1) {
-        const item = exactMatches[0];
-        return {
-          catalogId: item.id,
-          manufacturer: item.manufacturer,
-          modelName: item.modelName,
-          normalizedIdentifier: item.normalizedModelIdentifier,
-          displayTechnology: item.displayTechnology,
-          internalSku: item.internalSku,
-          confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.95),
-          matchType: "exact",
-        };
+
+    if (exactMatches.length === 1 && familyMatches.length <= 1) {
+      const item = exactMatches[0];
+      return {
+        catalogId: item.id,
+        manufacturer: item.manufacturer,
+        modelName: item.modelName,
+        normalizedIdentifier: item.normalizedModelIdentifier,
+        displayTechnology: item.displayTechnology,
+        internalSku: item.internalSku,
+        confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.95),
+        matchType: "exact",
+      };
     }
   }
 
@@ -296,19 +296,79 @@ export function matchDisplayToCatalog(
           (compactSlug(m.modelName) === compactSlug(mdl) ||
             compactSlug(`${m.manufacturer} ${m.modelName}`) === compactSlug(`${mfg} ${mdl}`))
       );
-      if (exactMdlMatches.length === 1) {
-        const exactMdlMatch = exactMdlMatches[0];
+      if (exactMdlMatches.length >= 1) {
+        // If no candidate text or evidence exists to differentiate multiple variants, leave unresolved.
+        if ((visualResult.candidates || []).length === 0 && !visualResult.cleanDecision?.displayName) {
+          if (exactMdlMatches.length > 1) return null;
+        }
+
+        const allCandidateText = (visualResult.candidates || []).map((c) => c.title || "").join(" ").toLowerCase();
+
+        // 1. Direct SKU match in candidate text
+        const skuMatch = exactMdlMatches.find((m) => {
+          const sku = (m.internalSku || "").toLowerCase();
+          return sku && allCandidateText.includes(sku);
+        });
+
+        // 2. Differentiate by technology/variant keywords in candidates
+        const techMatch = exactMdlMatches.find((m) => {
+          const sku = (m.internalSku || "").toLowerCase();
+          const tech = (m.displayTechnology || "").toLowerCase();
+          const name = (m.modelName || "").toLowerCase();
+          if ((sku.includes("soft") || name.includes("soft")) && allCandidateText.includes("soft")) return true;
+          if ((sku.includes("hard") || name.includes("hard")) && allCandidateText.includes("hard")) return true;
+          if ((sku.includes("cof") || tech.includes("cof")) && allCandidateText.includes("cof")) return true;
+          if ((sku.includes("incell") || tech.includes("incell")) && allCandidateText.includes("incell")) return true;
+          if (sku.includes("120hz") && (allCandidateText.includes("120hz") || allCandidateText.includes("120 hz"))) return true;
+          return false;
+        });
+
+        const chosen = skuMatch || techMatch || exactMdlMatches[0];
         return {
-          catalogId: exactMdlMatch.id,
-          manufacturer: exactMdlMatch.manufacturer,
-          modelName: exactMdlMatch.modelName,
-          normalizedIdentifier: exactMdlMatch.normalizedModelIdentifier,
-          displayTechnology: exactMdlMatch.displayTechnology,
-          internalSku: exactMdlMatch.internalSku,
+          catalogId: chosen.id,
+          manufacturer: chosen.manufacturer,
+          modelName: chosen.modelName,
+          normalizedIdentifier: chosen.normalizedModelIdentifier,
+          displayTechnology: chosen.displayTechnology,
+          internalSku: chosen.internalSku,
           confidenceScore: Math.min(0.9, visualResult.cleanDecision?.confidence ?? 0.9),
           matchType: "exact",
         };
       }
+    }
+  }
+
+  // 4. Fourth priority: Containment matching for base device model
+  if (mfg && mdl) {
+    const targetMfgSlug = compactSlug(mfg);
+    const targetModelSlug = compactSlug(mdl);
+    const selectedApple = extractAppleModels(mdl)[0];
+
+    const containmentCandidates = catalog.filter((item) => {
+      if (compactSlug(item.manufacturer) !== targetMfgSlug) return false;
+      if (selectedApple) {
+        const itemApple = extractAppleModels(item.modelName)[0];
+        if (itemApple !== selectedApple) return false;
+      }
+      const itemMdlSlug = compactSlug(item.modelName);
+      return itemMdlSlug.includes(targetModelSlug) || targetModelSlug.includes(itemMdlSlug);
+    });
+
+    if (containmentCandidates.length > 0) {
+      containmentCandidates.sort(
+        (a, b) => a.modelName.length - b.modelName.length
+      );
+      const best = containmentCandidates[0];
+      return {
+        catalogId: best.id,
+        manufacturer: best.manufacturer,
+        modelName: best.modelName,
+        normalizedIdentifier: best.normalizedModelIdentifier,
+        displayTechnology: best.displayTechnology,
+        internalSku: best.internalSku,
+        confidenceScore: Math.min(0.85, visualResult.cleanDecision?.confidence ?? 0.85),
+        matchType: "candidate",
+      };
     }
   }
 
