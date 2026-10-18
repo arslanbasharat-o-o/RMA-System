@@ -366,10 +366,26 @@ export function matchDisplayToCatalog(
     });
 
     if (containmentCandidates.length > 0) {
-      containmentCandidates.sort(
+      // Prioritize generation match if specified in candidates or clean decision
+      const allEvidenceText = [
+        visualResult.cleanDecision?.displayName || "",
+        visualResult.cleanDecision?.model || "",
+        ...(visualResult.candidates || []).map((c) => c.title),
+      ].join(" ").toLowerCase();
+
+      const genMatch = containmentCandidates.filter((item) => {
+        const itemClean = cleanCatalogModelName(item.modelName).toLowerCase();
+        const genRegex = /\b(\d+)(st|nd|rd|th)\s*gen\b/gi;
+        const itemGens = itemClean.match(genRegex);
+        if (!itemGens) return false;
+        return itemGens.some((g) => allEvidenceText.includes(g.toLowerCase()));
+      });
+
+      const pool = genMatch.length > 0 ? genMatch : containmentCandidates;
+      pool.sort(
         (a, b) => cleanCatalogModelName(a.modelName).length - cleanCatalogModelName(b.modelName).length
       );
-      const best = containmentCandidates[0];
+      const best = pool[0];
       const cleanBestName = cleanCatalogModelName(best.modelName);
       return {
         catalogId: best.id,
