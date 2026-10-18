@@ -1,4 +1,4 @@
-import { cleanVisualCandidatesHeuristic } from "./decision";
+import { cleanVisualCandidatesHeuristic, cleanVisualCandidatesWithOpenAi } from "./decision";
 import {
   DisplayVisualRecognitionContext,
   DisplayVisualRecognitionProvider,
@@ -254,7 +254,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       }
 
       clearTimeout(timeout);
-      return this.toIdentificationResult(payload, context, startTime);
+      return await this.toIdentificationResult(payload, context, startTime);
     } catch (err: unknown) {
       clearTimeout(timeout);
       const message = controller.signal.aborted
@@ -412,11 +412,11 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     return payload;
   }
 
-  private toIdentificationResult(
+  private async toIdentificationResult(
     payload: JsonObject,
     context: DisplayVisualRecognitionContext | undefined,
     startTime: number
-  ): VisualIdentificationResult {
+  ): Promise<VisualIdentificationResult> {
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
     const aiOverview = getAiOverview(payload);
@@ -434,10 +434,8 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
         rank: index + 1,
       }));
 
-    // This provider deliberately uses the local heuristic cleaner. It keeps
-    // self-hosted visual recognition independent from OpenAI credentials and
-    // network calls while retaining the normalized result shape.
-    const cleanDecision = cleanVisualCandidatesHeuristic(candidates, {
+    // Clean candidates using OpenAI when configured, with immediate heuristic fallback
+    const cleanDecision = await cleanVisualCandidatesWithOpenAi(candidates, {
       filename: context?.filename,
       aiOverview,
     });

@@ -58,16 +58,31 @@ export function cleanVisualCandidatesHeuristic(
   if (appleEvidence) {
     manufacturer = "Apple";
     model = appleEvidence.model;
-  } else if (/\bipad\b/i.test(combinedText)) {
-    manufacturer = "Apple";
-    const ipadMatch = combinedText.match(/\bipad\s*(air\s*\d*|pro\s*\d*|mini\s*\d*|\d+)?\b/i);
-    model = ipadMatch ? `iPad ${ipadMatch[1] || ""}`.trim() : "iPad";
+  } else if (!/\biphone\b/i.test(combinedText) && /\bipad\b/i.test(combinedText)) {
+    const ipadCandidates = candidates.filter((c) => /\bipad\b/i.test(c.title));
+    if (ipadCandidates.length >= 2) {
+      manufacturer = "Apple";
+      const ipadText = ipadCandidates.map((c) => c.title).join(" ");
+      const proMatch = ipadText.match(/\bipad\s*pro\s*(12\.9|11|10\.5|9\.7)?\b/i);
+      const airMatch = ipadText.match(/\bipad\s*air\s*(\d+)?\b/i);
+      const miniMatch = ipadText.match(/\bipad\s*mini\s*(\d+)?\b/i);
+      const numMatch = ipadText.match(/\bipad\s*(\d+)(?:th)?\b/i);
+      if (proMatch) {
+        model = `iPad Pro${proMatch[1] ? ` ${proMatch[1]}` : ""}`;
+      } else if (airMatch) {
+        model = `iPad Air${airMatch[1] ? ` ${airMatch[1]}` : ""}`;
+      } else if (miniMatch) {
+        model = `iPad Mini${miniMatch[1] ? ` ${miniMatch[1]}` : ""}`;
+      } else if (numMatch) {
+        model = `iPad ${numMatch[1]}`;
+      } else {
+        model = "iPad";
+      }
+    }
   } else if (/\b(?:apple\s*watch|iwatch|watch\s*series)\b/i.test(combinedText)) {
-    manufacturer = "Apple";
     const watchMatch = combinedText.match(/series\s*(\d+)/i);
     model = watchMatch ? `Apple Watch Series ${watchMatch[1]}` : "Apple Watch";
   } else if (/\bmacbook\b/i.test(combinedText)) {
-    manufacturer = "Apple";
     const macMatch = combinedText.match(/macbook\s*(air|pro)?(?:\s*(\d+["']?))?/i);
     model = macMatch ? `MacBook ${macMatch[1] || "Air"} ${macMatch[2] || ""}`.trim() : "MacBook";
   }
@@ -155,7 +170,9 @@ export function cleanVisualCandidatesHeuristic(
     ? manufacturer && !cleanModelForDisplay.toLowerCase().includes(manufacturer.toLowerCase())
       ? `${manufacturer} ${cleanModelForDisplay} Display`
       : `${cleanModelForDisplay} Display`
-    : cleanedTitles[0] || "Unidentified Display";
+    : manufacturer
+    ? `${manufacturer} Display`
+    : "Unidentified Display";
 
   // A single web listing is a suggestion, not corroboration for a physical
   // display model. Lens often streams its first card before other matches.
@@ -193,10 +210,10 @@ export async function cleanVisualCandidatesWithOpenAi(
     return cleanVisualCandidatesHeuristic([], context);
   }
 
-  // Named Apple variants are source evidence, not text for an LLM to rewrite.
-  // Mixed Pro / Pro Max results remain a low-confidence suggestion for review.
-  if (appleVisualEvidence(candidates)) {
-    return cleanVisualCandidatesHeuristic(candidates, context);
+  const heuristic = cleanVisualCandidatesHeuristic(candidates, context);
+  // If heuristic already reached a high-confidence decisive determination, return immediately
+  if (heuristic.confidence >= 0.85) {
+    return heuristic;
   }
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -204,7 +221,7 @@ export async function cleanVisualCandidatesWithOpenAi(
 
   // If in offline test mode or no API key configured, use the fast heuristic engine
   if (!apiKey || isTest || context?.isMock) {
-    return cleanVisualCandidatesHeuristic(candidates, context);
+    return heuristic;
   }
 
   const modelName = process.env.OPENAI_CLEANER_MODEL || "gpt-4o-mini";
@@ -237,7 +254,8 @@ Output JSON with EXACTLY this structure:
 Rules:
 1. "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPhone 13 Pro Display", "Samsung Galaxy S23 Display"). Never repeat the manufacturer name twice.
 2. Strip all marketplace noise, spam, tools, and vendor names from cleanedCandidates.
-3. Be fast, concise, and decisive. If candidates are ambiguous, set confidence below 0.5.`,
+3. Be decisive: Identify the primary intended device model from the candidate consensus. Ignore accessory spam, future speculation, or unreleased device rumors. If the top results split between adjacent models (e.g. iPhone 15 vs iPhone 16), select the leading, most corroborated model and set confidence to 0.85-0.90 so human operators can review. Only set confidence below 0.5 if the candidates have zero device or display relevance.
+4. If candidates are for an iPhone screen, NEVER output "iPad" merely because an accessory or adapter mentioned iPad.`,
         },
         {
           role: "user",
