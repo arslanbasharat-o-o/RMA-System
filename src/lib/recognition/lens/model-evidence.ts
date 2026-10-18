@@ -122,6 +122,13 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
 
   const ranked = [...scores].sort((a, b) => b[1].score - a[1].score);
   const [winner, runner] = ranked;
+  if (winner[0] === "iPhone SE") {
+    return {
+      model: null,
+      confidence: 0.45,
+      reasoning: `The listings name the iPhone SE family without establishing its exact generation. Similar or compatible assemblies cannot establish the intended device (${detail}). Operator review is required.`,
+    };
+  }
   const ratio = runner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
   const decisive = winner[1].sources.size >= 3 && ratio >= 1.8;
   if (overviewEvidence.ambiguous) {
@@ -169,13 +176,18 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   };
 }
 
-function independentSource(sourceUrl?: string, sourceName?: string): string | undefined {
+export function independentSource(sourceUrl?: string, sourceName?: string): string | undefined {
   if (sourceUrl) {
     try {
       const url = new URL(sourceUrl);
       if (url.protocol === "http:" || url.protocol === "https:") {
         const host = url.hostname.toLowerCase().replace(/^www\./, "");
-        if (host && !/(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(host)) return host;
+        if (host && !/(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(host)) {
+          const publisher = host.match(/(?:^|\.)(amazon|ebay|aliexpress)\./)?.[1];
+          if (publisher) return publisher;
+          const parts = host.split(".");
+          return parts.slice(/\.(?:co\.uk|com\.au|co\.jp|co\.in)$/.test(host) ? -3 : -2).join(".");
+        }
       }
     } catch {
       // Google Lens sometimes provides a publisher label instead of a direct URL.

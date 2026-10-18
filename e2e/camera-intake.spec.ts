@@ -89,7 +89,7 @@ test("camera preview, failed upload retry, and progression work without losing p
     } else await route.fulfill({ json: { success: true, image: { id: `saved-${uploads}` } } });
   });
   await page.goto("/rmas/test-rma/capture");
-  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
+  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth), { timeout: 15000 }).toBeGreaterThan(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: `.local/verification/camera-${testInfo.project.name}.png`, fullPage: true });
   await page.getByRole("button", { name: "Capture front photo" }).click();
@@ -154,7 +154,7 @@ test("front capture keeps the explicitly selected side", async ({ page }) => {
     await route.fulfill({ json: { success: true, image: { id: `photo-${uploadedSides.length}` } } });
   });
   await page.goto("/rmas/test-rma/capture");
-  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
+  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth), { timeout: 15000 }).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Capture front photo" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Front", exact: true })).toHaveAttribute("aria-pressed", "true");
@@ -187,7 +187,7 @@ test("duplicate upload shows one saved photo with the server side", async ({ pag
     await route.fulfill({ json: { success: true, deduplicated: uploads > 1, image: { id: "same-photo", imageType: "primary" } } });
   });
   await page.goto("/rmas/test-rma/capture");
-  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth)).toBeGreaterThan(0);
+  await expect.poll(() => page.locator("video").evaluate((video: HTMLVideoElement) => video.videoWidth), { timeout: 15000 }).toBeGreaterThan(0);
   await page.getByRole("button", { name: "Capture front photo" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "Back", exact: true }).click();

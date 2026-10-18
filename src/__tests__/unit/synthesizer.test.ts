@@ -164,13 +164,13 @@ describe("Unified Synthesizer", () => {
     expect(matchDisplayToCatalog(visual, [{ ...catalog[0], modelName: "iPhone 16 Pro Max", aliases: ["iPhone16ProMax"] }])).toBeNull();
   });
 
-  it("resolves a unique assembly SKU even when device model names are duplicated", () => {
+  it("does not select supplier SKUs from marketplace text", () => {
     const visual: VisualIdentificationResult = {
       provider: "mock", candidates: [{ title: "DISP-IP13P-LCD", rank: 1 }], durationMs: 0, rawResponse: {},
       normalizedManufacturer: "Apple", normalizedModel: "iPhone 13 Pro",
     };
     const variants = [catalog[0], { ...catalog[0], id: "lcd-variant", internalSku: "DISP-IP13P-LCD", displayTechnology: "LCD" }];
-    expect(matchDisplayToCatalog(visual, variants)?.catalogId).toBe("lcd-variant");
+    expect(matchDisplayToCatalog(visual, variants)).toBeNull();
   });
 
   it("does not match a numeric alias without the matching manufacturer", () => {
@@ -389,7 +389,7 @@ describe("Unified Synthesizer", () => {
     expect(samMatch?.matchType).toBe("exact");
   });
 
-  it("resolves catalog display and internalSku when multiple assembly variants exist in catalog", () => {
+  it("does not infer supplier quality from Soft or COF keywords in Lens listings", () => {
     const multiVariantCatalog = [
       {
         id: "cat-ip14-cof",
@@ -432,9 +432,7 @@ describe("Unified Synthesizer", () => {
     };
 
     const match = matchDisplayToCatalog(visualResultWithSoft, multiVariantCatalog, []);
-    expect(match).not.toBeNull();
-    expect(match?.catalogId).toBe("cat-ip14-soft");
-    expect(match?.internalSku).toBe("Liphone 14 Soft");
+    expect(match).toBeNull();
 
     const visualResultWithCof: VisualIdentificationResult = {
       provider: "mock",
@@ -454,9 +452,7 @@ describe("Unified Synthesizer", () => {
     };
 
     const cofMatch = matchDisplayToCatalog(visualResultWithCof, multiVariantCatalog, []);
-    expect(cofMatch).not.toBeNull();
-    expect(cofMatch?.catalogId).toBe("cat-ip14-cof");
-    expect(cofMatch?.internalSku).toBe("Liphone 14 COF");
+    expect(cofMatch).toBeNull();
   });
 });
 

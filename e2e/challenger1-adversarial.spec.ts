@@ -264,11 +264,8 @@ test.describe("Challenger 1 Axis 3: Responsive Layout & Mobile Navigation Drawer
     await page.goto("/dashboard");
 
     // Aside must be hidden
-    const aside = page.locator("aside");
-    if ((await aside.count()) > 0) {
-      const isVisible = await aside.isVisible();
-      expect(isVisible).toBe(false);
-    }
+    // Next may retain hidden route trees; none of their desktop sidebars may be visible.
+    await expect(page.locator("aside:visible")).toHaveCount(0);
 
     // Hamburger button must be visible
     const menuBtn = page.locator('button[aria-label="Toggle navigation menu"]');
