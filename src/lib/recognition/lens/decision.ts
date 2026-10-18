@@ -192,8 +192,8 @@ export function cleanVisualCandidatesHeuristic(
   // A single web listing is a suggestion, not corroboration for a physical
   // display model. Lens often streams its first card before other matches.
   const confidence = candidates.length < 2
-    ? Math.min(appleEvidence?.confidence ?? (model ? 0.88 : 0.45), 0.45)
-    : appleEvidence?.confidence ?? (model ? 0.88 : 0.45);
+    ? Math.min(appleEvidence?.confidence ?? (model ? 0.95 : 0.45), 0.45)
+    : appleEvidence?.confidence ?? (model ? 0.95 : 0.45);
 
   return {
     manufacturer,
@@ -283,12 +283,21 @@ DECISION & DISAMBIGUATION RULES:
    - Tablets (iPad, Galaxy Tab) vs Smartphones (iPhone, Galaxy S):
      * If candidate titles consistently point to a tablet model (e.g. iPad Pro 12.9, iPad Air, Galaxy Tab), identify as that tablet display.
      * Only discard tablet results if candidate titles predominantly identify a smartphone and a lone accessory title happens to mention a tablet adapter.
-   - iPhone Models:
-     * iPhone XR (6.1-inch Liquid Retina LCD): Distinctive rectangular/square cutout in the top-left corner of the rear shield revealing the metal grounding bracket; dual stacked flex cables branching on mid-left into two separate board connectors.
-     * iPhone X / XS (5.8-inch OLED): Narrow uniform bezels (~2.5mm), no top-left square cutout in rear shield, OLED panel.
-     * iPhone 11 (6.1-inch LCD): Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
-     * iPhone 12 / 13 / 14 / 15: Match based on speaker placement (frame vs notch), notch size, or Dynamic Island.
-3. Output Standards:
+   - iPhone Generations & Lookalike Disambiguation:
+     * iPhone 6 vs 6s (4.7-inch LCD): iPhone 6 has no 3D Touch; iPhone 6s has an integrated 3D Touch capacitive pressure sensor layer on the rear backlight plate with connector on bottom-left.
+     * iPhone 7 / 7 Plus vs iPhone 8 / 8 Plus: iPhone 7/7+ flex ribbons route from the bottom right; iPhone 8/8+ features True Tone ambient sensor circuitry and altered rear shield grounding.
+     * iPhone SE (2nd / 3rd Gen): 4.7-inch LCD with black front glass border across all chassis colors.
+     * iPhone XR (6.1-inch Liquid Retina LCD): Distinctive rectangular/square cutout in the top-left corner of the rear shield revealing the metal grounding bracket; dual stacked flex cables branching on mid-left into two separate board connectors; thicker ~4.0mm LCD bezels. If the top-left square cutout in the rear shield is visible, it is ALWAYS an iPhone XR.
+     * iPhone X / XS (5.8-inch OLED): Narrow uniform bezels (~2.5mm), no top-left square cutout in rear shield, OLED panel with dual bottom-left flex cables.
+     * iPhone XS Max (6.5-inch OLED): 6.5-inch OLED panel with dual bottom flex ribbons.
+     * iPhone 11 (6.1-inch Liquid Retina LCD): Single unified flex ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center; NO top-left square cutout in rear shield.
+     * iPhone 11 Pro (5.8-inch OLED) / iPhone 11 Pro Max (6.5-inch OLED): Inverted motherboard layout causes the display flex ribbons to route along the right side of the rear panel.
+     * iPhone 12 / 12 Pro (6.1-inch OLED): Flat boxy frame clips; wide screen notch (~34.8mm) with the earpiece speaker cutout integrated directly INSIDE the top notch of the screen assembly.
+     * iPhone 13 / 13 Pro (6.1-inch OLED): Narrow screen notch (~26.6mm); earpiece speaker is moved UP into the phone chassis frame (NOT in the screen notch).
+     * iPhone 14 (6.1-inch OLED) / iPhone 14 Plus (6.7-inch OLED): Narrow notch; rear flex routing changed to bottom-right for the redesigned removable back glass chassis layout.
+     * iPhone 14 Pro / 14 Pro Max & iPhone 15 Series: Feature DYNAMIC ISLAND (pill-shaped floating cutout) instead of a top notch. iPhone 14 Pro/Pro Max feature 120Hz ProMotion controller flex.
+3. Output Standards & Confidence Calibration:
+   - When Google Lens candidate consensus and physical hardware evidence corroborate each other, assign a high confidence score of 0.95 to 0.98.
    - Output valid JSON with EXACTLY this structure:
      {
        "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
