@@ -11,6 +11,11 @@ data/storage/
 data/postgres/
 uploads/
 backups/
+scripts/test_images_*/*.jpg
+scripts/test_images_*/*.jpeg
+scripts/test_images_*/*.png
+scripts/test_images_*/*.webp
+scripts/test_images_*/*.jsonl
 *.dump
 *.sql
 *.sql.gz

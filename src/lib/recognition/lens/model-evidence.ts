@@ -160,12 +160,12 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
 
   return {
     model: winner[0],
-    confidence: 0.88,
+    confidence: decisive && winner[1].sources.size >= 4 ? 0.97 : 0.95,
     reasoning: overviewEvidence.specificModel === winner[0]
-      ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources and the Google AI Overview names the same exact model (${detail}). This is a suggestion, not a confirmed identification.`
+      ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources and the Google AI Overview names the same exact model (${detail}).`
       : overviewEvidence.hedged && overviewEvidence.models.length
-        ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results. The AI Overview mentions ${overviewEvidence.models.join(" / ")} with hedged wording, so it was not treated as an exact variant (${detail}). This is a suggestion, not a confirmed identification.`
-        : `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}). This is a suggestion, not a confirmed identification.`,
+        ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results. The AI Overview mentions ${overviewEvidence.models.join(" / ")} with hedged wording (${detail}).`
+        : `${winner[0]} leads with ${winner[1].sources.size} independent display sources in the top ${rankedCandidates.length} results (${detail}).`,
   };
 }
 
