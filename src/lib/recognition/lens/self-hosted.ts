@@ -1,4 +1,8 @@
-import { cleanVisualCandidatesHeuristic, cleanVisualCandidatesWithOpenAi } from "./decision";
+import {
+  cleanVisualCandidatesHeuristic,
+  cleanVisualCandidatesWithOpenAi,
+  identifyDisplayWithOpenAiVision,
+} from "./decision";
 import {
   DisplayVisualRecognitionContext,
   DisplayVisualRecognitionProvider,
@@ -207,13 +211,14 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
+    const detected = detectImageMimeType(imageBuffer, context?.mimeType);
+    const uploadMime = detected.mime;
+    let filename = context?.filename || `display${detected.ext}`;
+    if (!filename.toLowerCase().endsWith(detected.ext)) {
+      filename = `${filename.replace(/\.[^/.]+$/, "")}${detected.ext}`;
+    }
+
     try {
-      const detected = detectImageMimeType(imageBuffer, context?.mimeType);
-      const uploadMime = detected.mime;
-      let filename = context?.filename || `display${detected.ext}`;
-      if (!filename.toLowerCase().endsWith(detected.ext)) {
-        filename = `${filename.replace(/\.[^/.]+$/, "")}${detected.ext}`;
-      }
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
@@ -254,12 +259,34 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       }
 
       clearTimeout(timeout);
-      return await this.toIdentificationResult(payload, context, startTime);
+      return await this.toIdentificationResult(
+        payload,
+        context,
+        startTime,
+        imageBuffer,
+        uploadMime,
+        filename
+      );
     } catch (err: unknown) {
       clearTimeout(timeout);
       const message = controller.signal.aborted
         ? `Visual identification timed out after ${Math.round(this.timeoutMs / 1000)} second${this.timeoutMs === 1000 ? "" : "s"} during ${stage}. The visual provider may be slow or unavailable. Photos are retained; retry the image later or select a model manually.`
         : err instanceof Error ? err.message : String(err);
+
+      // Robust fallback: if Google Lens fails (captcha, rate-limit, or network error), use OpenAI Vision directly
+      if (process.env.OPENAI_API_KEY && process.env.NODE_ENV !== "test") {
+        try {
+          const directVisionResult = await identifyDisplayWithOpenAiVision(imageBuffer, uploadMime, filename);
+          if (directVisionResult) {
+            return {
+              ...directVisionResult,
+              durationMs: Date.now() - startTime,
+            };
+          }
+        } catch (visionErr) {
+          console.warn("[SelfHostedLens] Direct OpenAI vision fallback also failed:", visionErr);
+        }
+      }
 
       return {
         provider: this.name,
@@ -415,7 +442,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   private async toIdentificationResult(
     payload: JsonObject,
     context: DisplayVisualRecognitionContext | undefined,
-    startTime: number
+    startTime: number,
+    imageBuffer?: Buffer,
+    uploadMime?: string,
+    filename?: string
   ): Promise<VisualIdentificationResult> {
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
@@ -435,10 +465,34 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       }));
 
     // Clean candidates using OpenAI when configured, with immediate heuristic fallback
-    const cleanDecision = await cleanVisualCandidatesWithOpenAi(candidates, {
+    let cleanDecision = await cleanVisualCandidatesWithOpenAi(candidates, {
       filename: context?.filename,
       aiOverview,
+      imageBuffer,
+      mimeType: uploadMime,
     });
+
+    // If candidate titles were conflicting/noisy or yielded no specific model, use direct vision inspection
+    if (
+      (!cleanDecision.model || cleanDecision.confidence < 0.65 || cleanDecision.displayName?.toLowerCase().includes("unidentified")) &&
+      imageBuffer &&
+      uploadMime &&
+      process.env.OPENAI_API_KEY &&
+      process.env.NODE_ENV !== "test"
+    ) {
+      try {
+        const directResult = await identifyDisplayWithOpenAiVision(imageBuffer, uploadMime, filename);
+        if (directResult?.cleanDecision?.model) {
+          cleanDecision = directResult.cleanDecision;
+          if (directResult.candidates && directResult.candidates.length > 0) {
+            candidates.unshift(...directResult.candidates);
+          }
+        }
+      } catch (visionErr) {
+        console.warn("[SelfHostedLens] Direct vision fallback during ambiguous candidates failed:", visionErr);
+      }
+    }
+
     const normalizedManufacturer = cleanDecision.manufacturer || undefined;
     const normalizedModel = cleanDecision.model || undefined;
 
