@@ -326,7 +326,7 @@ DECISION & DISAMBIGUATION RULES:
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 1000,
-    });
+    }, { signal: AbortSignal.timeout(10000) });
 
     const content = completion.choices[0]?.message?.content;
     if (content) {
@@ -450,7 +450,7 @@ Output ONLY a JSON object with:
       ],
       response_format: { type: "json_object" },
       max_completion_tokens: 1000,
-    });
+    }, { signal: AbortSignal.timeout(12000) });
 
     const content = res.choices[0]?.message?.content;
     if (!content) return null;
