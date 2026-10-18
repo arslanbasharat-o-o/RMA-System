@@ -266,7 +266,7 @@ export function ItemReviewDrawer({
           )}
 
           {["uploaded", "queued", "processing"].includes(item?.status) && (
-            <div className="rounded-lg border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300 space-y-0.5">
+            <div role="status" className="rounded-lg border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300 space-y-0.5">
               <p className="font-semibold">
                 {item.status === "queued"
                   ? "Queued for automated optical analysis…"
