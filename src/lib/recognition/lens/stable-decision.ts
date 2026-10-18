@@ -137,7 +137,8 @@ export function stableVisualDecision(
 
 export function visualResultFromSnapshot(
   snapshot: VisualDecisionSnapshot,
-  source: string
+  source: string,
+  providerError?: string
 ): VisualIdentificationResult {
   return {
     provider: snapshot.manual ? "operator-image-match" : "stable-visual-evidence",
@@ -147,7 +148,12 @@ export function visualResultFromSnapshot(
     normalizedModel: snapshot.cleanDecision?.model || undefined,
     detectedDisplayAssembly: snapshot.cleanDecision?.displayName || snapshot.displayAssembly,
     cleanDecision: snapshot.cleanDecision,
-    rawResponse: { reusedFrom: source, stableDecision: snapshot },
+    rawResponse: {
+      reusedFrom: source,
+      stableDecision: snapshot,
+      ...(providerError ? { providerError } : {}),
+    },
     durationMs: 0,
+    ...(providerError ? { error: providerError } : {}),
   };
 }

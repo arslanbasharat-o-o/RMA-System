@@ -231,14 +231,14 @@ export default function DashboardPage() {
         {/* RMA Operational Flow Pipeline */}
         <RmaStatusPipeline stages={pipelineStages} loading={loading} />
 
-        {/* Analytics Grid: Top Models & Return Reasons */}
+        {/* Analytics Grid: Verified Models & Return Reasons */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-5">
-          {/* Card 1: Top Returned Models */}
+          {/* Card 1: Verified Models */}
           <CardSpotlight className="min-h-[280px] h-auto p-4 sm:p-5 lg:p-6 flex flex-col justify-between border-neutral-200/90 dark:border-zinc-800">
             <div className="overflow-hidden">
               <div className="flex items-center justify-between pb-3 mb-3 border-b border-neutral-100 dark:border-zinc-800">
                 <h3 className="text-sm font-semibold text-neutral-900 dark:text-neutral-100">
-                  Top Returned Models
+                  Verified Models
                 </h3>
                 <Layers className="h-4 w-4 text-neutral-400" />
               </div>
@@ -250,23 +250,13 @@ export default function DashboardPage() {
                   {data.modelBreakdown.slice(0, 6).map((m: any, idx: number) => {
                     const maxCount = Math.max(...data.modelBreakdown.map((x: any) => x.count), 1);
                     const percentage = Math.round((m.count / maxCount) * 100);
-                    const isPending =
-                      m.isPending ||
-                      !m.model ||
-                      m.model === "Unidentified Model" ||
-                      m.model === "Pending Identification";
-                    const displayLabel = isPending ? "Pending Identification" : m.model;
+                    const displayLabel = m.model || "Unidentified Model";
 
                     return (
                       <div key={idx} className="space-y-1.5 p-2 rounded-lg bg-slate-50/60 dark:bg-zinc-900/40">
                         <div className="flex items-center justify-between text-xs">
                           <span
-                            className={cn(
-                              "font-medium truncate max-w-[200px] sm:max-w-xs",
-                              isPending
-                                ? "text-amber-700 dark:text-amber-400"
-                                : "text-neutral-800 dark:text-neutral-200"
-                            )}
+                            className="font-medium truncate max-w-[200px] sm:max-w-xs text-neutral-800 dark:text-neutral-200"
                           >
                             {displayLabel}
                           </span>
@@ -276,10 +266,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="h-1.5 w-full bg-neutral-200/60 dark:bg-neutral-800 rounded-sm overflow-hidden">
                           <div
-                            className={cn(
-                              "h-full rounded-sm transition-all duration-300",
-                              isPending ? "bg-amber-500" : "bg-indigo-600 dark:bg-indigo-400"
-                            )}
+                            className="h-full rounded-sm bg-indigo-600 transition-all duration-300 dark:bg-indigo-400"
                             style={{ width: `${percentage}%` }}
                           />
                         </div>
@@ -289,7 +276,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <p className="text-xs text-neutral-400 dark:text-neutral-500 py-10 text-center">
-                  No display models cataloged yet.
+                  No display models have been verified yet.
                 </p>
               )}
             </div>

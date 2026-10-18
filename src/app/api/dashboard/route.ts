@@ -45,15 +45,15 @@ export async function GET(req: NextRequest) {
     .orderBy(desc(sql`count(*)`))
     .limit(6);
 
-  // 3. Top Returned Display Models
+  // 3. Top Operator-Verified Display Models
   const modelBreakdown = await db
     .select({
-      model: sql<string>`coalesce(${rmaItems.predictedModel}, 'Pending Identification')`,
+      model: rmaItems.predictedModel,
       count: sql<number>`count(*)::int`,
-      isPending: sql<boolean>`${rmaItems.predictedModel} is null`,
     })
     .from(rmaItems)
-    .groupBy(sql`coalesce(${rmaItems.predictedModel}, 'Pending Identification')`, sql`${rmaItems.predictedModel} is null`)
+    .where(sql`${rmaItems.status} = 'verified' AND ${rmaItems.verifiedAt} IS NOT NULL AND ${rmaItems.predictedModel} IS NOT NULL`)
+    .groupBy(rmaItems.predictedModel)
     .orderBy(desc(sql`count(*)`))
     .limit(6);
 

@@ -324,13 +324,15 @@ export function ItemReviewDrawer({
           <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Identified Model
+                Model result
               </span>
-              {item?.modelSource === "manual" ? <Badge variant="outline">Operator corrected</Badge> : item?.modelConfidenceScore ? (
-                <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 font-mono">
-                  {Math.round(item.modelConfidenceScore * 100)}% Match
-                </span>
-              ) : null}
+              {item?.modelSource === "manual" && item?.verifiedAt ? (
+                <Badge variant="outline">Verified</Badge>
+              ) : item?.predictedModel || item?.predictedDisplayAssembly ? (
+                <Badge variant="outline">Suggestion</Badge>
+              ) : (
+                <Badge variant="outline">Unidentified</Badge>
+              )}
             </div>
 
             <div className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
@@ -339,6 +341,12 @@ export function ItemReviewDrawer({
                   ? [item?.predictedManufacturer, item.predictedModel].filter(Boolean).join(" ")
                   : "Unidentified Model")}
             </div>
+
+            {item?.status === "review_required" && !item?.predictedModel && (
+              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
+                Search evidence did not identify one model. Compare the candidates and choose the exact catalog model before confirming.
+              </p>
+            )}
 
             <div className="pt-2.5 border-t border-neutral-200/60 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
               <span>Vendor: <strong className="text-neutral-900 dark:text-neutral-100 font-medium">{item?.identifiedVendorName || "Unidentified"}</strong></span>

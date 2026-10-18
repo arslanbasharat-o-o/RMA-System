@@ -47,6 +47,18 @@ function formatItemStatus(status: string) {
   }
 }
 
+function modelResultText(item: any) {
+  return item.predictedDisplayAssembly ||
+    (item.predictedModel
+      ? `${item.predictedManufacturer ? `${item.predictedManufacturer} ` : ""}${item.predictedModel}`
+      : "Unidentified Model");
+}
+
+function modelResultLabel(item: any) {
+  if (item.status === "verified" && item.verifiedAt) return "Verified";
+  return item.predictedModel || item.predictedDisplayAssembly ? "Suggestion" : "Unidentified";
+}
+
 export default function RmaDetailPage({
   params,
 }: {
@@ -428,12 +440,19 @@ export default function RmaDetailPage({
                   )}
 
                   <div className="flex-1 min-w-0 space-y-1">
-                    <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
-                      {item.predictedDisplayAssembly ||
-                        (item.predictedModel
-                          ? `${item.predictedManufacturer ? item.predictedManufacturer + " " : ""}${item.predictedModel}`
-                          : "Unidentified Model")}
-                    </p>
+                    <div className="flex min-w-0 items-start justify-between gap-2">
+                      <p className="min-w-0 text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
+                        {modelResultText(item)}
+                      </p>
+                      <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
+                        {modelResultLabel(item)}
+                      </span>
+                    </div>
+                    {item.status === "review_required" && !item.predictedModel && (
+                      <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                        Search evidence did not identify one model. Review the candidates before confirming.
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
                       Vendor:{" "}
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -538,7 +557,7 @@ export default function RmaDetailPage({
                   </th>
                   <th className="px-3 py-3 w-12 font-semibold">#</th>
                   <th className="px-4 py-3 w-16 font-semibold">Photo</th>
-                  <th className="px-4 py-3 font-semibold">Identified Model</th>
+                  <th className="px-4 py-3 font-semibold">Model Result</th>
                   <th className="px-4 py-3 font-semibold">Vendor / Variant</th>
                   <th className="px-4 py-3 font-semibold">Inspection Status</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
@@ -589,20 +608,20 @@ export default function RmaDetailPage({
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-bold text-slate-900 dark:text-slate-100">
-                        {item.predictedDisplayAssembly ||
-                          (item.predictedModel ? (
-                            <span>
-                              {item.predictedManufacturer
-                                ? `${item.predictedManufacturer} `
-                                : ""}
-                              {item.predictedModel}
-                            </span>
-                          ) : (
-                            <span className="text-slate-400 dark:text-slate-500 italic">
-                              Unidentified Model
-                            </span>
-                          ))}
+                      <td className="px-4 py-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {modelResultText(item)}
+                          </span>
+                          <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
+                            {modelResultLabel(item)}
+                          </span>
+                        </div>
+                        {item.status === "review_required" && !item.predictedModel && (
+                          <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
+                            Search evidence did not identify one model. Review the candidates before confirming.
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-200">
                         {item.identifiedVendorName ? (
