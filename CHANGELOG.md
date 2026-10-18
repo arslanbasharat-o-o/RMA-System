@@ -2,6 +2,18 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.10] - 2026-10-18
+
+### Added
+
+- Magic-byte image inspection in `SelfHostedLensProvider` detecting PNG, JPEG, WebP, and GIF formats from byte signatures, preventing HTTP 400 validation errors on client MIME/extension mismatches.
+- End-to-end `noCache` option in `DisplayVisualRecognitionContext` and `requestSearch`, enabling explicit live Google Lens re-queries while maintaining sub-40ms cached duplicates by default.
+
+### Verification
+
+- Validated on 15 distinct hardware component images across sequential initial recognition, sub-40ms cached duplicates, and live re-queries.
+- Verified 5-user concurrent burst scaling under live load without queue drops or timeouts.
+
 ## [0.3.9] - 2026-10-18
 
 ### Fixed
