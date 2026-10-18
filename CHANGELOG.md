@@ -2,6 +2,20 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.9] - 2026-10-18
+
+### Fixed
+
+- Ignore automated image decisions saved by older recognition policies so legacy conflicts cannot suppress a fresh Google Lens search.
+- Reuse current-policy unresolved results for identical image bytes, preventing repeated Lens requests for the same uncertain photo.
+- Keep conflicting model results in manual review while combining the fresh Lens overview and candidate listings for the reviewer.
+
+### Verification
+
+- Regression tests cover legacy conflict refresh, unresolved same-image reuse, confidence updates, and candidate preservation on conflicts.
+- All 143 unit and integration tests, TypeScript, ESLint, production build, and the mobile end-to-end workflow pass locally.
+- Live Lens checks use the visual pipeline only; no OCR or paid AI calls are made by release validation.
+
 ## [0.3.8] - 2026-10-18
 
 ### Fixed

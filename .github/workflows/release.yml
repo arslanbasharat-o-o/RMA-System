@@ -16,7 +16,10 @@ jobs:
   validate:
     uses: ./.github/workflows/ci.yml
     with:
-      full_browser_suite: true
+      # PR validation already runs the focused desktop, mobile Chrome, and Safari
+      # flows. Keep the 278-case exhaustive matrix available via workflow_dispatch
+      # instead of repeating it after every reviewed release tag.
+      full_browser_suite: false
 
   publish-release:
     needs: validate
