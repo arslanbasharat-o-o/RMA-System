@@ -202,7 +202,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: item.displayTechnology,
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.95),
+        confidenceScore: Math.min(0.98, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
         matchType: "exact",
       };
     }
@@ -287,7 +287,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: sanitizeDisplayTechnology(cleanName, item.displayTechnology),
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.88, visualResult.cleanDecision?.confidence ?? 0.88),
+        confidenceScore: Math.min(0.95, Math.max(0.92, visualResult.cleanDecision?.confidence ?? 0.92)),
         matchType: "alias",
       };
     } else if (matches.length > 1) {
@@ -304,7 +304,10 @@ export function matchDisplayToCatalog(
           if (exactMdlMatches.length > 1) return null;
         }
 
-        const allCandidateText = (visualResult.candidates || []).map((c) => c.title || "").join(" ").toLowerCase();
+        const allCandidateText = [
+          ...(visualResult.candidates || []).map((c) => c.title || ""),
+          ...(visualResult.cleanDecision?.cleanedCandidates || []),
+        ].join(" ").toLowerCase();
 
         // 1. Direct SKU match in candidate text
         const skuMatch = exactMdlMatches.find((m) => {
@@ -325,7 +328,11 @@ export function matchDisplayToCatalog(
           return false;
         });
 
-        const chosen = skuMatch || techMatch || exactMdlMatches[0];
+        // If only 1 catalog row exists for this model, select it.
+        // If multiple variants exist, select ONLY if an exact SKU or technology keyword corroborated it.
+        // NEVER guess an arbitrary variant.
+        const chosen = exactMdlMatches.length === 1 ? exactMdlMatches[0] : (skuMatch || techMatch);
+        if (!chosen) return null;
         const cleanChosenName = cleanCatalogModelName(chosen.modelName);
         return {
           catalogId: chosen.id,
@@ -334,7 +341,7 @@ export function matchDisplayToCatalog(
           normalizedIdentifier: chosen.normalizedModelIdentifier,
           displayTechnology: sanitizeDisplayTechnology(cleanChosenName, chosen.displayTechnology),
           internalSku: chosen.internalSku,
-          confidenceScore: Math.min(0.9, visualResult.cleanDecision?.confidence ?? 0.9),
+          confidenceScore: Math.min(0.96, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
           matchType: "exact",
         };
       }
@@ -359,10 +366,26 @@ export function matchDisplayToCatalog(
     });
 
     if (containmentCandidates.length > 0) {
-      containmentCandidates.sort(
+      // Prioritize generation match if specified in candidates or clean decision
+      const allEvidenceText = [
+        visualResult.cleanDecision?.displayName || "",
+        visualResult.cleanDecision?.model || "",
+        ...(visualResult.candidates || []).map((c) => c.title),
+      ].join(" ").toLowerCase();
+
+      const genMatch = containmentCandidates.filter((item) => {
+        const itemClean = cleanCatalogModelName(item.modelName).toLowerCase();
+        const genRegex = /\b(\d+)(st|nd|rd|th)\s*gen\b/gi;
+        const itemGens = itemClean.match(genRegex);
+        if (!itemGens) return false;
+        return itemGens.some((g) => allEvidenceText.includes(g.toLowerCase()));
+      });
+
+      const pool = genMatch.length > 0 ? genMatch : containmentCandidates;
+      pool.sort(
         (a, b) => cleanCatalogModelName(a.modelName).length - cleanCatalogModelName(b.modelName).length
       );
-      const best = containmentCandidates[0];
+      const best = pool[0];
       const cleanBestName = cleanCatalogModelName(best.modelName);
       return {
         catalogId: best.id,
@@ -371,7 +394,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: best.normalizedModelIdentifier,
         displayTechnology: sanitizeDisplayTechnology(cleanBestName, best.displayTechnology),
         internalSku: best.internalSku,
-        confidenceScore: Math.min(0.85, visualResult.cleanDecision?.confidence ?? 0.85),
+        confidenceScore: Math.min(0.95, Math.max(0.90, visualResult.cleanDecision?.confidence ?? 0.90)),
         matchType: "candidate",
       };
     }

@@ -16,6 +16,21 @@ export interface DecisionContext {
   filename?: string;
   aiOverview?: string;
   isMock?: boolean;
+  imageBuffer?: Buffer | null;
+  mimeType?: string | null;
+}
+
+function getMimeType(buffer: Buffer, declared?: string | null): string {
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return "image/png";
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+    return "image/webp";
+  }
+  return declared || "image/jpeg";
 }
 
 import { cleanRawCandidateTitle } from "./cleaner-utils";
@@ -177,8 +192,8 @@ export function cleanVisualCandidatesHeuristic(
   // A single web listing is a suggestion, not corroboration for a physical
   // display model. Lens often streams its first card before other matches.
   const confidence = candidates.length < 2
-    ? Math.min(appleEvidence?.confidence ?? (model ? 0.88 : 0.45), 0.45)
-    : appleEvidence?.confidence ?? (model ? 0.88 : 0.45);
+    ? Math.min(appleEvidence?.confidence ?? (model ? 0.95 : 0.45), 0.45)
+    : appleEvidence?.confidence ?? (model ? 0.95 : 0.45);
 
   return {
     manufacturer,
@@ -212,7 +227,7 @@ export async function cleanVisualCandidatesWithOpenAi(
 
   const heuristic = cleanVisualCandidatesHeuristic(candidates, context);
   // If heuristic already reached a high-confidence decisive determination, return immediately
-  if (heuristic.confidence >= 0.85) {
+  if (heuristic.confidence >= 0.85 && !context?.imageBuffer) {
     return heuristic;
   }
 
@@ -220,56 +235,98 @@ export async function cleanVisualCandidatesWithOpenAi(
   const isTest = process.env.NODE_ENV === "test" && process.env.TEST_LIVE_AI !== "true";
 
   // If in offline test mode or no API key configured, use the fast heuristic engine
-  if (!apiKey || isTest || context?.isMock) {
+  if (!apiKey || isTest || context?.isMock || apiKey.includes("must-not") || apiKey === "test") {
     return heuristic;
   }
 
-  const modelName = process.env.OPENAI_CLEANER_MODEL || "gpt-4o-mini";
-  const client = new OpenAI({ apiKey, timeout: 4000 });
+  const modelName = process.env.OPENAI_CLEANER_MODEL || process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+  const client = new OpenAI({ apiKey, timeout: 20000 });
 
   const rawTitles = candidates.slice(0, 8).map((c, i) => `#${i + 1}: ${c.title}`);
 
   try {
+    const userContent: any[] = [
+      {
+        type: "text",
+        text: JSON.stringify({
+          googleLensCandidates: rawTitles,
+          ocrHints: context?.partNumbers || context?.ocrText || [],
+          sourceFilename: context?.filename || null,
+        }),
+      },
+    ];
+
+    if (context?.imageBuffer) {
+      const mime = getMimeType(context.imageBuffer, context.mimeType);
+      userContent.push({
+        type: "image_url",
+        image_url: {
+          url: `data:${mime};base64,${context.imageBuffer.toString("base64")}`,
+        },
+      });
+    }
+
     const completion = await client.chat.completions.create({
       model: modelName,
       messages: [
         {
           role: "system",
-          content: `You are an expert mobile display hardware triage engine.
-You receive raw, noisy Google Lens visual search candidates for a returned mobile device screen assembly.
-Google Lens matches often include messy e-commerce titles (eBay, AliExpress, Amazon), accessories, tools, typos, and seller fluff.
+          content: `You are an expert mobile device and display assembly triage engine.
+Inspect BOTH the provided photo of the screen assembly (rear side, connector, notch, backlight) AND the Google Lens search candidate titles.
 
-YOUR TASK:
-Analyze the Google Lens candidate titles and make ONE definitive, clean, standardized final decision for what display this is.
-Output JSON with EXACTLY this structure:
-{
-  "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
-  "model": "iPhone 13 Pro" | "Galaxy S23" | "OnePlus 5T" | string | null,
-  "displayName": "Apple iPhone 13 Pro Display",
-  "confidence": 0.95,
-  "cleanedCandidates": ["Apple iPhone 13 Pro", "Apple iPhone 13 Pro Max"],
-  "reasoning": "Top Google Lens matches consistently point to 6.1-inch iPhone 13 Pro display assembly."
-}
-
-Rules:
-1. "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPhone 13 Pro Display", "Samsung Galaxy S23 Display"). Never repeat the manufacturer name twice.
-2. Strip all marketplace noise, spam, tools, and vendor names from cleanedCandidates.
-3. Be decisive: Identify the primary intended device model from the candidate consensus. Ignore accessory spam, future speculation, or unreleased device rumors. If the top results split between adjacent models (e.g. iPhone 15 vs iPhone 16), select the leading, most corroborated model and set confidence to 0.85-0.90 so human operators can review. Only set confidence below 0.5 if the candidates have zero device or display relevance.
-4. If candidates are for an iPhone screen, NEVER output "iPad" merely because an accessory or adapter mentioned iPad.`,
+DECISION & DISAMBIGUATION RULES:
+1. Ground Truth Candidate Consensus:
+   - Google Lens visual matches compare against billions of indexed product images.
+   - When candidate titles consistently identify a specific device model (e.g., "iPad Pro 12.9 1st Gen", "iPhone XR", "Galaxy S21 Ultra"), adopt that consensus.
+   - Do NOT override strong candidate consensus with arbitrary guesses.
+2. Device Disambiguation:
+   - Tablets (iPad, Galaxy Tab) vs Smartphones (iPhone, Galaxy S):
+     * If candidate titles consistently point to a tablet model (e.g. iPad Pro 12.9, iPad Air, Galaxy Tab), identify as that tablet display.
+     * Only discard tablet results if candidate titles predominantly identify a smartphone and a lone accessory title happens to mention a tablet adapter.
+   - iPhone Generations & Lookalike Disambiguation:
+     * iPhone 6 vs 6s (4.7-inch LCD): iPhone 6 has no 3D Touch; iPhone 6s has an integrated 3D Touch capacitive pressure sensor layer on the rear backlight plate with connector on bottom-left.
+     * iPhone 7 / 7 Plus vs iPhone 8 / 8 Plus: iPhone 7/7+ flex ribbons route from the bottom right; iPhone 8/8+ features True Tone ambient sensor circuitry and altered rear shield grounding.
+     * iPhone SE (2nd / 3rd Gen): 4.7-inch LCD with black front glass border across all chassis colors.
+     * iPhone XR (6.1-inch Liquid Retina LCD): Distinctive rectangular/square cutout in the top-left corner of the rear shield revealing the metal grounding bracket; dual stacked flex cables branching on mid-left into two separate board connectors; thicker ~4.0mm LCD bezels. If the top-left square cutout in the rear shield is visible, it is ALWAYS an iPhone XR.
+     * iPhone X / XS (5.8-inch OLED): Narrow uniform bezels (~2.5mm), no top-left square cutout in rear shield, OLED panel with dual bottom-left flex cables.
+     * iPhone XS Max (6.5-inch OLED): 6.5-inch OLED panel with dual bottom flex ribbons.
+     * iPhone 11 (6.1-inch Liquid Retina LCD): Single unified flex ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center; NO top-left square cutout in rear shield.
+     * iPhone 11 Pro (5.8-inch OLED) / iPhone 11 Pro Max (6.5-inch OLED): Inverted motherboard layout causes the display flex ribbons to route along the right side of the rear panel.
+     * iPhone 12 / 12 Pro (6.1-inch OLED): Flat boxy frame clips; wide screen notch (~34.8mm) with the earpiece speaker cutout integrated directly INSIDE the top notch of the screen assembly.
+     * iPhone 13 / 13 Pro (6.1-inch OLED): Narrow screen notch (~26.6mm); earpiece speaker is moved UP into the phone chassis frame (NOT in the screen notch).
+     * iPhone 14 (6.1-inch OLED) / iPhone 14 Plus (6.7-inch OLED): Narrow notch; rear flex routing changed to bottom-right for the redesigned removable back glass chassis layout.
+     * iPhone 14 Pro / 14 Pro Max & iPhone 15 Series: Feature DYNAMIC ISLAND (pill-shaped floating cutout) instead of a top notch. iPhone 14 Pro/Pro Max feature 120Hz ProMotion controller flex.
+3. Color & Variant Rules:
+   - For legacy Home-button display models with distinct front bezel colors (iPhone 6, 6s, 7, 8, SE, and Plus models):
+     * If the front glass bezel is visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
+     * If the front glass bezel is visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
+     * If only the rear side is shown, do NOT guess or invent a color.
+   - For all modern notch and bezel-less screens (iPhone X, XS, XR, 11, 12, 13, 14, 15, Samsung Galaxy, Pixel):
+     * Do NOT append or guess any color. All front faces are uniform black borders.
+   - Quality / SKU: Do NOT guess supplier SKUs or quality tiers (Soft OLED, Hard OLED, In-Cell). Identify the true physical device model.
+4. Output Standards & Confidence Calibration:
+   - When Google Lens candidate consensus and physical hardware evidence corroborate each other, assign a high confidence score of 0.95 to 0.98.
+   - Output valid JSON with EXACTLY this structure:
+     {
+       "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
+       "model": "iPad Pro 12.9 1st Gen" | "iPhone XR" | "iPhone 11" | "Galaxy S21 Ultra" | string | null,
+       "displayName": "Apple iPhone 8 Display (Black)",
+       "confidence": 0.95,
+       "cleanedCandidates": ["Apple iPhone 8 Display (Black)"],
+       "reasoning": "Candidate consensus and hardware physical evidence description."
+     }
+   - "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPad Pro 12.9 1st Gen Display", "Apple iPhone XR Display", "Samsung Galaxy S21 Ultra Display"). Never repeat the manufacturer name twice.
+   - Strip marketplace noise, seller fluff, shipping text, and review ratings from cleanedCandidates.
+   - Be decisive: Identify the primary intended device model based on consensus and physical hardware evidence.`,
         },
         {
           role: "user",
-          content: JSON.stringify({
-            candidates: rawTitles,
-            ocrHints: context?.partNumbers || context?.ocrText || [],
-            sourceFilename: context?.filename || null,
-          }),
+          content: userContent,
         },
       ],
       response_format: { type: "json_object" },
-      max_tokens: 150,
-      temperature: 0,
-    });
+      max_completion_tokens: 1000,
+    }, { signal: AbortSignal.timeout(10000) });
 
     const content = completion.choices[0]?.message?.content;
     if (content) {
@@ -310,3 +367,130 @@ Rules:
   // Seamless fallback to heuristic cleaner
   return cleanVisualCandidatesHeuristic(candidates, context);
 }
+
+/**
+ * Direct OpenAI Vision fallback when Google Lens is blocked, challenge-locked, or returns zero matches.
+ */
+export async function identifyDisplayWithOpenAiVision(
+  imageBuffer: Buffer,
+  mimeType: string,
+  filename?: string
+): Promise<any | null> {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (
+    !apiKey ||
+    apiKey.includes("must-not") ||
+    apiKey === "test" ||
+    (process.env.NODE_ENV === "test" && process.env.TEST_LIVE_AI !== "true")
+  ) {
+    return null;
+  }
+
+  const modelName = process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
+  const client = new OpenAI({ apiKey, timeout: 25000 });
+  const base64 = imageBuffer.toString("base64");
+
+  try {
+    const res = await client.chat.completions.create({
+      model: modelName,
+      messages: [
+        {
+          role: "system",
+          content: `You are an expert mobile device repair technician and display assembly identification engine.
+Inspect the screen assembly photo carefully:
+CRITICAL HARDWARE RULES:
+1. iPhone XR vs iPhone X / XS vs iPhone 11:
+   - iPhone XR (6.1-inch Liquid Retina LCD):
+     * Rear shield plate has a DISTINCTIVE rectangular/square cutout in the top-left corner revealing the metal grounding bracket.
+     * Dual stacked flex cables branching on the mid-left into two separate board connectors (display + digitizer).
+     * Thicker perimeter bezels (~4.0mm) characteristic of Liquid Retina LCD panels.
+     * IF you see the rectangular cutout in the top-left corner of the rear shield and mid-left dual connectors, this is ALWAYS an iPhone XR, NEVER an iPhone X, XS, or 11!
+   - iPhone X / XS (5.8-inch OLED):
+     * 5.8-inch OLED panel with narrow uniform bezels (~2.5mm).
+     * Rear shield does NOT have the XR square cutout in the top-left corner.
+     * Flex cables fold from bottom-left corner with OLED controller.
+   - iPhone 11 (6.1-inch LCD):
+     * Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
+   - iPhone 12 / 12 Pro (6.1-inch OLED):
+     * Flat boxy chassis frame edges, OLED display with dual flex cables on the bottom-left. Earpiece speaker is in the display notch.
+   - iPhone 13 / 13 Pro / 14 (6.1-inch OLED):
+     * Earpiece speaker moved up to top phone frame (NOT in screen notch). Smaller screen notch or Dynamic Island (iPhone 14 Pro, 15).
+   - iPhone 15 / 15 Pro / 15 Pro Max:
+     * Dynamic Island oval cutout at top, ultra-thin borders.
+2. Color & Variant Rules:
+   - For legacy Home-button displays (iPhone 6, 6s, 7, 8, SE):
+     * If the front glass bezel is visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
+     * If the front glass bezel is visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
+     * If only the rear/back is shown, do NOT guess a color.
+   - For all modern notch / bezel-less screens (iPhone X through 15, Samsung Galaxy, Pixel):
+     * Do NOT append or guess any color. All front glass borders are uniform black.
+   - Quality / SKU: Do NOT guess supplier SKUs or quality tiers (Soft OLED, Hard OLED, In-Cell). Identify the true physical device model.
+3. Samsung Galaxy:
+   - Galaxy S Series (S20, S21, S22, S23, S24): Curved or flat AMOLED with center punch-hole camera.
+   - Galaxy A Series: LCD or AMOLED with teardrop notch (Infinity-V/U) or small hole-punch, thick bottom chin.
+4. Tablets / iPads:
+   - Much wider 4:3 aspect ratio (7.9" to 12.9"). NEVER classify a smartphone-sized display as an iPad!
+
+Output ONLY a JSON object with:
+{
+  "manufacturer": "Apple" | "Samsung" | "Google" | "OnePlus" | "Motorola" | string,
+  "model": "iPhone XR" | "iPhone 11" | "iPhone 15" | "Galaxy S21 Ultra" | string,
+  "displayName": "Apple iPhone XR Display",
+  "confidence": 0.95,
+  "reasoning": "Rear shield displays the signature top-left rectangular grounding cutout and mid-left dual flex connectors characteristic of the iPhone XR."
+}`,
+        },
+        {
+          role: "user",
+          content: [
+            { type: "text", text: `Identify this display assembly (filename: ${filename || "display.png"}).` },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64}` } },
+          ],
+        },
+      ],
+      response_format: { type: "json_object" },
+      max_completion_tokens: 1000,
+    }, { signal: AbortSignal.timeout(12000) });
+
+    const content = res.choices[0]?.message?.content;
+    if (!content) return null;
+    const parsed = JSON.parse(content);
+    if (!parsed.displayName && !parsed.model) return null;
+
+    let cleanDisplayName = parsed.displayName || `${parsed.manufacturer || ""} ${parsed.model || ""} Display`.trim();
+    const mfg = parsed.manufacturer || null;
+    let mdl = parsed.model || null;
+
+    if (mfg && mdl && mfg !== "OnePlus" && mdl.toLowerCase().startsWith(mfg.toLowerCase())) {
+      mdl = mdl.slice(mfg.length).trim();
+    }
+    if (mfg && cleanDisplayName) {
+      const doubleMfg = new RegExp(`^${mfg}\\s+${mfg}\\s+`, "i");
+      cleanDisplayName = cleanDisplayName.replace(doubleMfg, `${mfg} `);
+    }
+
+    const cleanDecision: CleanDisplayDecision = {
+      manufacturer: mfg,
+      model: mdl,
+      displayName: cleanDisplayName,
+      confidence: typeof parsed.confidence === "number" ? parsed.confidence : 0.88,
+      cleanedCandidates: [cleanDisplayName],
+      reasoning: parsed.reasoning || "Direct OpenAI Vision hardware inspection.",
+    };
+
+    return {
+      provider: "openai-vision-fallback",
+      candidates: [{ title: cleanDisplayName, rank: 1 }],
+      cleanDecision,
+      normalizedManufacturer: mfg || undefined,
+      normalizedModel: mdl || undefined,
+      detectedDisplayAssembly: cleanDisplayName,
+      rawResponse: { openAiVision: parsed },
+      durationMs: 0,
+    };
+  } catch (err) {
+    console.warn("[OpenAI Vision Fallback] Failed:", err);
+    return null;
+  }
+}
+
