@@ -80,7 +80,7 @@ async function run100DisplayBenchmark() {
   const allCatalog = await db.select().from(displayCatalog);
   console.log(`Loaded ${allCatalog.length} catalog items from PostgreSQL.\n`);
 
-  const provider = new SelfHostedLensProvider({ timeoutMs: 18000 });
+  const provider = new SelfHostedLensProvider({ timeoutMs: 8000 });
 
   let passedCount = 0;
   let catalogMatchCount = 0;
