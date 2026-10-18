@@ -461,12 +461,7 @@ export default function RmaDetailPage({
                         {modelResultLabel(item)}
                       </span>
                     </div>
-                    {item.internalSku && (
-                      <div className="flex items-center gap-1 font-mono text-[10px] text-slate-500 dark:text-zinc-400">
-                        <span>SKU:</span>
-                        <CopyBadge value={item.internalSku} />
-                      </div>
-                    )}
+
                     {item.status === "review_required" && !item.predictedModel && (
                       <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                         Search evidence did not identify one model. Review the candidates before confirming.
@@ -636,12 +631,7 @@ export default function RmaDetailPage({
                             {modelResultLabel(item)}
                           </span>
                         </div>
-                        {item.internalSku && (
-                          <div className="mt-1 flex items-center gap-1 font-mono text-[10px] text-slate-500 dark:text-zinc-400">
-                            <span>SKU:</span>
-                            <CopyBadge value={item.internalSku} />
-                          </div>
-                        )}
+
                         {item.status === "review_required" && !item.predictedModel && (
                           <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                             Search evidence did not identify one model. Review the candidates before confirming.
