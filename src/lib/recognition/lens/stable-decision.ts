@@ -3,7 +3,7 @@ import type { VisualCandidate, VisualIdentificationResult } from "./types";
 
 // A policy change can intentionally re-evaluate older images without changing
 // or deleting the evidence saved by an earlier release.
-export const VISUAL_DECISION_POLICY = "evidence-consensus-2026-10-18-v2";
+export const VISUAL_DECISION_POLICY = "evidence-consensus-2026-10-18-v3";
 
 export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
   return Boolean(

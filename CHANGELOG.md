@@ -2,6 +2,21 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.12] - 2026-10-18
+
+### Fixed
+
+- Connected `SelfHostedLensProvider` to `cleanVisualCandidatesWithOpenAi` to enable decisive `gpt-4o-mini` arbitration for ambiguous visual splits.
+- Enhanced OpenAI cleaner prompt rules to decisively select the leading smartphone display model from candidate consensus, eliminating "Unidentified Apple Display" and preventing false iPad classifications.
+- Added distributor title sanitization (`cleanCatalogModelName`) and OLED technology guards (`sanitizeDisplayTechnology`) to strip "with frame" prefixes and suppress erroneous "(LCD)" tags on OLED flagships.
+- Bumped `VISUAL_DECISION_POLICY` to `v3` to bypass historical conflicting/unresolved snapshots and ensure clean re-evaluations.
+- Streamlined RMA shipment status badge to eliminate duplicate spinner and clock icon confusion.
+
+### Verification
+
+- All 22 test suites (146 tests) pass with 100% success rate.
+- TypeScript compilation and ESLint pass cleanly.
+
 ## [0.3.11] - 2026-10-18
 
 ### Fixed
