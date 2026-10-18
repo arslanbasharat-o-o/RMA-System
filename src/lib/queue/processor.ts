@@ -271,12 +271,16 @@ export async function processRmaItem(
               noCache: options?.force,
             });
             const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
-            visualResult = reconciled && (reconciled.manual || reconciled.conflict ||
-              (established && !fresh.error))
-            ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
-              : fresh.error && established
-              ? visualResultFromSnapshot(established, "same-image-evidence", fresh.error)
-                : fresh;
+            visualResult = reconciled?.manual
+              ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
+              : options?.force && !fresh.error && fresh.cleanDecision?.model
+              ? fresh
+              : reconciled && (reconciled.manual || reconciled.conflict ||
+                (established && !fresh.error))
+              ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
+                : fresh.error && established
+                ? visualResultFromSnapshot(established, "same-image-evidence", fresh.error)
+                  : fresh;
           }
 
           const [run] = await db
