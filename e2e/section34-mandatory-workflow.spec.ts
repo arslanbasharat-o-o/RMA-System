@@ -11,7 +11,8 @@ import { processRmaItem } from "@/lib/queue/processor";
  * Helper to navigate across routes supporting both desktop sidebar and mobile slide-over drawer
  */
 async function navigateTo(page: Page, label: string, urlPattern: RegExp) {
-  const mobileToggle = page.locator('button[aria-label="Toggle navigation menu"]');
+  // Accessible role queries exclude the hidden tree retained after route changes.
+  const mobileToggle = page.getByRole("button", { name: "Toggle navigation menu", exact: true });
   const isMobile = await mobileToggle.isVisible();
   let link;
   if (isMobile) {
@@ -356,7 +357,7 @@ test.describe("Section 34: Mandatory Final Real-User End-to-End Workflow", () =>
     // ------------------------------------------------------------------------
     // Step 34, 35 & 36: Clean logout & verify unauthorized access protection
     // ------------------------------------------------------------------------
-    const mobileToggle = page.locator('button[aria-label="Toggle navigation menu"]');
+    const mobileToggle = page.getByRole("button", { name: "Toggle navigation menu", exact: true });
     if (await mobileToggle.isVisible()) {
       const drawer = page.locator('div[role="dialog"][aria-modal="true"]');
       if (!(await drawer.isVisible())) {

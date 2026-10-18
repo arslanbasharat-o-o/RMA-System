@@ -2,6 +2,11 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.16] - 2026-10-19
+
+### Fixed
+- Target accessible mobile navigation controls during the complete browser workflow so hidden retained route trees do not cause an ambiguous test selector. All workflow assertions and release gates remain enabled.
+
 ## [0.3.15] - 2026-10-19
 
 ### Fixed
