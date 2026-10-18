@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  isCurrentVisualDecisionPolicy,
   readVisualDecisionSnapshot,
   stableVisualDecision,
+  VISUAL_DECISION_POLICY,
   visualResultFromSnapshot,
   type VisualDecisionSnapshot,
 } from "@/lib/recognition/lens/stable-decision";
@@ -55,6 +57,60 @@ describe("stable decisions for an identical uploaded image", () => {
     const restored = readVisualDecisionSnapshot({ stableDecision: snapshot });
     expect(restored?.cleanDecision?.model).toBe("iPhone 14 Plus");
     expect(readVisualDecisionSnapshot({ stableDecision: { candidates: "invalid" } })).toBeNull();
+  });
+
+  it("caches an unresolved result for the identical image instead of searching repeatedly", () => {
+    const unresolved = result(null, 0.45);
+    const reused = stableVisualDecision([unresolved]);
+
+    expect(reused?.cleanDecision?.model).toBeNull();
+    expect(reused?.cleanDecision?.displayName).toBe("Unidentified Apple Display");
+  });
+
+  it("allows a fresh result to replace an old unresolved result", () => {
+    const refreshed = stableVisualDecision([result(null, 0.45)], result("iPhone 15 Pro"));
+
+    expect(refreshed?.conflict).not.toBe(true);
+    expect(refreshed?.cleanDecision?.model).toBe("iPhone 15 Pro");
+  });
+
+  it("uses stronger fresh evidence for the same model without creating a conflict", () => {
+    const refreshed = stableVisualDecision(
+      [result("iPhone 15 Pro", 0.55)],
+      result("iPhone 15 Pro", 0.94)
+    );
+
+    expect(refreshed?.conflict).not.toBe(true);
+    expect(refreshed?.cleanDecision?.model).toBe("iPhone 15 Pro");
+    expect(refreshed?.cleanDecision?.confidence).toBe(0.94);
+  });
+
+  it("keeps fresh Lens evidence visible when same-image results conflict", () => {
+    const older = {
+      ...result("iPhone 14"),
+      candidates: [{ title: "iPhone 14 display", sourceUrl: "https://example.test/14", rank: 1 }],
+      aiOverview: "Older overview",
+    };
+    const fresh = {
+      ...result("iPhone 15 Pro"),
+      candidates: [{ title: "iPhone 15 Pro display", sourceUrl: "https://example.test/15", rank: 1 }],
+      aiOverview: "Fresh overview",
+    };
+    const conflict = stableVisualDecision([older], fresh);
+
+    expect(conflict?.conflict).toBe(true);
+    expect(conflict?.cleanDecision?.model).toBeNull();
+    expect(conflict?.aiOverview).toBe("Fresh overview");
+    expect(conflict?.candidates.map((candidate) => candidate.title)).toEqual([
+      "iPhone 14 display",
+      "iPhone 15 Pro display",
+    ]);
+  });
+
+  it("only reuses automated evidence saved by the active decision policy", () => {
+    expect(isCurrentVisualDecisionPolicy({ decisionPolicy: VISUAL_DECISION_POLICY })).toBe(true);
+    expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "evidence-consensus-2026-10-18" })).toBe(false);
+    expect(isCurrentVisualDecisionPolicy(null)).toBe(false);
   });
 
   it("retains provider failures when displaying a safe stored result", () => {

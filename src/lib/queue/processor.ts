@@ -19,6 +19,7 @@ import { OpenAiVisionOcrService } from "@/lib/recognition/openai";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import {
   VISUAL_DECISION_POLICY,
+  isCurrentVisualDecisionPolicy,
   readVisualDecisionSnapshot,
   snapshotVisualDecision,
   stableVisualDecision,
@@ -115,6 +116,9 @@ async function previousVisualDecisions(
   for (const run of runs) {
     const request = run.rawRequest as Record<string, unknown> | null;
     if (!request) continue;
+    // Older policies repeatedly re-used contradictory or unresolved results.
+    // Keep them in history, but only reuse evidence produced by the active policy.
+    if (!isCurrentVisualDecisionPolicy(request)) continue;
     if (typeof request.checksumSha256 === "string" && request.checksumSha256 !== checksumSha256) continue;
     const selectedImage = selectedRecognitionImage(imagesByItem.get(run.rmaItemId) || []);
     if (selectedImage?.checksumSha256 !== checksumSha256) continue;
