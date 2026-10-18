@@ -2,6 +2,12 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.15] - 2026-10-19
+
+### Fixed
+- Preserve the normalized candidate titles, source links, and ranks when saving and reusing a recognition result.
+- Keep manual confirmations and conflict flags during result persistence; refresh machine evidence saved by the incomplete snapshot policy.
+
 ## [0.3.14] - 2026-10-19
 
 ### Fixed
