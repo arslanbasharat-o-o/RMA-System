@@ -9,6 +9,7 @@ import {
   reviewActions,
   vendors,
   vendorVariants,
+  displayCatalog,
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
@@ -34,6 +35,9 @@ export async function GET(
       predictedModel: rmaItems.predictedModel,
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
       catalogDisplayId: rmaItems.catalogDisplayId,
+      internalSku: displayCatalog.internalSku,
+      catalogModelName: displayCatalog.modelName,
+      displayTechnology: displayCatalog.displayTechnology,
       identifiedVendorId: rmaItems.identifiedVendorId,
       identifiedVendorVariantId: rmaItems.identifiedVendorVariantId,
       identifiedVendorName: vendors.name,
@@ -57,6 +61,7 @@ export async function GET(
     .from(rmaItems)
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
     .leftJoin(vendorVariants, eq(rmaItems.identifiedVendorVariantId, vendorVariants.id))
+    .leftJoin(displayCatalog, eq(rmaItems.catalogDisplayId, displayCatalog.id))
     .where(eq(rmaItems.id, id));
 
   if (!item) {

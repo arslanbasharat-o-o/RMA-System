@@ -24,6 +24,7 @@ import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { hasModelSuggestion } from "@/lib/model-result";
+import { CopyBadge } from "@/components/premium";
 
 export function ItemReviewDrawer({
   itemId,
@@ -97,7 +98,7 @@ export function ItemReviewDrawer({
     }
     if (!optionsLoaded.current) {
       const [catRes, venRes] = await Promise.all([
-        fetch("/api/display-catalog", { signal, cache: "no-store" }),
+        fetch("/api/display-catalog?compact=true&all=true", { signal, cache: "no-store" }),
         fetch("/api/vendors", { signal, cache: "no-store" }),
       ]);
       if (!catRes.ok || !venRes.ok) throw new Error("Could not load review options.");
@@ -210,6 +211,8 @@ export function ItemReviewDrawer({
 
   const { item, images, candidates, ocrExtractions, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
+  const currentCatalogItem = catalogList.find((c) => c.id === (selectedCatalogId || item?.catalogDisplayId));
+  const displaySku = item?.internalSku || currentCatalogItem?.internalSku;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -263,18 +266,22 @@ export function ItemReviewDrawer({
           )}
 
           {["uploaded", "queued", "processing"].includes(item?.status) && (
-            <LoadingMessage
-              label={item.status === "queued"
-                ? "Waiting to analyze this display…"
-                : item.visualStatus === "pending"
-                  ? item.vendorOcrStatus === "success"
-                    ? "Text recognition finished. Waiting for the display model…"
-                    : "Searching for the display model and reading markings…"
-                  : item.vendorOcrStatus === "pending"
-                    ? "Reading display markings…"
-                    : "Preparing recognition results…"}
-              detail="Results update here automatically."
-            />
+            <div className="rounded-lg border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300 space-y-0.5">
+              <p className="font-semibold">
+                {item.status === "queued"
+                  ? "Queued for automated optical analysis…"
+                  : item.visualStatus === "pending"
+                    ? item.vendorOcrStatus === "success"
+                      ? "Text recognition finished. Analyzing display model…"
+                      : "Scanning display model and reading markings…"
+                    : item.vendorOcrStatus === "pending"
+                      ? "Reading physical display markings…"
+                      : "Preparing final recognition results…"}
+              </p>
+              <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
+                Live updates will refresh here automatically.
+              </p>
+            </div>
           )}
 
           {item?.visualStatus === "failed" && (
@@ -323,17 +330,25 @@ export function ItemReviewDrawer({
 
           {/* Unified Display & Attribution Details */}
           <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
                 Model result
               </span>
-              {item?.modelSource === "manual" && item?.verifiedAt ? (
-                <Badge variant="outline">Verified</Badge>
-              ) : item && hasModelSuggestion(item) ? (
-                <Badge variant="outline">Suggestion</Badge>
-              ) : (
-                <Badge variant="outline">Unidentified</Badge>
-              )}
+              <div className="flex items-center gap-2">
+                {displaySku && (
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-neutral-400 font-mono">SKU:</span>
+                    <CopyBadge value={displaySku} />
+                  </div>
+                )}
+                {item?.modelSource === "manual" && item?.verifiedAt ? (
+                  <Badge variant="outline">Verified</Badge>
+                ) : item && hasModelSuggestion(item) ? (
+                  <Badge variant="outline">Suggestion</Badge>
+                ) : (
+                  <Badge variant="outline">Unidentified</Badge>
+                )}
+              </div>
             </div>
 
             <div className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
