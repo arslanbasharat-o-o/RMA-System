@@ -108,7 +108,7 @@ function getAiOverview(payload: JsonObject): string | undefined {
 }
 
 function getStatus(payload: JsonObject): string | undefined {
-  return typeof payload.status === "string" ? payload.status.toLowerCase() : undefined;
+  return typeof payload.status === "string" ? payload.status.trim().toLowerCase() : undefined;
 }
 
 function getStatusUrl(payload: JsonObject): string | undefined {
@@ -397,12 +397,25 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   ): Promise<JsonObject> {
     let current = payload;
     const pendingStatuses = new Set(["queued", "running", "pending", "processing"]);
+    let fetchedCompletedJob = false;
 
-    while (!hasVisualMatches(current) && pendingStatuses.has(getStatus(current) || "")) {
+    while (true) {
+      const status = getStatus(current) || "";
+      if (["failed", "error", "cancelled", "canceled"].includes(status)) {
+        throw new Error("Self-hosted Lens job failed or was cancelled without a response payload.");
+      }
+      const pending = pendingStatuses.has(status);
+      if (!pending && hasVisualMatches(current)) return current;
       const statusUrl = getStatusUrl(current);
       if (!statusUrl) {
-        throw new Error("Self-hosted Lens returned a pending job without a status URL.");
+        throw new Error(pending
+          ? "Self-hosted Lens returned a pending job without a status URL."
+          : "Self-hosted Lens returned no visual result payload.");
       }
+      // Cached asynchronous search returns a succeeded job receipt, not its
+      // result. Fetch that receipt once too; never call it an empty success.
+      if (!pending && fetchedCompletedJob) throw new Error("Self-hosted Lens completed a job without a visual result payload.");
+      if (!pending) fetchedCompletedJob = true;
       const resolvedStatusUrl = new URL(statusUrl, this.baseUrl);
       if (resolvedStatusUrl.origin !== new URL(this.baseUrl).origin ||
           resolvedStatusUrl.username || resolvedStatusUrl.password) {
@@ -411,7 +424,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       rememberPendingJob(resolvedStatusUrl.toString());
       if (signal.aborted) throw new DOMException("The request was aborted.", "AbortError");
 
-      await new Promise<void>((resolve, reject) => {
+      if (pending) await new Promise<void>((resolve, reject) => {
         let timer: ReturnType<typeof setTimeout>;
         const onAbort = () => {
           clearTimeout(timer);
@@ -434,10 +447,6 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       current = await this.readJsonResponse(response, "job status");
     }
 
-    if (getStatus(current) === "failed" || getStatus(current) === "error") {
-      throw new Error("Self-hosted Lens job failed without a response payload.");
-    }
-    return current;
   }
 
   private async readJsonResponse(response: Response, operation: string): Promise<JsonObject> {

@@ -11,7 +11,7 @@ function matches(entries: Array<[string, string]>): VisualCandidate[] {
 }
 
 describe("ranked Apple display evidence", () => {
-  it("uses up to 30 results and favors independent iPhone 14 Plus display listings", () => {
+  it("considers later independent conflicts across all 30 results despite a larger leading vote", () => {
     const candidates = matches([
       ["LCD assembly for iPhone 14 Plus", "parts-one.example"],
       ["Soft OLED replacement display iPhone 14 Plus", "parts-two.example"],
@@ -33,9 +33,10 @@ describe("ranked Apple display evidence", () => {
     candidates.push({ title: "iPhone 15 Plus OLED display assembly", rank: 30, sourceUrl: "https://parts-eight.example/item" });
 
     const evidence = appleVisualEvidence(candidates);
-    expect(evidence?.model).toBe("iPhone 14 Plus");
-    expect(evidence?.confidence).toBeLessThan(1);
-    expect(evidence?.reasoning).toContain("independent display sources");
+    expect(evidence?.model).toBeNull();
+    expect(evidence?.confidence).toBeLessThan(0.5);
+    expect(evidence?.reasoning).toContain("iPhone 15 Plus");
+    expect(evidence?.reasoning).toContain("independent display listings");
     expect(evidence?.reasoning).toContain("accessory");
     expect(evidence?.reasoning).toContain("top 30 results");
   });
@@ -51,7 +52,7 @@ describe("ranked Apple display evidence", () => {
     ]));
     expect(evidence?.model).toBeNull();
     expect(evidence?.confidence).toBeLessThan(0.5);
-    expect(evidence?.reasoning).toContain("split between");
+    expect(evidence?.reasoning).toContain("disagree between");
   });
 
   it("does not count a single marketplace as multiple independent sources", () => {

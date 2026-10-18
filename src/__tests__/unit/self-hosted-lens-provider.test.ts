@@ -16,6 +16,39 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("SelfHostedLensProvider", () => {
+  it("honors the configured request deadline through the application provider factory", async () => {
+    vi.stubEnv("LENS_API_KEY", "unit-key");
+    vi.stubEnv("LENS_API_BASE_URL", "http://lens.internal");
+    vi.stubEnv("LENS_TIMEOUT_MS", "1000");
+    vi.stubGlobal("fetch", vi.fn((_url: string | URL, init?: RequestInit) => new Promise((_resolve, reject) => {
+      init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+    })));
+    const result = await getVisualRecognitionProvider("self_hosted_lens").identifyDisplay(Buffer.from("photo"));
+    expect(result.error).toContain("timed out after 1 second");
+    expect(result.durationMs).toBeLessThan(2500);
+  });
+
+  it.each(["succeeded", "queued"])("follows an asynchronous %s receipt to its actual result payload", async (status) => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {
+      requests.push(url.toString());
+      if (url.toString().endsWith("/upload")) return jsonResponse({ image_id: "photo" });
+      if (new URL(url).pathname === "/search") return jsonResponse({
+        job_id: "cached-job", status, status_url: "/v1/jobs/cached-job",
+        ...(status === "queued" ? { visual_matches: [] } : {}),
+      });
+      return jsonResponse({ status: "succeeded", result: { visual_matches: [{
+        title: "Samsung Galaxy A15 display assembly", link: "https://source.test/a15",
+      }] } });
+    }));
+    const result = await new SelfHostedLensProvider({ apiKey: "unit-key", baseUrl: "http://lens.internal",
+      pollIntervalMs: 100 }).identifyDisplay(Buffer.from("photo"));
+    expect(result.error).toBeUndefined();
+    expect(result.candidates).toHaveLength(1);
+    expect(requests.at(-1)).toBe("http://lens.internal/v1/jobs/cached-job");
+    expect(result.normalizedModel).toBe("Galaxy A15");
+  });
+
   it("cancels its own abandoned upstream job after its deadline", async () => {
     vi.stubEnv("OPENAI_API_KEY", "");
     const calls: Array<{ url: string; method?: string }> = [];
