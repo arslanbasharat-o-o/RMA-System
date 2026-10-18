@@ -296,15 +296,23 @@ DECISION & DISAMBIGUATION RULES:
      * iPhone 13 / 13 Pro (6.1-inch OLED): Narrow screen notch (~26.6mm); earpiece speaker is moved UP into the phone chassis frame (NOT in the screen notch).
      * iPhone 14 (6.1-inch OLED) / iPhone 14 Plus (6.7-inch OLED): Narrow notch; rear flex routing changed to bottom-right for the redesigned removable back glass chassis layout.
      * iPhone 14 Pro / 14 Pro Max & iPhone 15 Series: Feature DYNAMIC ISLAND (pill-shaped floating cutout) instead of a top notch. iPhone 14 Pro/Pro Max feature 120Hz ProMotion controller flex.
-3. Output Standards & Confidence Calibration:
+3. Color & Variant Rules:
+   - For legacy Home-button display models with distinct front bezel colors (iPhone 6, 6s, 7, 8, SE, and Plus models):
+     * If the front glass bezel is visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
+     * If the front glass bezel is visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
+     * If only the rear side is shown, do NOT guess or invent a color.
+   - For all modern notch and bezel-less screens (iPhone X, XS, XR, 11, 12, 13, 14, 15, Samsung Galaxy, Pixel):
+     * Do NOT append or guess any color. All front faces are uniform black borders.
+   - Quality / SKU: Do NOT guess supplier SKUs or quality tiers (Soft OLED, Hard OLED, In-Cell). Identify the true physical device model.
+4. Output Standards & Confidence Calibration:
    - When Google Lens candidate consensus and physical hardware evidence corroborate each other, assign a high confidence score of 0.95 to 0.98.
    - Output valid JSON with EXACTLY this structure:
      {
        "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
        "model": "iPad Pro 12.9 1st Gen" | "iPhone XR" | "iPhone 11" | "Galaxy S21 Ultra" | string | null,
-       "displayName": "Apple iPad Pro 12.9 1st Gen Display",
+       "displayName": "Apple iPhone 8 Display (Black)",
        "confidence": 0.95,
-       "cleanedCandidates": ["Apple iPad Pro 12.9 1st Gen Display"],
+       "cleanedCandidates": ["Apple iPhone 8 Display (Black)"],
        "reasoning": "Candidate consensus and hardware physical evidence description."
      }
    - "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPad Pro 12.9 1st Gen Display", "Apple iPhone XR Display", "Samsung Galaxy S21 Ultra Display"). Never repeat the manufacturer name twice.
@@ -409,10 +417,18 @@ CRITICAL HARDWARE RULES:
      * Earpiece speaker moved up to top phone frame (NOT in screen notch). Smaller screen notch or Dynamic Island (iPhone 14 Pro, 15).
    - iPhone 15 / 15 Pro / 15 Pro Max:
      * Dynamic Island oval cutout at top, ultra-thin borders.
-2. Samsung Galaxy:
+2. Color & Variant Rules:
+   - For legacy Home-button displays (iPhone 6, 6s, 7, 8, SE):
+     * If the front glass bezel is visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
+     * If the front glass bezel is visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
+     * If only the rear/back is shown, do NOT guess a color.
+   - For all modern notch / bezel-less screens (iPhone X through 15, Samsung Galaxy, Pixel):
+     * Do NOT append or guess any color. All front glass borders are uniform black.
+   - Quality / SKU: Do NOT guess supplier SKUs or quality tiers (Soft OLED, Hard OLED, In-Cell). Identify the true physical device model.
+3. Samsung Galaxy:
    - Galaxy S Series (S20, S21, S22, S23, S24): Curved or flat AMOLED with center punch-hole camera.
    - Galaxy A Series: LCD or AMOLED with teardrop notch (Infinity-V/U) or small hole-punch, thick bottom chin.
-3. Tablets / iPads:
+4. Tablets / iPads:
    - Much wider 4:3 aspect ratio (7.9" to 12.9"). NEVER classify a smartphone-sized display as an iPad!
 
 Output ONLY a JSON object with:
