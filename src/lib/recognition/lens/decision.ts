@@ -271,53 +271,36 @@ export async function cleanVisualCandidatesWithOpenAi(
       messages: [
         {
           role: "system",
-          content: `You are an expert mobile display hardware triage engine.
-Inspect BOTH the provided photo of the screen assembly (rear side, connector, notch, backlight) AND any Google Lens search candidate titles.
-Note: Google Lens search titles can sometimes be noisy or incorrect (e.g. returning tablet/iPad results for a smartphone display, or misidentifying iPhone XR as iPhone X or 11 Pro).
-Prioritize the ground truth physical evidence visible in the photo.
+          content: `You are an expert mobile device and display assembly triage engine.
+Inspect BOTH the provided photo of the screen assembly (rear side, connector, notch, backlight) AND the Google Lens search candidate titles.
 
-CRITICAL HARDWARE RULES:
-1. iPhone XR vs iPhone X / XS vs iPhone 11:
-   - iPhone XR (6.1-inch Liquid Retina LCD):
-     * Rear shield plate has a DISTINCTIVE rectangular/square cutout in the top-left corner revealing the metal grounding bracket.
-     * Dual stacked flex cables branching on the mid-left into two separate board connectors (display + digitizer).
-     * Thicker perimeter bezels (~4.0mm) characteristic of Liquid Retina LCD panels.
-     * IF you see the rectangular cutout in the top-left corner of the rear shield and mid-left dual connectors, this is ALWAYS an iPhone XR, NEVER an iPhone X, XS, or 11!
-   - iPhone X / XS (5.8-inch OLED):
-     * 5.8-inch OLED panel with narrow uniform bezels (~2.5mm).
-     * Rear shield does NOT have the XR square cutout in the top-left corner.
-     * Flex cables fold from bottom-left corner with OLED controller.
-   - iPhone 11 (6.1-inch LCD):
-     * Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
-   - iPhone 12 / 12 Pro (6.1-inch OLED):
-     * Flat boxy chassis frame edges, OLED display with dual flex cables on the bottom-left. Earpiece speaker is in the display notch.
-   - iPhone 13 / 13 Pro / 14 (6.1-inch OLED):
-     * Earpiece speaker moved up to top phone frame (NOT in screen notch). Smaller screen notch or Dynamic Island (iPhone 14 Pro, 15).
-   - iPhone 15 / 15 Pro / 15 Pro Max:
-     * Dynamic Island oval cutout at top, ultra-thin borders.
-2. Samsung Galaxy:
-   - Galaxy S Series (S20, S21, S22, S23, S24): Curved or flat AMOLED with center punch-hole camera.
-   - Galaxy A Series: LCD or AMOLED with teardrop notch (Infinity-V/U) or small hole-punch, thick bottom chin.
-3. Tablets / iPads:
-   - Much wider 4:3 aspect ratio (7.9" to 12.9"). NEVER classify a smartphone-sized display as an iPad!
-
-YOUR TASK:
-Analyze the display and make ONE definitive, clean, standardized final decision for what display this is.
-Output JSON with EXACTLY this structure:
-{
-  "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
-  "model": "iPhone XR" | "iPhone 11" | "iPhone 13 Pro" | "Galaxy S23" | "OnePlus 5T" | string | null,
-  "displayName": "Apple iPhone XR Display",
-  "confidence": 0.95,
-  "cleanedCandidates": ["Apple iPhone XR Display"],
-  "reasoning": "Rear shield displays the signature top-left rectangular grounding cutout and mid-left dual flex connectors characteristic of the iPhone XR."
-}
-
-Rules:
-1. "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPhone XR Display", "Samsung Galaxy S23 Display"). Never repeat the manufacturer name twice.
-2. Strip all marketplace noise, spam, tools, and vendor names from cleanedCandidates.
-3. If candidates or image show an iPhone screen, NEVER output "iPad" merely because an accessory or seller title mentioned iPad.
-4. Be decisive: Identify the primary intended device model based on physical hardware criteria.`,
+DECISION & DISAMBIGUATION RULES:
+1. Ground Truth Candidate Consensus:
+   - Google Lens visual matches compare against billions of indexed product images.
+   - When candidate titles consistently identify a specific device model (e.g., "iPad Pro 12.9 1st Gen", "iPhone XR", "Galaxy S21 Ultra"), adopt that consensus.
+   - Do NOT override strong candidate consensus with arbitrary guesses.
+2. Device Disambiguation:
+   - Tablets (iPad, Galaxy Tab) vs Smartphones (iPhone, Galaxy S):
+     * If candidate titles consistently point to a tablet model (e.g. iPad Pro 12.9, iPad Air, Galaxy Tab), identify as that tablet display.
+     * Only discard tablet results if candidate titles predominantly identify a smartphone and a lone accessory title happens to mention a tablet adapter.
+   - iPhone Models:
+     * iPhone XR (6.1-inch Liquid Retina LCD): Distinctive rectangular/square cutout in the top-left corner of the rear shield revealing the metal grounding bracket; dual stacked flex cables branching on mid-left into two separate board connectors.
+     * iPhone X / XS (5.8-inch OLED): Narrow uniform bezels (~2.5mm), no top-left square cutout in rear shield, OLED panel.
+     * iPhone 11 (6.1-inch LCD): Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
+     * iPhone 12 / 13 / 14 / 15: Match based on speaker placement (frame vs notch), notch size, or Dynamic Island.
+3. Output Standards:
+   - Output valid JSON with EXACTLY this structure:
+     {
+       "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
+       "model": "iPad Pro 12.9 1st Gen" | "iPhone XR" | "iPhone 11" | "Galaxy S21 Ultra" | string | null,
+       "displayName": "Apple iPad Pro 12.9 1st Gen Display",
+       "confidence": 0.95,
+       "cleanedCandidates": ["Apple iPad Pro 12.9 1st Gen Display"],
+       "reasoning": "Candidate consensus and hardware physical evidence description."
+     }
+   - "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPad Pro 12.9 1st Gen Display", "Apple iPhone XR Display", "Samsung Galaxy S21 Ultra Display"). Never repeat the manufacturer name twice.
+   - Strip marketplace noise, seller fluff, shipping text, and review ratings from cleanedCandidates.
+   - Be decisive: Identify the primary intended device model based on consensus and physical hardware evidence.`,
         },
         {
           role: "user",
