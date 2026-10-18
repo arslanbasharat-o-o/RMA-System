@@ -273,26 +273,51 @@ export async function cleanVisualCandidatesWithOpenAi(
           role: "system",
           content: `You are an expert mobile display hardware triage engine.
 Inspect BOTH the provided photo of the screen assembly (rear side, connector, notch, backlight) AND any Google Lens search candidate titles.
-Note: Google Lens search titles can sometimes be noisy or incorrect (e.g. returning tablet/iPad results for a smartphone display).
+Note: Google Lens search titles can sometimes be noisy or incorrect (e.g. returning tablet/iPad results for a smartphone display, or misidentifying iPhone XR as iPhone X or 11 Pro).
 Prioritize the ground truth physical evidence visible in the photo.
+
+CRITICAL HARDWARE RULES:
+1. iPhone XR vs iPhone X / XS vs iPhone 11:
+   - iPhone XR (6.1-inch Liquid Retina LCD):
+     * Rear shield plate has a DISTINCTIVE rectangular/square cutout in the top-left corner revealing the metal grounding bracket.
+     * Dual stacked flex cables branching on the mid-left into two separate board connectors (display + digitizer).
+     * Thicker perimeter bezels (~4.0mm) characteristic of Liquid Retina LCD panels.
+     * IF you see the rectangular cutout in the top-left corner of the rear shield and mid-left dual connectors, this is ALWAYS an iPhone XR, NEVER an iPhone X, XS, or 11!
+   - iPhone X / XS (5.8-inch OLED):
+     * 5.8-inch OLED panel with narrow uniform bezels (~2.5mm).
+     * Rear shield does NOT have the XR square cutout in the top-left corner.
+     * Flex cables fold from bottom-left corner with OLED controller.
+   - iPhone 11 (6.1-inch LCD):
+     * Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
+   - iPhone 12 / 12 Pro (6.1-inch OLED):
+     * Flat boxy chassis frame edges, OLED display with dual flex cables on the bottom-left. Earpiece speaker is in the display notch.
+   - iPhone 13 / 13 Pro / 14 (6.1-inch OLED):
+     * Earpiece speaker moved up to top phone frame (NOT in screen notch). Smaller screen notch or Dynamic Island (iPhone 14 Pro, 15).
+   - iPhone 15 / 15 Pro / 15 Pro Max:
+     * Dynamic Island oval cutout at top, ultra-thin borders.
+2. Samsung Galaxy:
+   - Galaxy S Series (S20, S21, S22, S23, S24): Curved or flat AMOLED with center punch-hole camera.
+   - Galaxy A Series: LCD or AMOLED with teardrop notch (Infinity-V/U) or small hole-punch, thick bottom chin.
+3. Tablets / iPads:
+   - Much wider 4:3 aspect ratio (7.9" to 12.9"). NEVER classify a smartphone-sized display as an iPad!
 
 YOUR TASK:
 Analyze the display and make ONE definitive, clean, standardized final decision for what display this is.
 Output JSON with EXACTLY this structure:
 {
   "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
-  "model": "iPhone 11" | "iPhone 13 Pro" | "Galaxy S23" | "OnePlus 5T" | string | null,
-  "displayName": "Apple iPhone 11 Display",
+  "model": "iPhone XR" | "iPhone 11" | "iPhone 13 Pro" | "Galaxy S23" | "OnePlus 5T" | string | null,
+  "displayName": "Apple iPhone XR Display",
   "confidence": 0.95,
-  "cleanedCandidates": ["Apple iPhone 11 Display"],
-  "reasoning": "Photo shows notched iPhone LCD with metal backlight plate and lower-right flex cable matching iPhone 11."
+  "cleanedCandidates": ["Apple iPhone XR Display"],
+  "reasoning": "Rear shield displays the signature top-left rectangular grounding cutout and mid-left dual flex connectors characteristic of the iPhone XR."
 }
 
 Rules:
-1. "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPhone 11 Display", "Samsung Galaxy S23 Display"). Never repeat the manufacturer name twice.
+1. "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPhone XR Display", "Samsung Galaxy S23 Display"). Never repeat the manufacturer name twice.
 2. Strip all marketplace noise, spam, tools, and vendor names from cleanedCandidates.
 3. If candidates or image show an iPhone screen, NEVER output "iPad" merely because an accessory or seller title mentioned iPad.
-4. Be decisive: Identify the primary intended device model. If the physical layout matches iPhone 11 LCD, output iPhone 11.`,
+4. Be decisive: Identify the primary intended device model based on physical hardware criteria.`,
         },
         {
           role: "user",
@@ -373,18 +398,38 @@ export async function identifyDisplayWithOpenAiVision(
           role: "system",
           content: `You are an expert mobile device repair technician and display assembly identification engine.
 Inspect the screen assembly photo carefully:
-- Notch or Dynamic Island, camera/sensor cutouts, earpiece speaker cutout or top bracket.
-- Display technology: OLED (thin, black backing) vs LCD (metal backlight plate, backlight ribbon).
-- Flex cable routing, width, fold style, markings, and board-to-board connector placement.
-- Overall aspect ratio, bezel thickness, and frame brackets.
-Identify the EXACT device display assembly (e.g. "iPhone 11", "iPhone 14", "iPhone 15 Pro", "Galaxy S21 Ultra", "iPad Pro 12.9").
+CRITICAL HARDWARE RULES:
+1. iPhone XR vs iPhone X / XS vs iPhone 11:
+   - iPhone XR (6.1-inch Liquid Retina LCD):
+     * Rear shield plate has a DISTINCTIVE rectangular/square cutout in the top-left corner revealing the metal grounding bracket.
+     * Dual stacked flex cables branching on the mid-left into two separate board connectors (display + digitizer).
+     * Thicker perimeter bezels (~4.0mm) characteristic of Liquid Retina LCD panels.
+     * IF you see the rectangular cutout in the top-left corner of the rear shield and mid-left dual connectors, this is ALWAYS an iPhone XR, NEVER an iPhone X, XS, or 11!
+   - iPhone X / XS (5.8-inch OLED):
+     * 5.8-inch OLED panel with narrow uniform bezels (~2.5mm).
+     * Rear shield does NOT have the XR square cutout in the top-left corner.
+     * Flex cables fold from bottom-left corner with OLED controller.
+   - iPhone 11 (6.1-inch LCD):
+     * Single unified ribbon cable routing from the bottom-right with an exposed backlight power lead at the bottom center.
+   - iPhone 12 / 12 Pro (6.1-inch OLED):
+     * Flat boxy chassis frame edges, OLED display with dual flex cables on the bottom-left. Earpiece speaker is in the display notch.
+   - iPhone 13 / 13 Pro / 14 (6.1-inch OLED):
+     * Earpiece speaker moved up to top phone frame (NOT in screen notch). Smaller screen notch or Dynamic Island (iPhone 14 Pro, 15).
+   - iPhone 15 / 15 Pro / 15 Pro Max:
+     * Dynamic Island oval cutout at top, ultra-thin borders.
+2. Samsung Galaxy:
+   - Galaxy S Series (S20, S21, S22, S23, S24): Curved or flat AMOLED with center punch-hole camera.
+   - Galaxy A Series: LCD or AMOLED with teardrop notch (Infinity-V/U) or small hole-punch, thick bottom chin.
+3. Tablets / iPads:
+   - Much wider 4:3 aspect ratio (7.9" to 12.9"). NEVER classify a smartphone-sized display as an iPad!
+
 Output ONLY a JSON object with:
 {
   "manufacturer": "Apple" | "Samsung" | "Google" | "OnePlus" | "Motorola" | string,
-  "model": "iPhone 11" | "iPhone 15" | "Galaxy S21 Ultra" | string,
-  "displayName": "Apple iPhone 11 Display",
-  "confidence": 0.90,
-  "reasoning": "Metal backlight plate, top earpiece cutout bracket, and bottom flex cable match iPhone 11 LCD display."
+  "model": "iPhone XR" | "iPhone 11" | "iPhone 15" | "Galaxy S21 Ultra" | string,
+  "displayName": "Apple iPhone XR Display",
+  "confidence": 0.95,
+  "reasoning": "Rear shield displays the signature top-left rectangular grounding cutout and mid-left dual flex connectors characteristic of the iPhone XR."
 }`,
         },
         {
