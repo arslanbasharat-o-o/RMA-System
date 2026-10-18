@@ -171,7 +171,7 @@ test("RMA rows distinguish unverified suggestions from unidentified displays", a
         matchStatus: "ambiguous",
         predictedManufacturer: "Apple",
         predictedModel: null,
-        predictedDisplayAssembly: null,
+        predictedDisplayAssembly: "Unidentified Apple Display",
         verifiedAt: null,
         images: [],
       },

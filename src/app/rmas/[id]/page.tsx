@@ -23,6 +23,7 @@ import { PageLoading } from "@/components/ui/loading-message";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { toast } from "sonner";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
+import { hasModelSuggestion } from "@/lib/model-result";
 import {
   CardSpotlight,
   CopyBadge,
@@ -56,7 +57,7 @@ function modelResultText(item: any) {
 
 function modelResultLabel(item: any) {
   if (item.status === "verified" && item.verifiedAt) return "Verified";
-  return item.predictedModel || item.predictedDisplayAssembly ? "Suggestion" : "Unidentified";
+  return hasModelSuggestion(item) ? "Suggestion" : "Unidentified";
 }
 
 export default function RmaDetailPage({
