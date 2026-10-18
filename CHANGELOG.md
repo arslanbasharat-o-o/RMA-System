@@ -2,6 +2,15 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.13] - 2026-10-18
+
+### Fixed
+
+- Removed internal SKU badges from RMA item list view, mobile drawer, and inspection UI as requested.
+- Enhanced candidate cleaner with strict Dynamic Island disambiguation and anti-color guards on rear photos, resolving iPhone 15 Pro Max correctly at 96% confidence.
+- Increased video element polling timeout in camera intake Playwright tests to eliminate WebKit flakes on CI.
+- Optimized live RMA page polling to 2500ms continuous refresh while items are processing or receiving.
+
 ## [0.3.12] - 2026-10-18
 
 ### Fixed
