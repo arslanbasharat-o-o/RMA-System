@@ -25,6 +25,7 @@ export interface VisualIdentificationResult {
 export interface DisplayVisualRecognitionContext {
   mimeType?: string;
   filename?: string;
+  noCache?: boolean;
 }
 
 export interface DisplayVisualRecognitionProvider {

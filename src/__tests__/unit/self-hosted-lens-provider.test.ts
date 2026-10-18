@@ -96,11 +96,36 @@ describe("SelfHostedLensProvider", () => {
     expect(searchUrl.pathname).toBe("/api/search");
     expect(searchUrl.searchParams.get("image_id")).toBe("uploaded-image-42");
     expect(searchUrl.searchParams.has("q")).toBe(false);
+    expect(searchUrl.searchParams.has("no_cache")).toBe(false);
     expect(calls[1].init?.method).toBe("GET");
     expect(calls[1].init?.headers).toMatchObject({
       Authorization: "Bearer self-hosted-test-key",
       "X-API-Key": "self-hosted-test-key",
     });
+  });
+
+  it("bypasses cached Lens results for an explicit fresh recognition", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: url.toString(), init });
+      return url.toString().endsWith("/upload")
+        ? jsonResponse({ image_id: "fresh-image-42" })
+        : jsonResponse({ visual_matches: [{ title: "Apple iPhone 14 Plus OLED display", link: "https://parts.example.test/14-plus" }] });
+    }));
+
+    const provider = new SelfHostedLensProvider({
+      apiKey: "self-hosted-test-key",
+      baseUrl: "http://lens.internal/api",
+    });
+    const result = await provider.identifyDisplay(Buffer.from("same-image-bytes"), {
+      filename: "same-image.jpg",
+      mimeType: "image/jpeg",
+      noCache: true,
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(calls).toHaveLength(2);
+    expect(new URL(calls[1].url).searchParams.get("no_cache")).toBe("true");
   });
 
   it("supports a direct search endpoint without an upload request", async () => {
