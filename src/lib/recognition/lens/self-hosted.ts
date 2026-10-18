@@ -22,7 +22,7 @@ export interface SelfHostedLensProviderOptions {
 
 type JsonObject = Record<string, unknown>;
 
-const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_TIMEOUT_MS = 8_000;
 const MIN_TIMEOUT_MS = 1_000;
 const MAX_TIMEOUT_MS = 120_000;
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
