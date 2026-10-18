@@ -7,7 +7,11 @@ Changes to the public source are recorded here.
 ### Fixed
 
 - Removed internal SKU badges from RMA item list view, mobile drawer, and inspection UI as requested.
-- Enhanced candidate cleaner with strict Dynamic Island disambiguation and anti-color guards on rear photos, resolving iPhone 15 Pro Max correctly at 96% confidence.
+- Removed filename metadata, forced confidence instructions, and unsupported visual rules from recognition. Image corroboration cannot override conflicting source evidence or assign a supplier quality/SKU from marketplace text.
+- Removed permissive catalog containment matching and confidence floors that promoted weak suggestions.
+- Invalidated older machine recognition policies while preserving operator corrections.
+- Replaced the filename-leaking benchmark and substring scorer with external, checksum-verified exact-model evaluation; archived downloaded test assets outside the repository.
+- Restored the full desktop/mobile release gate and added a no-store public version endpoint for deployment readback.
 - Increased video element polling timeout in camera intake Playwright tests to eliminate WebKit flakes on CI.
 - Optimized live RMA page polling to 2500ms continuous refresh while items are processing or receiving.
 

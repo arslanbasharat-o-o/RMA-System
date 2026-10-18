@@ -16,6 +16,34 @@ function jsonResponse(payload: unknown, status = 200): Response {
 }
 
 describe("SelfHostedLensProvider", () => {
+  it("cancels its own abandoned upstream job after its deadline", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    const calls: Array<{ url: string; method?: string }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: url.toString(), method: init?.method });
+      return url.toString().endsWith("/upload") ? jsonResponse({ image_id: "photo" })
+        : jsonResponse({ status: "queued", status_url: "/v1/jobs/owned-job" });
+    }));
+    const result = await new SelfHostedLensProvider({ apiKey: "unit-key", baseUrl: "http://lens.internal",
+      timeoutMs: 1000, pollIntervalMs: 100 }).identifyDisplay(Buffer.from("photo"));
+    expect(result.error).toContain("timed out");
+    expect(new URL(calls.find(c => new URL(c.url).pathname === "/search")!.url).searchParams.get("async")).toBe("true");
+    expect(calls.filter(c => c.method === "DELETE")).toEqual([
+      { url: "http://lens.internal/v1/jobs/owned-job", method: "DELETE" },
+    ]);
+  });
+
+  it("never sends credentials to a foreign status URL", async () => {
+    const requests: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL) => {
+      requests.push(url.toString());
+      return jsonResponse({ status: "queued", status_url: "https://foreign.test/v1/jobs/owned-job" });
+    }));
+    const result = await new SelfHostedLensProvider({ apiKey: "unit-key", baseUrl: "http://lens.internal/search",
+      mode: "direct" }).identifyDisplay(Buffer.from("photo"));
+    expect(result.error).toContain("untrusted");
+    expect(requests).toEqual(["http://lens.internal/search"]);
+  });
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();

@@ -1,7 +1,6 @@
 import {
   cleanVisualCandidatesHeuristic,
   cleanVisualCandidatesWithOpenAi,
-  identifyDisplayWithOpenAiVision,
 } from "./decision";
 import {
   DisplayVisualRecognitionContext,
@@ -223,6 +222,8 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   ): Promise<VisualIdentificationResult> {
     const startTime = Date.now();
     let stage = "configuration";
+    let pendingJobUrl: string | undefined;
+    const rememberPendingJob = (url: string) => { pendingJobUrl = url; };
 
     if (!this.apiKey) {
       throw new Error(
@@ -238,15 +239,12 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
-    const optimized = await optimizeImageForVisualSearch(imageBuffer, context?.mimeType);
-    const uploadBuffer = optimized.buffer;
-    const uploadMime = optimized.mime;
-    let filename = context?.filename || `display${optimized.ext}`;
-    if (!filename.toLowerCase().endsWith(optimized.ext)) {
-      filename = `${filename.replace(/\.[^/.]+$/, "")}${optimized.ext}`;
-    }
-
     try {
+      const optimized = await optimizeImageForVisualSearch(imageBuffer, context?.mimeType);
+      const uploadBuffer = optimized.buffer;
+      const uploadMime = optimized.mime;
+      // Original names are private metadata, not visual recognition evidence.
+      const filename = `display${optimized.ext}`;
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
@@ -257,7 +255,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           filename,
           controller.signal
         );
-        payload = await this.waitForResult(payload, controller.signal);
+        payload = await this.waitForResult(payload, controller.signal, rememberPendingJob);
       } else {
         stage = "image upload";
         const uploadPayload = await this.requestUpload(
@@ -282,45 +280,26 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
           stage = "visual search";
           payload = await this.requestSearch(imageId, controller.signal, context?.noCache);
-          payload = await this.waitForResult(payload, controller.signal);
+          payload = await this.waitForResult(payload, controller.signal, rememberPendingJob);
         }
       }
 
-      const result = await Promise.race([
-        this.toIdentificationResult(
-          payload,
-          context,
-          startTime,
-          uploadBuffer,
-          uploadMime,
-          filename
-        ),
-        new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error("Candidate processing timed out")), 14000);
-        }),
-      ]);
+      const result = await this.toIdentificationResult(payload, startTime, uploadBuffer, uploadMime, controller.signal);
+      if (controller.signal.aborted) throw new Error("Recognition deadline exceeded");
       clearTimeout(timeout);
       return result;
     } catch (err: unknown) {
       clearTimeout(timeout);
+      if (pendingJobUrl && /\/v1\/(?:lens\/)?jobs\/[^/]+$/.test(new URL(pendingJobUrl).pathname)) {
+        try {
+          // Stop this request's own abandoned search; never flush the shared queue.
+          await fetch(pendingJobUrl, { method: "DELETE", headers: this.authHeaders(),
+            redirect: "error", signal: AbortSignal.timeout(2000) });
+        } catch { /* The original failure remains visible if cancellation is unavailable. */ }
+      }
       const message = controller.signal.aborted
         ? `Visual identification timed out after ${Math.round(this.timeoutMs / 1000)} second${this.timeoutMs === 1000 ? "" : "s"} during ${stage}. The visual provider may be slow or unavailable. Photos are retained; retry the image later or select a model manually.`
         : err instanceof Error ? err.message : String(err);
-
-      // Robust fallback: if Google Lens fails (captcha, rate-limit, or network error), use OpenAI Vision directly
-      if (process.env.OPENAI_API_KEY && process.env.NODE_ENV !== "test") {
-        try {
-          const directVisionResult = await identifyDisplayWithOpenAiVision(uploadBuffer, uploadMime, filename);
-          if (directVisionResult) {
-            return {
-              ...directVisionResult,
-              durationMs: Date.now() - startTime,
-            };
-          }
-        } catch (visionErr) {
-          console.warn("[SelfHostedLens] Direct OpenAI vision fallback also failed:", visionErr);
-        }
-      }
 
       return {
         provider: this.name,
@@ -367,6 +346,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const response = await fetch(this.baseUrl, {
       method: "POST",
       headers: this.authHeaders(),
+      redirect: "error",
       body: formData,
       signal,
     });
@@ -382,6 +362,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const response = await fetch(joinServicePath(this.baseUrl, "upload"), {
       method: "POST",
       headers: this.authHeaders(),
+      redirect: "error",
       body: this.createFormData(imageBuffer, mimeType, filename),
       signal,
     });
@@ -395,6 +376,9 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   ): Promise<JsonObject> {
     const searchUrl = new URL(joinServicePath(this.baseUrl, "search"));
     searchUrl.searchParams.set("image_id", imageId);
+    // Obtain the owning job URL before waiting. A synchronous search can
+    // otherwise outlive our deadline before we have an ID to cancel.
+    searchUrl.searchParams.set("async", "true");
     if (noCache) {
       searchUrl.searchParams.set("no_cache", "true");
     }
@@ -402,12 +386,15 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const response = await fetch(searchUrl.toString(), {
       method: "GET",
       headers: this.authHeaders(),
+      redirect: "error",
       signal,
     });
     return this.readJsonResponse(response, "visual search");
   }
 
-  private async waitForResult(payload: JsonObject, signal: AbortSignal): Promise<JsonObject> {
+  private async waitForResult(
+    payload: JsonObject, signal: AbortSignal, rememberPendingJob: (url: string) => void
+  ): Promise<JsonObject> {
     let current = payload;
     const pendingStatuses = new Set(["queued", "running", "pending", "processing"]);
 
@@ -416,6 +403,13 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       if (!statusUrl) {
         throw new Error("Self-hosted Lens returned a pending job without a status URL.");
       }
+      const resolvedStatusUrl = new URL(statusUrl, this.baseUrl);
+      if (resolvedStatusUrl.origin !== new URL(this.baseUrl).origin ||
+          resolvedStatusUrl.username || resolvedStatusUrl.password) {
+        throw new Error("Self-hosted Lens returned an untrusted job status URL.");
+      }
+      rememberPendingJob(resolvedStatusUrl.toString());
+      if (signal.aborted) throw new DOMException("The request was aborted.", "AbortError");
 
       await new Promise<void>((resolve, reject) => {
         let timer: ReturnType<typeof setTimeout>;
@@ -431,9 +425,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
         signal.addEventListener("abort", onAbort, { once: true });
       });
 
-      const response = await fetch(new URL(statusUrl, this.baseUrl).toString(), {
+      const response = await fetch(resolvedStatusUrl.toString(), {
         method: "GET",
         headers: this.authHeaders(),
+        redirect: "error",
         signal,
       });
       current = await this.readJsonResponse(response, "job status");
@@ -475,11 +470,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
   private async toIdentificationResult(
     payload: JsonObject,
-    context: DisplayVisualRecognitionContext | undefined,
     startTime: number,
     imageBuffer?: Buffer,
     uploadMime?: string,
-    filename?: string
+    signal?: AbortSignal
   ): Promise<VisualIdentificationResult> {
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
@@ -499,33 +493,12 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       }));
 
     // Clean candidates using OpenAI when configured, with immediate heuristic fallback
-    let cleanDecision = await cleanVisualCandidatesWithOpenAi(candidates, {
-      filename: context?.filename,
+    const cleanDecision = await cleanVisualCandidatesWithOpenAi(candidates, {
       aiOverview,
       imageBuffer,
       mimeType: uploadMime,
+      signal,
     });
-
-    // If candidate titles were conflicting/noisy or yielded no specific model, use direct vision inspection
-    if (
-      (!cleanDecision.model || cleanDecision.confidence < 0.65 || cleanDecision.displayName?.toLowerCase().includes("unidentified")) &&
-      imageBuffer &&
-      uploadMime &&
-      process.env.OPENAI_API_KEY &&
-      process.env.NODE_ENV !== "test"
-    ) {
-      try {
-        const directResult = await identifyDisplayWithOpenAiVision(imageBuffer, uploadMime, filename);
-        if (directResult?.cleanDecision?.model) {
-          cleanDecision = directResult.cleanDecision;
-          if (directResult.candidates && directResult.candidates.length > 0) {
-            candidates.unshift(...directResult.candidates);
-          }
-        }
-      } catch (visionErr) {
-        console.warn("[SelfHostedLens] Direct vision fallback during ambiguous candidates failed:", visionErr);
-      }
-    }
 
     const normalizedManufacturer = cleanDecision.manufacturer || undefined;
     const normalizedModel = cleanDecision.model || undefined;

@@ -54,12 +54,14 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        ...(process.env.PLAYWRIGHT_CHROME_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHROME_CHANNEL } : {}),
       },
     },
     {
       name: "mobile-chrome",
       use: {
         ...devices["Pixel 7"],
+        ...(process.env.PLAYWRIGHT_CHROME_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHROME_CHANNEL } : {}),
       },
     },
     ...((hasFirefox || enableAll)
