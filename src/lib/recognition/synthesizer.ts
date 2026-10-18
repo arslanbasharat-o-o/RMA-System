@@ -53,6 +53,7 @@ export interface UnifiedIdentificationResult {
 function normalizeModelText(value: string): string {
   return value
     .toLowerCase()
+    .replace(/\+/g, " plus ")
     .replace(/pro\s*max/g, "pro max")
     .replace(/([a-z])([0-9])/g, "$1 $2")
     .replace(/([0-9])([a-z])/g, "$1 $2")
@@ -74,6 +75,7 @@ function containsModelPhrase(title: string, phrase: string): boolean {
 function compactSlug(value: string): string {
   return (value || "")
     .toLowerCase()
+    .replace(/\+/g, "plus")
     .replace(/[^a-z0-9]/g, "");
 }
 
@@ -202,7 +204,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: item.displayTechnology,
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.98, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
+        confidenceScore: Math.min(0.98, visualResult.cleanDecision?.confidence ?? 0.75),
         matchType: "exact",
       };
     }
@@ -248,15 +250,6 @@ export function matchDisplayToCatalog(
         ` ${title} `.includes(` ${itemMfg} `) ||
         querySlug.includes(itemMfgSlug);
 
-      // SKU direct match
-      if (item.internalSku) {
-        const skuSlug = compactSlug(item.internalSku);
-        if (skuSlug && containsModelPhrase(query, item.internalSku)) {
-          specificity.set(item.id, 1000 + skuSlug.length);
-          return true;
-        }
-      }
-
       const matchingAliases = (item.aliases || []).filter((alias) => {
         const normalizedAlias = normalizeModelText(alias);
         const aliasSlug = compactSlug(alias);
@@ -277,7 +270,7 @@ export function matchDisplayToCatalog(
 
     const bestSpecificity = Math.max(0, ...specificity.values());
     const strongestMatches = matches.filter((item) => specificity.get(item.id) === bestSpecificity);
-    if (strongestMatches.length === 1) {
+    if (strongestMatches.length === 1 && matches.length === 1) {
       const item = strongestMatches[0];
       const cleanName = cleanCatalogModelName(item.modelName);
       return {
@@ -287,117 +280,12 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: sanitizeDisplayTechnology(cleanName, item.displayTechnology),
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.95, Math.max(0.92, visualResult.cleanDecision?.confidence ?? 0.92)),
+        confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.75),
         matchType: "alias",
       };
-    } else if (matches.length > 1) {
-      // If multiple variants match, pick exact base model match if available
-      const exactMdlMatches = matches.filter(
-        (m) =>
-          mdl &&
-          (compactSlug(cleanCatalogModelName(m.modelName)) === compactSlug(mdl) ||
-            compactSlug(`${m.manufacturer} ${cleanCatalogModelName(m.modelName)}`) === compactSlug(`${mfg} ${mdl}`))
-      );
-      if (exactMdlMatches.length >= 1) {
-        // If no candidate text or evidence exists to differentiate multiple variants, leave unresolved.
-        if ((visualResult.candidates || []).length === 0 && !visualResult.cleanDecision?.displayName) {
-          if (exactMdlMatches.length > 1) return null;
-        }
-
-        const allCandidateText = [
-          ...(visualResult.candidates || []).map((c) => c.title || ""),
-          ...(visualResult.cleanDecision?.cleanedCandidates || []),
-        ].join(" ").toLowerCase();
-
-        // 1. Direct SKU match in candidate text
-        const skuMatch = exactMdlMatches.find((m) => {
-          const sku = (m.internalSku || "").toLowerCase();
-          return sku && allCandidateText.includes(sku);
-        });
-
-        // 2. Differentiate by technology/variant keywords in candidates
-        const techMatch = exactMdlMatches.find((m) => {
-          const sku = (m.internalSku || "").toLowerCase();
-          const tech = (m.displayTechnology || "").toLowerCase();
-          const name = (m.modelName || "").toLowerCase();
-          if ((sku.includes("soft") || name.includes("soft")) && allCandidateText.includes("soft")) return true;
-          if ((sku.includes("hard") || name.includes("hard")) && allCandidateText.includes("hard")) return true;
-          if ((sku.includes("cof") || tech.includes("cof")) && allCandidateText.includes("cof")) return true;
-          if ((sku.includes("incell") || tech.includes("incell")) && allCandidateText.includes("incell")) return true;
-          if (sku.includes("120hz") && (allCandidateText.includes("120hz") || allCandidateText.includes("120 hz"))) return true;
-          return false;
-        });
-
-        // If only 1 catalog row exists for this model, select it.
-        // If multiple variants exist, select ONLY if an exact SKU or technology keyword corroborated it.
-        // NEVER guess an arbitrary variant.
-        const chosen = exactMdlMatches.length === 1 ? exactMdlMatches[0] : (skuMatch || techMatch);
-        if (!chosen) return null;
-        const cleanChosenName = cleanCatalogModelName(chosen.modelName);
-        return {
-          catalogId: chosen.id,
-          manufacturer: chosen.manufacturer,
-          modelName: cleanChosenName,
-          normalizedIdentifier: chosen.normalizedModelIdentifier,
-          displayTechnology: sanitizeDisplayTechnology(cleanChosenName, chosen.displayTechnology),
-          internalSku: chosen.internalSku,
-          confidenceScore: Math.min(0.96, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
-          matchType: "exact",
-        };
-      }
     }
-  }
-
-  // 4. Fourth priority: Containment matching for base device model
-  if (mfg && mdl) {
-    const targetMfgSlug = compactSlug(mfg);
-    const targetModelSlug = compactSlug(mdl);
-    const selectedApple = extractAppleModels(mdl)[0];
-
-    const containmentCandidates = catalog.filter((item) => {
-      if (compactSlug(item.manufacturer) !== targetMfgSlug) return false;
-      const cleanItemName = cleanCatalogModelName(item.modelName);
-      if (selectedApple) {
-        const itemApple = extractAppleModels(cleanItemName)[0];
-        if (itemApple !== selectedApple) return false;
-      }
-      const itemMdlSlug = compactSlug(cleanItemName);
-      return itemMdlSlug.includes(targetModelSlug) || targetModelSlug.includes(itemMdlSlug);
-    });
-
-    if (containmentCandidates.length > 0) {
-      // Prioritize generation match if specified in candidates or clean decision
-      const allEvidenceText = [
-        visualResult.cleanDecision?.displayName || "",
-        visualResult.cleanDecision?.model || "",
-        ...(visualResult.candidates || []).map((c) => c.title),
-      ].join(" ").toLowerCase();
-
-      const genMatch = containmentCandidates.filter((item) => {
-        const itemClean = cleanCatalogModelName(item.modelName).toLowerCase();
-        const genRegex = /\b(\d+)(st|nd|rd|th)\s*gen\b/gi;
-        const itemGens = itemClean.match(genRegex);
-        if (!itemGens) return false;
-        return itemGens.some((g) => allEvidenceText.includes(g.toLowerCase()));
-      });
-
-      const pool = genMatch.length > 0 ? genMatch : containmentCandidates;
-      pool.sort(
-        (a, b) => cleanCatalogModelName(a.modelName).length - cleanCatalogModelName(b.modelName).length
-      );
-      const best = pool[0];
-      const cleanBestName = cleanCatalogModelName(best.modelName);
-      return {
-        catalogId: best.id,
-        manufacturer: best.manufacturer,
-        modelName: cleanBestName,
-        normalizedIdentifier: best.normalizedModelIdentifier,
-        displayTechnology: sanitizeDisplayTechnology(cleanBestName, best.displayTechnology),
-        internalSku: best.internalSku,
-        confidenceScore: Math.min(0.95, Math.max(0.90, visualResult.cleanDecision?.confidence ?? 0.90)),
-        matchType: "candidate",
-      };
-    }
+    // Listing keywords cannot establish a supplier-specific assembly variant.
+    if (matches.length > 1) return null;
   }
 
   return null;

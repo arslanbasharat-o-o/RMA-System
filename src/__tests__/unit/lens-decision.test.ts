@@ -51,7 +51,7 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.cleanedCandidates[0]).not.toContain("eBay");
     });
 
-    it("should resolve clean Samsung Galaxy S23 display decision", () => {
+    it("keeps unattributed Samsung titles below acceptance confidence", () => {
       const candidates: VisualCandidate[] = [
         {
           title: "Samsung Galaxy S23 SM-S911B AMOLED Display Assembly Replacement with Frame",
@@ -67,7 +67,7 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.manufacturer).toBe("Samsung");
       expect(decision.model).toBe("Galaxy S23");
       expect(decision.displayName).toBe("Samsung Galaxy S23 Display");
-      expect(decision.confidence).toBeGreaterThanOrEqual(0.8);
+      expect(decision.confidence).toBeLessThan(0.5);
     });
 
     it("should resolve clean OnePlus 5T display decision from attached catalog style candidates", () => {
