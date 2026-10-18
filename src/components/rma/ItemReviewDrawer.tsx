@@ -24,7 +24,6 @@ import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { hasModelSuggestion } from "@/lib/model-result";
-import { CopyBadge } from "@/components/premium";
 
 export function ItemReviewDrawer({
   itemId,
@@ -212,7 +211,6 @@ export function ItemReviewDrawer({
   const { item, images, candidates, ocrExtractions, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
   const currentCatalogItem = catalogList.find((c) => c.id === (selectedCatalogId || item?.catalogDisplayId));
-  const displaySku = item?.internalSku || currentCatalogItem?.internalSku;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -335,12 +333,6 @@ export function ItemReviewDrawer({
                 Model result
               </span>
               <div className="flex items-center gap-2">
-                {displaySku && (
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] text-neutral-400 font-mono">SKU:</span>
-                    <CopyBadge value={displaySku} />
-                  </div>
-                )}
                 {item?.modelSource === "manual" && item?.verifiedAt ? (
                   <Badge variant="outline">Verified</Badge>
                 ) : item && hasModelSuggestion(item) ? (
