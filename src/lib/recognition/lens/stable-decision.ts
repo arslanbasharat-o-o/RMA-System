@@ -3,7 +3,7 @@ import type { VisualCandidate, VisualIdentificationResult } from "./types";
 
 // A policy change can intentionally re-evaluate older images without changing
 // or deleting the evidence saved by an earlier release.
-export const VISUAL_DECISION_POLICY = "evidence-consensus-2026-10-18-v3";
+export const VISUAL_DECISION_POLICY = "source-corroboration-2026-10-19-v4";
 
 export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
   return Boolean(
@@ -82,14 +82,14 @@ export function readVisualDecisionSnapshot(rawResponse: unknown): VisualDecision
 function identityKey(snapshot: VisualDecisionSnapshot): string | null {
   const decision = snapshot.cleanDecision;
   if (!decision?.manufacturer || !decision.model || decision.confidence < 0.85) return null;
-  return `${decision.manufacturer} ${decision.model}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${decision.manufacturer} ${decision.model}`.toLowerCase().replace(/\+/g, "plus").replace(/[^a-z0-9]/g, "");
 }
 
 function observedModelKey(snapshot: VisualDecisionSnapshot): string | null {
   const manufacturer = snapshot.cleanDecision?.manufacturer || snapshot.manufacturer;
   const model = snapshot.cleanDecision?.model || snapshot.model;
   if (!manufacturer || !model) return null;
-  return `${manufacturer} ${model}`.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return `${manufacturer} ${model}`.toLowerCase().replace(/\+/g, "plus").replace(/[^a-z0-9]/g, "");
 }
 
 function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSnapshot {
