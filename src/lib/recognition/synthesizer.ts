@@ -202,7 +202,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: item.displayTechnology,
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.95, visualResult.cleanDecision?.confidence ?? 0.95),
+        confidenceScore: Math.min(0.98, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
         matchType: "exact",
       };
     }
@@ -287,7 +287,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: item.normalizedModelIdentifier,
         displayTechnology: sanitizeDisplayTechnology(cleanName, item.displayTechnology),
         internalSku: item.internalSku,
-        confidenceScore: Math.min(0.88, visualResult.cleanDecision?.confidence ?? 0.88),
+        confidenceScore: Math.min(0.95, Math.max(0.92, visualResult.cleanDecision?.confidence ?? 0.92)),
         matchType: "alias",
       };
     } else if (matches.length > 1) {
@@ -341,7 +341,7 @@ export function matchDisplayToCatalog(
           normalizedIdentifier: chosen.normalizedModelIdentifier,
           displayTechnology: sanitizeDisplayTechnology(cleanChosenName, chosen.displayTechnology),
           internalSku: chosen.internalSku,
-          confidenceScore: Math.min(0.9, visualResult.cleanDecision?.confidence ?? 0.9),
+          confidenceScore: Math.min(0.96, Math.max(0.95, visualResult.cleanDecision?.confidence ?? 0.95)),
           matchType: "exact",
         };
       }
@@ -394,7 +394,7 @@ export function matchDisplayToCatalog(
         normalizedIdentifier: best.normalizedModelIdentifier,
         displayTechnology: sanitizeDisplayTechnology(cleanBestName, best.displayTechnology),
         internalSku: best.internalSku,
-        confidenceScore: Math.min(0.85, visualResult.cleanDecision?.confidence ?? 0.85),
+        confidenceScore: Math.min(0.95, Math.max(0.90, visualResult.cleanDecision?.confidence ?? 0.90)),
         matchType: "candidate",
       };
     }
