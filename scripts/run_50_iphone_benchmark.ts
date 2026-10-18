@@ -63,7 +63,7 @@ async function run50IphoneBenchmark() {
   const allCatalog = await db.select().from(displayCatalog);
   console.log(`Loaded ${allCatalog.length} catalog items from PostgreSQL.\n`);
 
-  const provider = new SelfHostedLensProvider();
+  const provider = new SelfHostedLensProvider({ timeoutMs: 15000 });
 
   let passedCount = 0;
   let catalogMatchCount = 0;
