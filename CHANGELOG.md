@@ -2,6 +2,20 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.7] - 2026-10-18
+
+### Fixed
+
+- Count only reviewed, verified model selections in the dashboard's model totals; machine suggestions remain visible as suggestions until an operator confirms them.
+- Remove the heuristic match percentage from item review and label uncertain or unidentified results clearly on desktop and mobile.
+- Preserve a Lens provider error when a prior same-image decision is reused, so Google challenges and timeouts are visible instead of being reported as successful recognition.
+
+### Verification
+
+- All 134 unit and integration tests passed; TypeScript and ESLint passed.
+- Desktop Chrome and Pixel 7 browser checks passed for RMA result labels, camera intake, and dashboard layouts at 320, 768, 1024, and 1440 pixels.
+- Browser and provider tests use synthetic images and the mock Lens provider; no paid recognition API was called in local validation.
+
 ## [Unreleased]
 
 ## [0.3.6] - 2026-10-18

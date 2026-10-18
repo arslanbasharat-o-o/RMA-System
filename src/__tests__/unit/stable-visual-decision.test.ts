@@ -57,6 +57,15 @@ describe("stable decisions for an identical uploaded image", () => {
     expect(readVisualDecisionSnapshot({ stableDecision: { candidates: "invalid" } })).toBeNull();
   });
 
+  it("retains provider failures when displaying a safe stored result", () => {
+    const snapshot = result(null, 0.45);
+    const reused = visualResultFromSnapshot(snapshot, "same-image-evidence", "Google Lens returned a challenge");
+
+    expect(reused.cleanDecision?.model).toBeNull();
+    expect(reused.error).toBe("Google Lens returned a challenge");
+    expect(reused.rawResponse.providerError).toBe("Google Lens returned a challenge");
+  });
+
   it("reads decisions stored by pre-consensus releases", () => {
     const restored = readVisualDecisionSnapshot({
       candidates: [{ title: "Apple iPhone 14 Display", rank: 1 }],

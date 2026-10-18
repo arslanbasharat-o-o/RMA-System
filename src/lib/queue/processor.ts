@@ -241,9 +241,9 @@ export async function processRmaItem(
           const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
           visualResult = reconciled && (reconciled.manual || reconciled.conflict ||
             (established && !fresh.error))
-            ? visualResultFromSnapshot(reconciled, "same-image-evidence")
+          ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
             : fresh.error && established
-              ? visualResultFromSnapshot(established, "same-image-evidence")
+            ? visualResultFromSnapshot(established, "same-image-evidence", fresh.error)
               : fresh;
         }
 

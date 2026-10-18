@@ -113,3 +113,83 @@ test("search matches customer names and contacts instead of stored IDs", async (
   await expect(page.locator('#rma-customer-native option[value="customer-8"]')).toHaveText("Customer 8 (Contact 8)");
   await expect(page.getByRole("button", { name: "Create RMA & Open Scanner" })).toBeEnabled();
 });
+
+test("dashboard model totals are labeled as verified and fit common screen widths", async ({ page }) => {
+  await page.route("**/api/dashboard", route => route.fulfill({ json: {
+    kpis: {
+      totalRmas: 1,
+      totalDisplays: 1,
+      verifiedDisplays: 1,
+      reviewDisplays: 0,
+      processingDisplays: 0,
+      failedDisplays: 0,
+      verificationRate: 100,
+      trends: {},
+    },
+    modelBreakdown: [{ model: "iPhone 11", count: 1 }],
+    vendorBreakdown: [],
+    reasonBreakdown: [],
+    recentRmas: [],
+    reviewItems: [],
+  } }));
+
+  for (const width of [320, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/dashboard");
+    await expect(page.getByRole("heading", { name: "Verified Models" })).toBeVisible();
+    await expect(page.getByText("iPhone 11", { exact: true })).toBeVisible();
+    await expect(page.getByText("iPhone 14", { exact: true })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  }
+});
+
+test("RMA rows distinguish unverified suggestions from unidentified displays", async ({ page }, testInfo) => {
+  await page.route("**/api/rmas/test-rma", route => route.fulfill({ json: {
+    rma: {
+      id: "test-rma",
+      rmaNumber: "RMA-TEST-000001",
+      status: "receiving",
+      customerName: "Synthetic Customer",
+      returnReasonLabel: "Defective display",
+    },
+    items: [
+      {
+        id: "suggested-item",
+        itemNumber: 1,
+        status: "review_required",
+        matchStatus: "possible_candidate",
+        predictedManufacturer: "Apple",
+        predictedModel: "iPhone 14",
+        predictedDisplayAssembly: "Apple iPhone 14 Display",
+        verifiedAt: null,
+        images: [],
+      },
+      {
+        id: "unidentified-item",
+        itemNumber: 2,
+        status: "review_required",
+        matchStatus: "ambiguous",
+        predictedManufacturer: "Apple",
+        predictedModel: null,
+        predictedDisplayAssembly: null,
+        verifiedAt: null,
+        images: [],
+      },
+    ],
+    stats: { total: 2, verified: 0, reviewRequired: 2, processing: 0, failed: 0 },
+  } }));
+
+  await page.goto("/rmas/test-rma");
+  await expect(page.getByRole("heading", { name: "RMA-TEST-000001" })).toBeVisible();
+
+  if (testInfo.project.name.startsWith("mobile")) {
+    await expect(page.getByText("Suggestion", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Unidentified", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText(/Search evidence did not identify one model/).first()).toBeVisible();
+  } else {
+    await expect(page.locator("table").getByText("Suggestion", { exact: true })).toBeVisible();
+    await expect(page.locator("table").getByText("Unidentified", { exact: true })).toBeVisible();
+    await expect(page.locator("table").getByText(/Search evidence did not identify one model/)).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Model Result" })).toBeVisible();
+  }
+});
