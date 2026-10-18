@@ -225,7 +225,7 @@ export async function cleanVisualCandidatesWithOpenAi(
   }
 
   const modelName = process.env.OPENAI_CLEANER_MODEL || "gpt-4o-mini";
-  const client = new OpenAI({ apiKey, timeout: 4000 });
+  const client = new OpenAI({ apiKey, timeout: 8000 });
 
   const rawTitles = candidates.slice(0, 8).map((c, i) => `#${i + 1}: ${c.title}`);
 
