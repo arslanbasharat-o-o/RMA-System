@@ -23,6 +23,7 @@ import { motion } from "motion/react";
 import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
+import { hasModelSuggestion } from "@/lib/model-result";
 
 export function ItemReviewDrawer({
   itemId,
@@ -328,7 +329,7 @@ export function ItemReviewDrawer({
               </span>
               {item?.modelSource === "manual" && item?.verifiedAt ? (
                 <Badge variant="outline">Verified</Badge>
-              ) : item?.predictedModel || item?.predictedDisplayAssembly ? (
+              ) : item && hasModelSuggestion(item) ? (
                 <Badge variant="outline">Suggestion</Badge>
               ) : (
                 <Badge variant="outline">Unidentified</Badge>
