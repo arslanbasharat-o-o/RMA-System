@@ -1,10 +1,10 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { db } from "@/db";
-import { customers, rmas, rmaItems, itemImages, returnReasons, recognitionRuns } from "@/db/schema";
+import { customers, rmas, rmaItems, itemImages, returnReasons, recognitionRuns, recognitionCandidates } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { processRmaItem } from "@/lib/queue/processor";
-import { VISUAL_DECISION_POLICY } from "@/lib/recognition/lens/stable-decision";
+import { readVisualDecisionSnapshot, VISUAL_DECISION_POLICY } from "@/lib/recognition/lens/stable-decision";
 import { MockLensProvider, type VisualIdentificationResult } from "@/lib/recognition/lens";
 import sharp from "sharp";
 
@@ -109,7 +109,7 @@ it("reuses unresolved visual evidence for identical image bytes without repeatin
 
   const providerCall = vi.spyOn(MockLensProvider.prototype, "identifyDisplay").mockResolvedValue({
     provider: "mock_lens",
-    candidates: [{ title: "Generic replacement display", rank: 1 }],
+    candidates: [{ title: "Generic replacement display", rank: 1, sourceUrl: "https://example.test/display" }],
     normalizedManufacturer: "Apple",
     detectedDisplayAssembly: "Unidentified Apple Display",
     cleanDecision: {
@@ -120,7 +120,15 @@ it("reuses unresolved visual evidence for identical image bytes without repeatin
       cleanedCandidates: [],
       reasoning: "No model could be established from the available evidence.",
     },
-    rawResponse: {},
+    // The real adapter stores the provider payload and clean decision here,
+    // while its normalized candidate objects live on the typed result.
+    rawResponse: {
+      cleanDecision: {
+        manufacturer: "Apple", model: null, displayName: "Unidentified Apple Display",
+        confidence: 0.45, cleanedCandidates: [], reasoning: "No exact model evidence.",
+      },
+      visual_matches: [{ title: "Generic replacement display", link: "https://example.test/display" }],
+    },
     durationMs: 25,
   });
 
@@ -134,6 +142,12 @@ it("reuses unresolved visual evidence for identical image bytes without repeatin
   expect(reused.status).toBe("review_required");
   const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, items[1].id));
   expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");
+  const reusedSnapshot = readVisualDecisionSnapshot(runs.find((run) => run.pipelineType === "visual")?.rawResponse);
+  expect(reusedSnapshot?.candidates).toEqual([{ title: "Generic replacement display", rank: 1, sourceUrl: "https://example.test/display" }]);
+  const candidates = await db.select().from(recognitionCandidates).where(eq(recognitionCandidates.rmaItemId, items[1].id));
+  expect(candidates).toEqual([expect.objectContaining({
+    candidateTitle: "Generic replacement display", sourceEvidence: "https://example.test/display", rank: 1,
+  })]);
 });
 
 it("ignores conflicting legacy Lens results and fetches fresh evidence for an identical photo", async () => {

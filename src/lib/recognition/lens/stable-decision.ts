@@ -3,7 +3,7 @@ import type { VisualCandidate, VisualIdentificationResult } from "./types";
 
 // A policy change can intentionally re-evaluate older images without changing
 // or deleting the evidence saved by an earlier release.
-export const VISUAL_DECISION_POLICY = "source-corroboration-2026-10-19-v5";
+export const VISUAL_DECISION_POLICY = "source-corroboration-2026-10-19-v6";
 
 export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
   return Boolean(
@@ -26,6 +26,7 @@ export interface VisualDecisionSnapshot {
 }
 
 export function snapshotVisualDecision(result: VisualIdentificationResult): VisualDecisionSnapshot {
+  const stored = readVisualDecisionSnapshot({ stableDecision: result.rawResponse.stableDecision });
   return {
     manufacturer: result.normalizedManufacturer,
     model: result.normalizedModel,
@@ -33,6 +34,8 @@ export function snapshotVisualDecision(result: VisualIdentificationResult): Visu
     candidates: result.candidates.slice(0, 30),
     aiOverview: result.aiOverview,
     cleanDecision: result.cleanDecision,
+    ...(stored?.manual ? { manual: true } : {}),
+    ...(stored?.conflict ? { conflict: true } : {}),
   };
 }
 

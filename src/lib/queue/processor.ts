@@ -298,8 +298,7 @@ export async function processRmaItem(
               },
               rawResponse: visualResult.error ? visualResult.rawResponse : {
                 ...visualResult.rawResponse,
-                stableDecision: readVisualDecisionSnapshot(visualResult.rawResponse)
-                  || snapshotVisualDecision(visualResult),
+                stableDecision: snapshotVisualDecision(visualResult),
               },
               durationMs: visualResult.durationMs,
               errorMessage: visualResult.error || null,
