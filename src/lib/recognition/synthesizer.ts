@@ -304,7 +304,10 @@ export function matchDisplayToCatalog(
           if (exactMdlMatches.length > 1) return null;
         }
 
-        const allCandidateText = (visualResult.candidates || []).map((c) => c.title || "").join(" ").toLowerCase();
+        const allCandidateText = [
+          ...(visualResult.candidates || []).map((c) => c.title || ""),
+          ...(visualResult.cleanDecision?.cleanedCandidates || []),
+        ].join(" ").toLowerCase();
 
         // 1. Direct SKU match in candidate text
         const skuMatch = exactMdlMatches.find((m) => {
@@ -325,7 +328,11 @@ export function matchDisplayToCatalog(
           return false;
         });
 
-        const chosen = skuMatch || techMatch || exactMdlMatches[0];
+        // If only 1 catalog row exists for this model, select it.
+        // If multiple variants exist, select ONLY if an exact SKU or technology keyword corroborated it.
+        // NEVER guess an arbitrary variant.
+        const chosen = exactMdlMatches.length === 1 ? exactMdlMatches[0] : (skuMatch || techMatch);
+        if (!chosen) return null;
         const cleanChosenName = cleanCatalogModelName(chosen.modelName);
         return {
           catalogId: chosen.id,
