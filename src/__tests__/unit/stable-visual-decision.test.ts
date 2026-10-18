@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isCurrentVisualDecisionPolicy,
   readVisualDecisionSnapshot,
+  snapshotVisualDecision,
   stableVisualDecision,
   VISUAL_DECISION_POLICY,
   visualResultFromSnapshot,
@@ -59,6 +60,19 @@ describe("stable decisions for an identical uploaded image", () => {
     expect(readVisualDecisionSnapshot({ stableDecision: { candidates: "invalid" } })).toBeNull();
   });
 
+  it.each(["manual", "conflict"] as const)("preserves %s status and typed candidate evidence when storing a reused result", (flag) => {
+    const snapshot = {
+      ...result(flag === "manual" ? "iPhone 15 Pro Max" : null),
+      [flag]: true,
+      candidates: [{ title: "Exact source listing", sourceUrl: "https://example.test/display", rank: 1 }],
+    };
+    const saved = snapshotVisualDecision(visualResultFromSnapshot(snapshot, "same-image"));
+
+    expect(saved[flag]).toBe(true);
+    expect(saved.candidates).toEqual(snapshot.candidates);
+    expect(readVisualDecisionSnapshot({ stableDecision: saved })?.candidates).toEqual(snapshot.candidates);
+  });
+
   it("caches an unresolved result for the identical image instead of searching repeatedly", () => {
     const unresolved = result(null, 0.45);
     const reused = stableVisualDecision([unresolved]);
@@ -110,6 +124,7 @@ describe("stable decisions for an identical uploaded image", () => {
   it("only reuses automated evidence saved by the active decision policy", () => {
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: VISUAL_DECISION_POLICY })).toBe(true);
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "evidence-consensus-2026-10-18" })).toBe(false);
+    expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v5" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy(null)).toBe(false);
   });
 
