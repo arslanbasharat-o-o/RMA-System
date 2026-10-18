@@ -271,8 +271,10 @@ export default function RmaDetailPage({
                       ? "neutral"
                       : "info"
                   }
+                  showIcon={false}
+                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 font-semibold"
                 >
-                  {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
+                  Shipment: {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
                 </StatusText>
               </div>
 

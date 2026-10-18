@@ -2,6 +2,7 @@ import { VisualIdentificationResult } from "./lens/types";
 import { OcrStructuredOutput } from "./openai/types";
 import { VendorMatchResult } from "./rules/types";
 import { extractAppleModels } from "./lens/model-evidence";
+import { cleanCatalogModelName, sanitizeDisplayTechnology } from "./lens/cleaner-utils";
 
 export interface CatalogDisplayMatch {
   catalogId: string;
@@ -278,12 +279,13 @@ export function matchDisplayToCatalog(
     const strongestMatches = matches.filter((item) => specificity.get(item.id) === bestSpecificity);
     if (strongestMatches.length === 1) {
       const item = strongestMatches[0];
+      const cleanName = cleanCatalogModelName(item.modelName);
       return {
         catalogId: item.id,
         manufacturer: item.manufacturer,
-        modelName: item.modelName,
+        modelName: cleanName,
         normalizedIdentifier: item.normalizedModelIdentifier,
-        displayTechnology: item.displayTechnology,
+        displayTechnology: sanitizeDisplayTechnology(cleanName, item.displayTechnology),
         internalSku: item.internalSku,
         confidenceScore: Math.min(0.88, visualResult.cleanDecision?.confidence ?? 0.88),
         matchType: "alias",
@@ -293,8 +295,8 @@ export function matchDisplayToCatalog(
       const exactMdlMatches = matches.filter(
         (m) =>
           mdl &&
-          (compactSlug(m.modelName) === compactSlug(mdl) ||
-            compactSlug(`${m.manufacturer} ${m.modelName}`) === compactSlug(`${mfg} ${mdl}`))
+          (compactSlug(cleanCatalogModelName(m.modelName)) === compactSlug(mdl) ||
+            compactSlug(`${m.manufacturer} ${cleanCatalogModelName(m.modelName)}`) === compactSlug(`${mfg} ${mdl}`))
       );
       if (exactMdlMatches.length >= 1) {
         // If no candidate text or evidence exists to differentiate multiple variants, leave unresolved.
@@ -324,12 +326,13 @@ export function matchDisplayToCatalog(
         });
 
         const chosen = skuMatch || techMatch || exactMdlMatches[0];
+        const cleanChosenName = cleanCatalogModelName(chosen.modelName);
         return {
           catalogId: chosen.id,
           manufacturer: chosen.manufacturer,
-          modelName: chosen.modelName,
+          modelName: cleanChosenName,
           normalizedIdentifier: chosen.normalizedModelIdentifier,
-          displayTechnology: chosen.displayTechnology,
+          displayTechnology: sanitizeDisplayTechnology(cleanChosenName, chosen.displayTechnology),
           internalSku: chosen.internalSku,
           confidenceScore: Math.min(0.9, visualResult.cleanDecision?.confidence ?? 0.9),
           matchType: "exact",
@@ -346,25 +349,27 @@ export function matchDisplayToCatalog(
 
     const containmentCandidates = catalog.filter((item) => {
       if (compactSlug(item.manufacturer) !== targetMfgSlug) return false;
+      const cleanItemName = cleanCatalogModelName(item.modelName);
       if (selectedApple) {
-        const itemApple = extractAppleModels(item.modelName)[0];
+        const itemApple = extractAppleModels(cleanItemName)[0];
         if (itemApple !== selectedApple) return false;
       }
-      const itemMdlSlug = compactSlug(item.modelName);
+      const itemMdlSlug = compactSlug(cleanItemName);
       return itemMdlSlug.includes(targetModelSlug) || targetModelSlug.includes(itemMdlSlug);
     });
 
     if (containmentCandidates.length > 0) {
       containmentCandidates.sort(
-        (a, b) => a.modelName.length - b.modelName.length
+        (a, b) => cleanCatalogModelName(a.modelName).length - cleanCatalogModelName(b.modelName).length
       );
       const best = containmentCandidates[0];
+      const cleanBestName = cleanCatalogModelName(best.modelName);
       return {
         catalogId: best.id,
         manufacturer: best.manufacturer,
-        modelName: best.modelName,
+        modelName: cleanBestName,
         normalizedIdentifier: best.normalizedModelIdentifier,
-        displayTechnology: best.displayTechnology,
+        displayTechnology: sanitizeDisplayTechnology(cleanBestName, best.displayTechnology),
         internalSku: best.internalSku,
         confidenceScore: Math.min(0.85, visualResult.cleanDecision?.confidence ?? 0.85),
         matchType: "candidate",
@@ -401,9 +406,13 @@ export function synthesizeRecognition(
     visualResult?.normalizedManufacturer ||
     null;
 
-  let rawModel = acceptedDisplayMatch?.modelName || (visualModelIsUsable
+  const visualCleanModel = visualModelIsUsable
     ? visualResult?.cleanDecision?.model || visualResult?.normalizedModel || null
-    : null);
+    : null;
+
+  let rawModel = acceptedDisplayMatch?.modelName
+    ? cleanCatalogModelName(acceptedDisplayMatch.modelName)
+    : visualCleanModel;
 
   // Clean redundant manufacturer prefix if present
   if (
@@ -415,14 +424,20 @@ export function synthesizeRecognition(
   }
   const predictedModel = rawModel;
 
-  const displayLabel = acceptedDisplayMatch
-    ? (acceptedDisplayMatch.modelName.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(acceptedDisplayMatch.manufacturer.toLowerCase().replace(/[^a-z0-9]/g, ""))
-        ? acceptedDisplayMatch.modelName
-        : `${acceptedDisplayMatch.manufacturer} ${acceptedDisplayMatch.modelName}`)
+  const catalogCleanName = acceptedDisplayMatch?.modelName
+    ? cleanCatalogModelName(acceptedDisplayMatch.modelName)
     : null;
 
+  const displayLabel = acceptedDisplayMatch && catalogCleanName
+    ? (catalogCleanName.toLowerCase().replace(/[^a-z0-9]/g, "").startsWith(acceptedDisplayMatch.manufacturer.toLowerCase().replace(/[^a-z0-9]/g, ""))
+        ? catalogCleanName
+        : `${acceptedDisplayMatch.manufacturer} ${catalogCleanName}`)
+    : null;
+
+  const cleanTech = sanitizeDisplayTechnology(predictedModel || catalogCleanName || "", acceptedDisplayMatch?.displayTechnology);
+
   const predictedDisplayAssembly = acceptedDisplayMatch
-    ? `${displayLabel}${acceptedDisplayMatch.displayTechnology ? ` (${acceptedDisplayMatch.displayTechnology})` : " Display"}`
+    ? `${displayLabel}${cleanTech ? ` (${cleanTech})` : " Display"}`
     : !visualModelIsUsable
     ? predictedManufacturer === "Apple" ? "Unidentified Apple Display" : "Unidentified Display"
     : (visualResult?.cleanDecision?.displayName ||
