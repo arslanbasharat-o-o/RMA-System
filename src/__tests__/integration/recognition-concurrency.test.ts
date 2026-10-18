@@ -9,10 +9,13 @@ import { MockLensProvider, type VisualIdentificationResult } from "@/lib/recogni
 import sharp from "sharp";
 
 let customerId = "", rmaId = "";
+let storedImagePaths: string[] = [];
 afterEach(async () => {
   vi.restoreAllMocks();
   if (rmaId) await db.delete(rmas).where(eq(rmas.id, rmaId));
   if (customerId) await db.delete(customers).where(eq(customers.id, customerId));
+  await Promise.all(storedImagePaths.map((storagePath) => storage.deleteImage(storagePath)));
+  storedImagePaths = [];
 });
 
 it("finishes OCR while visual search is waiting, then preserves OCR after a visual timeout", async () => {
@@ -195,4 +198,72 @@ it("ignores conflicting legacy Lens results and fetches fresh evidence for an id
   expect(visualRun?.providerName).toBe("mock_lens");
   expect((visualRun?.rawRequest as { decisionPolicy?: string }).decisionPolicy)
     .toBe(VISUAL_DECISION_POLICY);
+});
+
+it("serializes concurrent recognition of duplicate image bytes across five workers", async () => {
+  const [customer] = await db.insert(customers).values({ name: "Concurrent duplicate QA" }).returning();
+  customerId = customer.id;
+  const [reason] = await db.select().from(returnReasons).limit(1);
+  const [rma] = await db.insert(rmas).values({
+    rmaNumber: `QA-${crypto.randomUUID()}`,
+    customerId,
+    returnReasonId: reason.id,
+  }).returning();
+  rmaId = rma.id;
+  const image = await sharp({ create: {
+    width: 8,
+    height: 8,
+    channels: 3,
+    background: { r: 34, g: 92, b: 148 },
+  } }).png().toBuffer();
+  const items = await db.insert(rmaItems).values(Array.from({ length: 15 }, (_, index) => ({
+    rmaId,
+    itemNumber: index + 1,
+  }))).returning();
+
+  for (const item of items) {
+    const stored = await storage.saveImage(image, "duplicate-display.png", "image/png", `qa-duplicate/${item.id}`);
+    storedImagePaths.push(stored.storagePath);
+    await db.insert(itemImages).values({
+      rmaItemId: item.id,
+      imageType: "primary",
+      storagePath: stored.storagePath,
+      originalFilename: stored.originalFilename,
+      mimeType: stored.mimeType,
+      fileSizeBytes: stored.fileSizeBytes,
+      checksumSha256: stored.checksumSha256,
+    });
+  }
+
+  const identifyDisplay = MockLensProvider.prototype.identifyDisplay;
+  let resultIndex = 0;
+  const providerCall = vi.spyOn(MockLensProvider.prototype, "identifyDisplay").mockImplementation(async (buffer, context) => {
+    // Hold the first call open long enough for the other worker jobs to contend
+    // for the same image checksum before the first result is persisted.
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    const result = await identifyDisplay.call(new MockLensProvider(), buffer, context);
+    const model = resultIndex++ % 2 === 0 ? "iPhone 14 Plus" : "iPhone 15 Pro";
+    const cleanDecision = result.cleanDecision
+      ? { ...result.cleanDecision, model, displayName: `Apple ${model} Display` }
+      : undefined;
+    return {
+      ...result,
+      normalizedModel: model,
+      detectedDisplayAssembly: `Apple ${model} Display`,
+      cleanDecision,
+      rawResponse: { ...result.rawResponse, cleanDecision },
+    };
+  });
+
+  for (let offset = 0; offset < items.length; offset += 5) {
+    await Promise.all(items.slice(offset, offset + 5).map((item) =>
+      processRmaItem(item.id, { pipeline: "visual" })
+    ));
+  }
+
+  const processed = await db.select().from(rmaItems).where(eq(rmaItems.rmaId, rmaId));
+  expect(processed).toHaveLength(15);
+  expect(new Set(processed.map((item) => item.predictedModel)).size).toBe(1);
+  expect(processed.every((item) => item.predictedModel)).toBe(true);
+  expect(providerCall).toHaveBeenCalledTimes(1);
 });

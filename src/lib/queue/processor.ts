@@ -1,4 +1,4 @@
-import { db } from "@/db";
+import { db, pool } from "@/db";
 import {
   rmaItems,
   itemImages,
@@ -48,6 +48,32 @@ async function updateItemForRevision(
     .update(rmaItems)
     .set(values)
     .where(and(eq(rmaItems.id, itemId), eq(rmaItems.recognitionRevision, revision)));
+}
+
+async function withImageRecognitionLock<T>(checksumSha256: string, operation: () => Promise<T>): Promise<T> {
+  const client = await pool.connect();
+  let acquired = false;
+  try {
+    // Session-scoped locks coordinate all RMA app/worker processes, not just
+    // jobs running in the same Node process. The lock is released automatically
+    // if the worker exits or loses its database connection.
+    await client.query("SELECT pg_advisory_lock(hashtextextended($1, 0))", [checksumSha256]);
+    acquired = true;
+    return await operation();
+  } catch (error) {
+    if (!acquired) client.release(true);
+    throw error;
+  } finally {
+    if (acquired) {
+      try {
+        await client.query("SELECT pg_advisory_unlock(hashtextextended($1, 0))", [checksumSha256]);
+        client.release();
+      } catch {
+        // A connection with an uncertain lock state must not return to the pool.
+        client.release(true);
+      }
+    }
+  }
 }
 
 async function previousVisualDecisions(
@@ -228,74 +254,77 @@ export async function processRmaItem(
           // Fallback to env
         }
 
-        const previous = await previousVisualDecisions(
-          primaryImage.checksumSha256,
-          options?.force ? itemId : undefined
-        );
-        const established = stableVisualDecision(previous);
-        if (established && !options?.force) {
-          visualResult = visualResultFromSnapshot(established, "same-image-evidence");
-        } else {
-          const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
-          const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
-          const fresh = await lensProvider.identifyDisplay(imageBuffer, {
-            filename: primaryImage.originalFilename,
-            mimeType: primaryImage.mimeType,
-          });
-          const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
-          visualResult = reconciled && (reconciled.manual || reconciled.conflict ||
-            (established && !fresh.error))
-          ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
-            : fresh.error && established
-            ? visualResultFromSnapshot(established, "same-image-evidence", fresh.error)
-              : fresh;
-        }
-
-        const [run] = await db
-          .insert(recognitionRuns)
-          .values({
-            rmaItemId: itemId,
-            recognitionRevision: revision,
-            pipelineType: "visual",
-            providerName: visualResult.provider,
-            status: visualResult.error ? "failed" : "completed",
-            rawRequest: {
+        await withImageRecognitionLock(primaryImage.checksumSha256, async () => {
+          const previous = await previousVisualDecisions(
+            primaryImage.checksumSha256,
+            options?.force ? itemId : undefined
+          );
+          const established = stableVisualDecision(previous);
+          if (established && !options?.force) {
+            visualResult = visualResultFromSnapshot(established, "same-image-evidence");
+          } else {
+            const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
+            const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
+            const fresh = await lensProvider.identifyDisplay(imageBuffer, {
               filename: primaryImage.originalFilename,
-              checksumSha256: primaryImage.checksumSha256,
-              decisionPolicy: VISUAL_DECISION_POLICY,
-            },
-            rawResponse: visualResult.error ? visualResult.rawResponse : {
-              ...visualResult.rawResponse,
-              stableDecision: readVisualDecisionSnapshot(visualResult.rawResponse)
-                || snapshotVisualDecision(visualResult),
-            },
-            durationMs: visualResult.durationMs,
-            errorMessage: visualResult.error || null,
-          })
-          .returning({ id: recognitionRuns.id });
+              mimeType: primaryImage.mimeType,
+              noCache: options?.force,
+            });
+            const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
+            visualResult = reconciled && (reconciled.manual || reconciled.conflict ||
+              (established && !fresh.error))
+            ? visualResultFromSnapshot(reconciled, "same-image-evidence", fresh.error)
+              : fresh.error && established
+              ? visualResultFromSnapshot(established, "same-image-evidence", fresh.error)
+                : fresh;
+          }
 
-        // Save visual candidates with cleaned titles
-        for (let idx = 0; idx < visualResult.candidates.length; idx++) {
-          const cand = visualResult.candidates[idx];
-          // Keep every title attached to its original source and rank. The LLM's
-          // summarized candidate array is not guaranteed to preserve either.
-          const cleanTitle = cleanRawCandidateTitle(cand.title) || cand.title;
-          await db.insert(recognitionCandidates).values({
-            recognitionRunId: run.id,
-            rmaItemId: itemId,
-            candidateType: "display_model",
-            candidateTitle: cleanTitle,
-            score: Math.max(1.0 - cand.rank * 0.1, 0.1),
-            sourceEvidence: cand.sourceUrl || "Visual Match",
-            rank: cand.rank,
-          });
-        }
+          const [run] = await db
+            .insert(recognitionRuns)
+            .values({
+              rmaItemId: itemId,
+              recognitionRevision: revision,
+              pipelineType: "visual",
+              providerName: visualResult.provider,
+              status: visualResult.error ? "failed" : "completed",
+              rawRequest: {
+                filename: primaryImage.originalFilename,
+                checksumSha256: primaryImage.checksumSha256,
+                decisionPolicy: VISUAL_DECISION_POLICY,
+              },
+              rawResponse: visualResult.error ? visualResult.rawResponse : {
+                ...visualResult.rawResponse,
+                stableDecision: readVisualDecisionSnapshot(visualResult.rawResponse)
+                  || snapshotVisualDecision(visualResult),
+              },
+              durationMs: visualResult.durationMs,
+              errorMessage: visualResult.error || null,
+            })
+            .returning({ id: recognitionRuns.id });
 
-        await updateItemForRevision(itemId, revision, {
-            visualStatus: visualResult.error ? "failed" : "success",
-            visualError: visualResult.error || null,
-            updatedAt: new Date(),
-          });
+          // Save visual candidates with cleaned titles
+          for (let idx = 0; idx < visualResult.candidates.length; idx++) {
+            const cand = visualResult.candidates[idx];
+            // Keep every title attached to its original source and rank. The LLM's
+            // summarized candidate array is not guaranteed to preserve either.
+            const cleanTitle = cleanRawCandidateTitle(cand.title) || cand.title;
+            await db.insert(recognitionCandidates).values({
+              recognitionRunId: run.id,
+              rmaItemId: itemId,
+              candidateType: "display_model",
+              candidateTitle: cleanTitle,
+              score: Math.max(1.0 - cand.rank * 0.1, 0.1),
+              sourceEvidence: cand.sourceUrl || "Visual Match",
+              rank: cand.rank,
+            });
+          }
+
+          await updateItemForRevision(itemId, revision, {
+              visualStatus: visualResult.error ? "failed" : "success",
+              visualError: visualResult.error || null,
+              updatedAt: new Date(),
+            });
+        });
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
         console.error(`[Processor] Task A failed:`, msg);

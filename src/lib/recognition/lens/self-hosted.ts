@@ -127,6 +127,27 @@ function isDirectEndpoint(baseUrl: string): boolean {
   return /(?:^|\/)(?:search|lens|google[-_]?lens|visual[-_]?search|identify|recognize)$/.test(pathname);
 }
 
+function detectImageMimeType(buffer: Buffer, declared?: string): { mime: string; ext: string } {
+  if (buffer.length >= 8 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47) {
+    return { mime: "image/png", ext: ".png" };
+  }
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return { mime: "image/jpeg", ext: ".jpg" };
+  }
+  if (buffer.length >= 12 && buffer.subarray(0, 4).toString("ascii") === "RIFF" && buffer.subarray(8, 12).toString("ascii") === "WEBP") {
+    return { mime: "image/webp", ext: ".webp" };
+  }
+  if (buffer.length >= 6) {
+    const sig = buffer.subarray(0, 6).toString("ascii");
+    if (sig === "GIF87a" || sig === "GIF89a") {
+      return { mime: "image/gif", ext: ".gif" };
+    }
+  }
+  const fallback = declared || "image/jpeg";
+  const ext = fallback.includes("png") ? ".png" : fallback.includes("webp") ? ".webp" : ".jpg";
+  return { mime: fallback, ext };
+}
+
 export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider {
   public name = "self_hosted_lens";
 
@@ -187,8 +208,12 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
-      const uploadMime = context?.mimeType || "image/jpeg";
-      const filename = context?.filename || "display.jpg";
+      const detected = detectImageMimeType(imageBuffer, context?.mimeType);
+      const uploadMime = detected.mime;
+      let filename = context?.filename || `display${detected.ext}`;
+      if (!filename.toLowerCase().endsWith(detected.ext)) {
+        filename = `${filename.replace(/\.[^/.]+$/, "")}${detected.ext}`;
+      }
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
@@ -223,7 +248,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           }
 
           stage = "visual search";
-          payload = await this.requestSearch(imageId, controller.signal);
+          payload = await this.requestSearch(imageId, controller.signal, context?.noCache);
           payload = await this.waitForResult(payload, controller.signal);
         }
       }
@@ -304,10 +329,14 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
 
   private async requestSearch(
     imageId: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    noCache?: boolean
   ): Promise<JsonObject> {
     const searchUrl = new URL(joinServicePath(this.baseUrl, "search"));
     searchUrl.searchParams.set("image_id", imageId);
+    if (noCache) {
+      searchUrl.searchParams.set("no_cache", "true");
+    }
 
     const response = await fetch(searchUrl.toString(), {
       method: "GET",
