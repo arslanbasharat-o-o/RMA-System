@@ -8,6 +8,7 @@ import {
   itemImages,
   vendors,
   vendorVariants,
+  displayCatalog,
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { eq, asc, inArray } from "drizzle-orm";
@@ -66,7 +67,7 @@ export async function GET(
     return NextResponse.json({ error: "RMA record not found." }, { status: 404 });
   }
 
-  // Fetch all items with their attached images
+  // Fetch all items with their attached images and catalog links
   const items = await db
     .select({
       id: rmaItems.id,
@@ -75,6 +76,10 @@ export async function GET(
       predictedManufacturer: rmaItems.predictedManufacturer,
       predictedModel: rmaItems.predictedModel,
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
+      catalogDisplayId: rmaItems.catalogDisplayId,
+      internalSku: displayCatalog.internalSku,
+      catalogModelName: displayCatalog.modelName,
+      displayTechnology: displayCatalog.displayTechnology,
       identifiedVendorId: rmaItems.identifiedVendorId,
       identifiedVendorVariantId: rmaItems.identifiedVendorVariantId,
       identifiedVendorName: vendors.name,
@@ -93,6 +98,7 @@ export async function GET(
     .from(rmaItems)
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
     .leftJoin(vendorVariants, eq(rmaItems.identifiedVendorVariantId, vendorVariants.id))
+    .leftJoin(displayCatalog, eq(rmaItems.catalogDisplayId, displayCatalog.id))
     .where(eq(rmaItems.rmaId, id))
     .orderBy(asc(rmaItems.itemNumber));
 

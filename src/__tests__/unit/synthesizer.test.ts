@@ -388,5 +388,75 @@ describe("Unified Synthesizer", () => {
     expect(samMatch?.catalogId).toBe("cat-s9p");
     expect(samMatch?.matchType).toBe("exact");
   });
+
+  it("resolves catalog display and internalSku when multiple assembly variants exist in catalog", () => {
+    const multiVariantCatalog = [
+      {
+        id: "cat-ip14-cof",
+        manufacturer: "Apple",
+        modelName: "iPhone 14",
+        normalizedModelIdentifier: "apple-iphone-14-cof",
+        aliases: ["iPhone 14", "Apple iPhone 14", "Liphone 14 COF"],
+        internalSku: "Liphone 14 COF",
+        knownPartNumbers: [],
+        displayTechnology: "COF LCD",
+      },
+      {
+        id: "cat-ip14-soft",
+        manufacturer: "Apple",
+        modelName: "iPhone 14",
+        normalizedModelIdentifier: "apple-iphone-14-soft",
+        aliases: ["iPhone 14", "Apple iPhone 14", "Liphone 14 Soft"],
+        internalSku: "Liphone 14 Soft",
+        knownPartNumbers: [],
+        displayTechnology: "LCD",
+      },
+    ];
+
+    const visualResultWithSoft: VisualIdentificationResult = {
+      provider: "mock",
+      candidates: [
+        { title: "Premium Soft Assembly for iPhone 14 Screen", rank: 1 },
+        { title: "Apple iPhone 14 OLED Replacement", rank: 2 },
+      ],
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: "iPhone 14",
+        displayName: "Apple iPhone 14 Display",
+        confidence: 0.88,
+        cleanedCandidates: ["Apple iPhone 14"],
+        reasoning: "Matched iPhone 14",
+      },
+      durationMs: 30,
+      rawResponse: {},
+    };
+
+    const match = matchDisplayToCatalog(visualResultWithSoft, multiVariantCatalog, []);
+    expect(match).not.toBeNull();
+    expect(match?.catalogId).toBe("cat-ip14-soft");
+    expect(match?.internalSku).toBe("Liphone 14 Soft");
+
+    const visualResultWithCof: VisualIdentificationResult = {
+      provider: "mock",
+      candidates: [
+        { title: "LCD Assembly for iPhone 14 (COF)", rank: 1 },
+      ],
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: "iPhone 14",
+        displayName: "Apple iPhone 14 Display",
+        confidence: 0.88,
+        cleanedCandidates: ["Apple iPhone 14"],
+        reasoning: "Matched iPhone 14",
+      },
+      durationMs: 30,
+      rawResponse: {},
+    };
+
+    const cofMatch = matchDisplayToCatalog(visualResultWithCof, multiVariantCatalog, []);
+    expect(cofMatch).not.toBeNull();
+    expect(cofMatch?.catalogId).toBe("cat-ip14-cof");
+    expect(cofMatch?.internalSku).toBe("Liphone 14 COF");
+  });
 });
 

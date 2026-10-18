@@ -81,7 +81,7 @@ export function StatusTransition({ status, className = "", showIcon = true }: St
       break;
     case "review_required":
     case "needs_review":
-      label = "Review required";
+      label = "Needs Review";
       variant = "warning";
       icon = AlertTriangle;
       break;

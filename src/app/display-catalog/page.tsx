@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { Plus, Search, Upload, Smartphone, Layers, X } from "lucide-react";
+import { Plus, Search, Upload, Smartphone, Layers, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -20,6 +20,9 @@ export default function DisplayCatalogPage() {
   const [catalog, setCatalog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -41,32 +44,44 @@ export default function DisplayCatalogPage() {
 
   const listRequest = useRef<AbortController | null>(null);
 
-  const fetchCatalog = async () => {
+  const fetchCatalog = async (targetPage = page) => {
     listRequest.current?.abort();
     const controller = new AbortController();
     listRequest.current = controller;
     setLoading(true);
     try {
-      const url = search
-        ? `/api/display-catalog?q=${encodeURIComponent(search)}`
-        : "/api/display-catalog";
-      const res = await fetch(url, { signal: controller.signal });
+      const params = new URLSearchParams();
+      if (search.trim()) params.set("q", search.trim());
+      params.set("page", String(targetPage));
+      params.set("limit", "50");
+
+      const res = await fetch(`/api/display-catalog?${params.toString()}`, { signal: controller.signal });
       if (res.status === 401) {
         window.location.assign("/login");
         return;
       }
+      if (!res.ok) throw new Error("Failed to load catalog");
       const json = await res.json();
-      if (!controller.signal.aborted) setCatalog(json.catalog || []);
-    } catch (err) {
-      if (!controller.signal.aborted) console.error(err);
+      if (listRequest.current === controller) {
+        setCatalog(json.catalog || []);
+        setTotalPages(json.totalPages || 1);
+        setTotalCount(json.total || (json.catalog || []).length);
+        setPage(targetPage);
+      }
+    } catch (err: any) {
+      if (err.name !== "AbortError") {
+        console.error(err);
+      }
     } finally {
-      if (!controller.signal.aborted) setLoading(false);
+      if (listRequest.current === controller) {
+        setLoading(false);
+      }
     }
   };
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchCatalog();
+      fetchCatalog(1);
     }, 250);
     return () => { clearTimeout(timer); listRequest.current?.abort(); };
   }, [search]);
@@ -208,7 +223,7 @@ export default function DisplayCatalogPage() {
           </div>
         </CardSpotlight>
 
-        {/* Mobile View: High-Density Touch Cards */}
+          {/* Mobile View: High-Density Touch Cards */}
         <div className="sm:hidden space-y-3">
           {loading ? (
             <LoadingMessage label="Loading display models…" compact className="justify-center py-8" />
@@ -249,6 +264,34 @@ export default function DisplayCatalogPage() {
           ) : (
             <div className="p-8 text-center text-xs text-neutral-400 dark:text-neutral-500 bg-white dark:bg-[#121215] rounded-xl border border-neutral-200 dark:border-neutral-800">
               No display catalog items found.
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-1 py-2 text-xs">
+              <span className="text-neutral-500 font-mono">
+                Page {page} of {totalPages} ({totalCount} items)
+              </span>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchCatalog(page - 1)}
+                  disabled={page <= 1 || loading}
+                  className="h-8 px-2"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchCatalog(page + 1)}
+                  disabled={page >= totalPages || loading}
+                  className="h-8 px-2"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </div>
           )}
         </div>
@@ -326,6 +369,37 @@ export default function DisplayCatalogPage() {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Desktop Pagination Footer */}
+          <div className="flex items-center justify-between px-5 py-3 border-t border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 text-xs">
+            <span className="text-neutral-500 font-medium">
+              Showing page <strong className="text-neutral-800 dark:text-neutral-200">{page}</strong> of{" "}
+              <strong className="text-neutral-800 dark:text-neutral-200">{totalPages}</strong>{" "}
+              <span className="text-neutral-400 font-mono">({totalCount} total models)</span>
+            </span>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchCatalog(page - 1)}
+                disabled={page <= 1 || loading}
+                className="h-8 text-xs gap-1"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span>Previous</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => fetchCatalog(page + 1)}
+                disabled={page >= totalPages || loading}
+                className="h-8 text-xs gap-1"
+              >
+                <span>Next</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </Button>
+            </div>
           </div>
         </CardSpotlight>
 
