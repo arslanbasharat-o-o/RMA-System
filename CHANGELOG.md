@@ -2,6 +2,17 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.8] - 2026-10-18
+
+### Fixed
+
+- Treat stored "Unidentified" assembly labels as unidentified in the RMA table and review drawer instead of showing them as model suggestions.
+
+### Verification
+
+- Regression coverage uses the exact "Unidentified Apple Display" value shown by live items.
+- Full local and GitHub release validation is the publication gate.
+
 ## [0.3.7] - 2026-10-18
 
 ### Fixed
