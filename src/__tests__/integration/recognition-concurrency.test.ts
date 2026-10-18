@@ -4,6 +4,7 @@ import { customers, rmas, rmaItems, itemImages, returnReasons, recognitionRuns }
 import { eq } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { processRmaItem } from "@/lib/queue/processor";
+import { VISUAL_DECISION_POLICY } from "@/lib/recognition/lens/stable-decision";
 import { MockLensProvider, type VisualIdentificationResult } from "@/lib/recognition/lens";
 import sharp from "sharp";
 
@@ -80,7 +81,59 @@ it("reuses the same verified visual evidence for identical image bytes across it
   expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");
 });
 
-it("preserves conflicting legacy Lens results for an identical photo as review-required", async () => {
+it("reuses unresolved visual evidence for identical image bytes without repeating Lens requests", async () => {
+  const [customer] = await db.insert(customers).values({ name: "Unresolved image cache QA" }).returning();
+  customerId = customer.id;
+  const [reason] = await db.select().from(returnReasons).limit(1);
+  const [rma] = await db.insert(rmas).values({ rmaNumber: `QA-${crypto.randomUUID()}`, customerId, returnReasonId: reason.id }).returning();
+  rmaId = rma.id;
+  const image = await sharp({ create: {
+    width: 4, height: 4, channels: 3,
+    background: { r: 54, g: 105, b: 160 },
+  } }).png().toBuffer();
+  const items = await db.insert(rmaItems).values([
+    { rmaId, itemNumber: 1 },
+    { rmaId, itemNumber: 2 },
+  ]).returning();
+  for (const item of items) {
+    const stored = await storage.saveImage(image, "unknown-display.png", "image/png", `qa-unresolved-cache/${item.id}`);
+    await db.insert(itemImages).values({
+      rmaItemId: item.id, imageType: "primary", storagePath: stored.storagePath,
+      originalFilename: stored.originalFilename, mimeType: stored.mimeType,
+      fileSizeBytes: stored.fileSizeBytes, checksumSha256: stored.checksumSha256,
+    });
+  }
+
+  const providerCall = vi.spyOn(MockLensProvider.prototype, "identifyDisplay").mockResolvedValue({
+    provider: "mock_lens",
+    candidates: [{ title: "Generic replacement display", rank: 1 }],
+    normalizedManufacturer: "Apple",
+    detectedDisplayAssembly: "Unidentified Apple Display",
+    cleanDecision: {
+      manufacturer: "Apple",
+      model: null,
+      displayName: "Unidentified Apple Display",
+      confidence: 0.45,
+      cleanedCandidates: [],
+      reasoning: "No model could be established from the available evidence.",
+    },
+    rawResponse: {},
+    durationMs: 25,
+  });
+
+  await processRmaItem(items[0].id, { pipeline: "visual" });
+  await processRmaItem(items[1].id, { pipeline: "visual" });
+
+  expect(providerCall).toHaveBeenCalledTimes(1);
+  const [reused] = await db.select().from(rmaItems).where(eq(rmaItems.id, items[1].id));
+  expect(reused.predictedModel).toBeNull();
+  expect(reused.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+  expect(reused.status).toBe("review_required");
+  const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, items[1].id));
+  expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");
+});
+
+it("ignores conflicting legacy Lens results and fetches fresh evidence for an identical photo", async () => {
   const [customer] = await db.insert(customers).values({ name: "Legacy conflict QA" }).returning();
   customerId = customer.id;
   const [reason] = await db.select().from(returnReasons).limit(1);
@@ -134,13 +187,12 @@ it("preserves conflicting legacy Lens results for an identical photo as review-r
   const providerCall = vi.spyOn(MockLensProvider.prototype, "identifyDisplay");
   await processRmaItem(nextItem.id);
 
-  expect(providerCall).not.toHaveBeenCalled();
+  expect(providerCall).toHaveBeenCalledTimes(1);
   const [processed] = await db.select().from(rmaItems).where(eq(rmaItems.id, nextItem.id));
-  expect(processed.predictedModel).toBeNull();
-  expect(processed.predictedDisplayAssembly).toBe("Unidentified Apple Display");
-  expect(processed.status).toBe("review_required");
+  expect(processed.predictedModel).toBe("iPhone 13 Pro");
   const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, nextItem.id));
   const visualRun = runs.find((run) => run.pipelineType === "visual");
-  expect(visualRun?.providerName).toBe("stable-visual-evidence");
-  expect((visualRun?.rawResponse as { stableDecision?: { conflict?: boolean } }).stableDecision?.conflict).toBe(true);
+  expect(visualRun?.providerName).toBe("mock_lens");
+  expect((visualRun?.rawRequest as { decisionPolicy?: string }).decisionPolicy)
+    .toBe(VISUAL_DECISION_POLICY);
 });

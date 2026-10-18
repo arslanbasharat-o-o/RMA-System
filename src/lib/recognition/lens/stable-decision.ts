@@ -3,7 +3,16 @@ import type { VisualCandidate, VisualIdentificationResult } from "./types";
 
 // A policy change can intentionally re-evaluate older images without changing
 // or deleting the evidence saved by an earlier release.
-export const VISUAL_DECISION_POLICY = "evidence-consensus-2026-10-18";
+export const VISUAL_DECISION_POLICY = "evidence-consensus-2026-10-18-v2";
+
+export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
+  return Boolean(
+    rawRequest &&
+      typeof rawRequest === "object" &&
+      !Array.isArray(rawRequest) &&
+      (rawRequest as Record<string, unknown>).decisionPolicy === VISUAL_DECISION_POLICY
+  );
+}
 
 export interface VisualDecisionSnapshot {
   manufacturer?: string;
@@ -92,9 +101,22 @@ function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSn
   const models = [...new Set(snapshots.map((entry) =>
     entry.cleanDecision?.model || entry.model
   ).filter(Boolean))];
+  const candidates = new Map<string, VisualCandidate>();
+  for (const entry of snapshots) {
+    for (const candidate of entry.candidates) {
+      const key = `${candidate.title.trim().toLowerCase()}|${candidate.sourceUrl || ""}`;
+      const existing = candidates.get(key);
+      if (!existing || candidate.rank < existing.rank) candidates.set(key, candidate);
+    }
+  }
+  const mergedCandidates = [...candidates.values()]
+    .sort((left, right) => left.rank - right.rank)
+    .slice(0, 30);
+  const aiOverview = [...snapshots].reverse().find((entry) => entry.aiOverview)?.aiOverview;
   return {
     manufacturer: manufacturer || undefined,
-    candidates: snapshots[0]?.candidates || [],
+    candidates: mergedCandidates,
+    aiOverview,
     conflict: true,
     cleanDecision: {
       manufacturer,
@@ -114,24 +136,37 @@ export function stableVisualDecision(
 ): VisualDecisionSnapshot | null {
   const manual = previous.filter((entry) => entry.manual && identityKey(entry));
   if (manual.length) {
-    return new Set(manual.map(identityKey)).size === 1 ? manual[0] : conflictSnapshot(manual);
+    return new Set(manual.map(identityKey)).size === 1
+      ? manual[0]
+      : conflictSnapshot([...manual, ...(fresh ? [fresh] : [])]);
   }
 
-  if (previous.some((entry) => entry.conflict)) return conflictSnapshot(previous);
-  const observed = [...previous, ...(fresh ? [fresh] : [])].filter((entry) => observedModelKey(entry));
-  if (new Set(observed.map(observedModelKey)).size > 1) return conflictSnapshot(observed);
+  if (previous.some((entry) => entry.conflict)) {
+    return conflictSnapshot([...previous, ...(fresh ? [fresh] : [])]);
+  }
+  const allSnapshots = [...previous, ...(fresh ? [fresh] : [])];
+  const observed = allSnapshots.filter((entry) => observedModelKey(entry));
+  if (new Set(observed.map(observedModelKey)).size > 1) return conflictSnapshot(allSnapshots);
   const credible = previous.filter((entry) => identityKey(entry));
-  if (new Set(credible.map(identityKey)).size > 1) return conflictSnapshot(credible);
-  const established = credible[0];
+  if (new Set(credible.map(identityKey)).size > 1) return conflictSnapshot(allSnapshots);
+  const established = credible[0] || observed[0] || previous.find((entry) =>
+    entry.cleanDecision || entry.displayAssembly
+  );
   if (!established) return fresh || null;
   if (!fresh) return established;
 
-  const freshKey = identityKey(fresh);
-  if (freshKey && freshKey !== identityKey(established)) {
-    return conflictSnapshot([established, fresh]);
-  }
-  // A transient Google failure or a weaker later result cannot erase an
-  // already corroborated suggestion for the identical photo.
+  // A fresh search can replace an old unresolved result. It cannot silently
+  // replace a prior model observation: disagreement is kept for human review.
+  const establishedKey = observedModelKey(established);
+  const freshKey = observedModelKey(fresh);
+  if (!establishedKey) return fresh;
+  if (!freshKey) return established;
+  if (freshKey !== establishedKey) return conflictSnapshot([established, fresh]);
+  const establishedConfidence = established.cleanDecision?.confidence || 0;
+  const freshConfidence = fresh.cleanDecision?.confidence || 0;
+  if (freshConfidence > establishedConfidence) return fresh;
+  // A transient provider failure or a weaker later result cannot erase
+  // stronger same-image evidence.
   return established;
 }
 
