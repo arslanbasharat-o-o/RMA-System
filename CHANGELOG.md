@@ -8,6 +8,7 @@ Changes to the public source are recorded here.
 
 - Require review when attributable listings disagree on exact variants, even if a large majority favors one model. The live Pro/Pro Max photo reproduced an incorrect Pro decision despite contrary Max listings.
 - Preserve conflicting variant evidence before publisher deduplication so repeated cards cannot hide a disagreement.
+- Fetch the result behind a succeeded asynchronous cache receipt, and keep polling pending receipts even when they include an empty placeholder match array.
 - Invalidate older machine decisions under policy v5 while preserving operator corrections.
 
 ## [0.3.13] - 2026-10-18
