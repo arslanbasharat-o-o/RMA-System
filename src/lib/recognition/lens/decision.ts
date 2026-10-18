@@ -242,7 +242,7 @@ export async function cleanVisualCandidatesWithOpenAi(
   const modelName = process.env.OPENAI_CLEANER_MODEL || process.env.OPENAI_VISION_MODEL || "gpt-4o-mini";
   const client = new OpenAI({ apiKey, timeout: 20000 });
 
-  const rawTitles = candidates.slice(0, 8).map((c, i) => `#${i + 1}: ${c.title}`);
+  const rawTitles = candidates.slice(0, 15).map((c, i) => `#${i + 1}: ${c.title}`);
 
   try {
     const userContent: any[] = [
@@ -277,9 +277,14 @@ Inspect BOTH the provided photo of the screen assembly (rear side, connector, no
 DECISION & DISAMBIGUATION RULES:
 1. Ground Truth Candidate Consensus:
    - Google Lens visual matches compare against billions of indexed product images.
-   - When candidate titles consistently identify a specific device model (e.g., "iPad Pro 12.9 1st Gen", "iPhone XR", "Galaxy S21 Ultra"), adopt that consensus.
+   - When candidate titles consistently identify a specific device model (e.g. multiple candidates say iPhone 15 Pro, iPhone XR, Galaxy S21 Ultra), adopt that consensus.
    - Do NOT override strong candidate consensus with arbitrary guesses.
+   - If candidate titles predominantly identify a modern model (e.g. iPhone 15 Pro) but one or two spurious listings mention an older device (e.g. iPhone 8), DISCARD the spurious listings and follow the majority consensus!
 2. Device Disambiguation:
+   - Dynamic Island Displays (iPhone 14 Pro, 14 Pro Max, iPhone 15, 15 Plus, 15 Pro, 15 Pro Max):
+     * Top center features the pill/oval camera and ambient sensor cluster (Dynamic Island).
+     * Rear flex cable routes from the mid-right side toward the center with a single compact board connector.
+     * NEVER classify a Dynamic Island display assembly as an iPhone 8, iPhone 7, or any Home-button model!
    - Tablets (iPad, Galaxy Tab) vs Smartphones (iPhone, Galaxy S):
      * If candidate titles consistently point to a tablet model (e.g. iPad Pro 12.9, iPad Air, Galaxy Tab), identify as that tablet display.
      * Only discard tablet results if candidate titles predominantly identify a smartphone and a lone accessory title happens to mention a tablet adapter.
@@ -297,10 +302,12 @@ DECISION & DISAMBIGUATION RULES:
      * iPhone 14 (6.1-inch OLED) / iPhone 14 Plus (6.7-inch OLED): Narrow notch; rear flex routing changed to bottom-right for the redesigned removable back glass chassis layout.
      * iPhone 14 Pro / 14 Pro Max & iPhone 15 Series: Feature DYNAMIC ISLAND (pill-shaped floating cutout) instead of a top notch. iPhone 14 Pro/Pro Max feature 120Hz ProMotion controller flex.
 3. Color & Variant Rules:
+   - ABSOLUTE RULE FOR REAR VIEWS:
+     * If only the REAR side of the display assembly is shown (metal plate, flex cables, shield, protective tape), NEVER append or guess ANY color tag (no "(White)", no "(Black)").
+     * Yellow protective tape, silver shield plates, or light-colored background crops do NOT mean the front glass bezel is white!
    - For legacy Home-button display models with distinct front bezel colors (iPhone 6, 6s, 7, 8, SE, and Plus models):
-     * If the front glass bezel is visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
-     * If the front glass bezel is visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
-     * If only the rear side is shown, do NOT guess or invent a color.
+     * ONLY if the FRONT glass bezel with the round home button is clearly shown and visibly White, include "(White)" in displayName (e.g. "Apple iPhone 8 Display (White)").
+     * ONLY if the FRONT glass bezel with the round home button is clearly shown and visibly Black, include "(Black)" in displayName (e.g. "Apple iPhone 8 Display (Black)").
    - For all modern notch and bezel-less screens (iPhone X, XS, XR, 11, 12, 13, 14, 15, Samsung Galaxy, Pixel):
      * Do NOT append or guess any color. All front faces are uniform black borders.
    - Quality / SKU: Do NOT guess supplier SKUs or quality tiers (Soft OLED, Hard OLED, In-Cell). Identify the true physical device model.
@@ -309,10 +316,10 @@ DECISION & DISAMBIGUATION RULES:
    - Output valid JSON with EXACTLY this structure:
      {
        "manufacturer": "Apple" | "Samsung" | "OnePlus" | "Google" | "Motorola" | "Xiaomi" | "Huawei" | "Oppo" | "Realme" | "Vivo" | "LG" | "Sony" | "Nokia" | string | null,
-       "model": "iPad Pro 12.9 1st Gen" | "iPhone XR" | "iPhone 11" | "Galaxy S21 Ultra" | string | null,
-       "displayName": "Apple iPhone 8 Display (Black)",
-       "confidence": 0.95,
-       "cleanedCandidates": ["Apple iPhone 8 Display (Black)"],
+       "model": "iPad Pro 12.9 1st Gen" | "iPhone XR" | "iPhone 15 Pro" | "Galaxy S21 Ultra" | string | null,
+       "displayName": "Apple iPhone 15 Pro Display",
+       "confidence": 0.96,
+       "cleanedCandidates": ["Apple iPhone 15 Pro Display"],
        "reasoning": "Candidate consensus and hardware physical evidence description."
      }
    - "displayName" MUST be the clean, user-friendly display name (e.g. "Apple iPad Pro 12.9 1st Gen Display", "Apple iPhone XR Display", "Samsung Galaxy S21 Ultra Display"). Never repeat the manufacturer name twice.

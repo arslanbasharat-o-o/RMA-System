@@ -80,19 +80,29 @@ export default function RmaDetailPage({
     setInspectingItemId(null);
   }, [rmaId]);
 
-  const { refreshNow: fetchRmaData, refreshError } = useLiveRefresh(rmaId, async (signal) => {
-    const res = await fetch(`/api/rmas/${rmaId}`, { cache: "no-store", signal });
-    if (res.status === 401) {
-      window.location.assign("/login");
-      return false;
-    }
-    if (!res.ok) throw new Error("Could not refresh this RMA.");
-    const json = await res.json();
-    if (signal.aborted) return;
-    setData(json);
-    setLoading(false);
-    return json.stats?.processing > 0;
-  });
+  const { refreshNow: fetchRmaData, refreshError } = useLiveRefresh(
+    rmaId,
+    async (signal) => {
+      const res = await fetch(`/api/rmas/${rmaId}`, { cache: "no-store", signal });
+      if (res.status === 401) {
+        window.location.assign("/login");
+        return false;
+      }
+      if (!res.ok) throw new Error("Could not refresh this RMA.");
+      const json = await res.json();
+      if (signal.aborted) return;
+      setData(json);
+      setLoading(false);
+      const isBusy =
+        (json.stats?.processing ?? 0) > 0 ||
+        json.items?.some((i: any) =>
+          ["queued", "processing", "pending_upload", "uploaded"].includes(i.status)
+        );
+      // Keep polling whenever items are processing or the RMA is in active intake/processing
+      return isBusy || json.rma?.status === "receiving" || json.rma?.status === "processing";
+    },
+    2500
+  );
 
   const { rma, items = [], stats = {} } = data || {};
 
