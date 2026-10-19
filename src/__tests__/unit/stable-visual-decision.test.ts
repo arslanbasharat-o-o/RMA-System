@@ -125,7 +125,30 @@ describe("stable decisions for an identical uploaded image", () => {
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: VISUAL_DECISION_POLICY })).toBe(true);
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "evidence-consensus-2026-10-18" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v5" })).toBe(false);
+    expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v6" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy(null)).toBe(false);
+  });
+
+  it("round trips suggestedModel across snapshot persistence", () => {
+    const snapshot: VisualDecisionSnapshot = {
+      manufacturer: "Apple",
+      suggestedModel: "iPhone 15 Pro",
+      candidates: [],
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: null,
+        suggestedModel: "iPhone 15 Pro",
+        displayName: "Apple iPhone 15 Pro Display",
+        confidence: 0.45,
+        cleanedCandidates: [],
+        reasoning: "Suggested from consensus",
+      },
+    };
+    const saved = snapshotVisualDecision(visualResultFromSnapshot(snapshot, "same-image"));
+    expect(saved.suggestedModel).toBe("iPhone 15 Pro");
+    const restored = readVisualDecisionSnapshot({ stableDecision: saved });
+    expect(restored?.cleanDecision?.suggestedModel).toBe("iPhone 15 Pro");
+    expect(restored?.suggestedModel).toBe("iPhone 15 Pro");
   });
 
   it("retains provider failures when displaying a safe stored result", () => {
