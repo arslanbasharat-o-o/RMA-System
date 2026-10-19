@@ -3,7 +3,7 @@ import type { VisualCandidate, VisualIdentificationResult } from "./types";
 
 // A policy change can intentionally re-evaluate older images without changing
 // or deleting the evidence saved by an earlier release.
-export const VISUAL_DECISION_POLICY = "source-corroboration-2026-10-19-v6";
+export const VISUAL_DECISION_POLICY = "source-corroboration-2026-10-19-v7";
 
 export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
   return Boolean(
@@ -17,6 +17,7 @@ export function isCurrentVisualDecisionPolicy(rawRequest: unknown): boolean {
 export interface VisualDecisionSnapshot {
   manufacturer?: string;
   model?: string;
+  suggestedModel?: string;
   displayAssembly?: string;
   candidates: VisualCandidate[];
   aiOverview?: string;
@@ -30,6 +31,7 @@ export function snapshotVisualDecision(result: VisualIdentificationResult): Visu
   return {
     manufacturer: result.normalizedManufacturer,
     model: result.normalizedModel,
+    suggestedModel: result.cleanDecision?.suggestedModel || undefined,
     displayAssembly: result.detectedDisplayAssembly,
     candidates: result.candidates.slice(0, 30),
     aiOverview: result.aiOverview,
@@ -56,6 +58,7 @@ export function readVisualDecisionSnapshot(rawResponse: unknown): VisualDecision
   const cleanDecision: CleanDisplayDecision = {
     manufacturer: typeof rawDecision.manufacturer === "string" ? rawDecision.manufacturer : null,
     model: typeof rawDecision.model === "string" ? rawDecision.model : null,
+    suggestedModel: typeof rawDecision.suggestedModel === "string" ? rawDecision.suggestedModel : null,
     displayName: rawDecision.displayName,
     confidence: rawDecision.confidence,
     cleanedCandidates,
@@ -68,6 +71,8 @@ export function readVisualDecisionSnapshot(rawResponse: unknown): VisualDecision
     model: typeof value.model === "string" ? value.model
       : typeof root.normalizedModel === "string" ? root.normalizedModel
       : cleanDecision.model || undefined,
+    suggestedModel: typeof value.suggestedModel === "string" ? value.suggestedModel
+      : cleanDecision.suggestedModel || undefined,
     displayAssembly: typeof value.displayAssembly === "string" ? value.displayAssembly
       : typeof root.detectedDisplayAssembly === "string" ? root.detectedDisplayAssembly
       : cleanDecision.displayName,
@@ -90,7 +95,7 @@ function identityKey(snapshot: VisualDecisionSnapshot): string | null {
 
 function observedModelKey(snapshot: VisualDecisionSnapshot): string | null {
   const manufacturer = snapshot.cleanDecision?.manufacturer || snapshot.manufacturer;
-  const model = snapshot.cleanDecision?.model || snapshot.model;
+  const model = snapshot.cleanDecision?.model || snapshot.cleanDecision?.suggestedModel || snapshot.model || snapshot.suggestedModel;
   if (!manufacturer || !model) return null;
   return `${manufacturer} ${model}`.toLowerCase().replace(/\+/g, "plus").replace(/[^a-z0-9]/g, "");
 }
@@ -102,7 +107,7 @@ function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSn
   const manufacturer = manufacturers.length === 1 ? manufacturers[0] as string : null;
   const displayName = manufacturer ? `Unidentified ${manufacturer} Display` : "Unidentified Display";
   const models = [...new Set(snapshots.map((entry) =>
-    entry.cleanDecision?.model || entry.model
+    entry.cleanDecision?.model || entry.cleanDecision?.suggestedModel || entry.model || entry.suggestedModel
   ).filter(Boolean))];
   const candidates = new Map<string, VisualCandidate>();
   for (const entry of snapshots) {
