@@ -3,6 +3,7 @@ import { OcrStructuredOutput } from "./openai/types";
 import { VendorMatchResult } from "./rules/types";
 import { extractAppleModels } from "./lens/model-evidence";
 import { cleanCatalogModelName, sanitizeDisplayTechnology } from "./lens/cleaner-utils";
+import { isUnidentifiedLabel } from "@/lib/model-result";
 
 export interface CatalogDisplayMatch {
   catalogId: string;
@@ -317,9 +318,11 @@ export function synthesizeRecognition(
     visualResult?.normalizedManufacturer ||
     null;
 
-  const visualCleanModel = visualModelIsUsable
-    ? visualResult?.cleanDecision?.model || visualResult?.normalizedModel || null
-    : null;
+  const visualCleanModel =
+    visualResult?.cleanDecision?.model ||
+    visualResult?.cleanDecision?.suggestedModel ||
+    visualResult?.normalizedModel ||
+    null;
 
   let rawModel = acceptedDisplayMatch?.modelName
     ? cleanCatalogModelName(acceptedDisplayMatch.modelName)
@@ -349,13 +352,15 @@ export function synthesizeRecognition(
 
   const predictedDisplayAssembly = acceptedDisplayMatch
     ? `${displayLabel}${cleanTech ? ` (${cleanTech})` : " Display"}`
-    : !visualModelIsUsable
-    ? predictedManufacturer === "Apple" ? "Unidentified Apple Display" : "Unidentified Display"
-    : (visualResult?.cleanDecision?.displayName ||
-       visualResult?.detectedDisplayAssembly ||
-       (predictedManufacturer && predictedModel
-         ? `${predictedManufacturer} ${predictedModel} Display`
-         : null));
+    : (visualResult?.cleanDecision?.displayName && !isUnidentifiedLabel(visualResult.cleanDecision.displayName)
+       ? visualResult.cleanDecision.displayName
+       : (visualResult?.detectedDisplayAssembly && !isUnidentifiedLabel(visualResult.detectedDisplayAssembly)
+          ? visualResult.detectedDisplayAssembly
+          : (predictedManufacturer && predictedModel
+             ? `${predictedManufacturer} ${predictedModel} Display`
+             : predictedManufacturer === "Apple"
+             ? "Unidentified Apple Display"
+             : "Unidentified Display")));
   const catalogDisplayId = acceptedDisplayMatch?.catalogId || null;
   const modelConfidenceScore =
     acceptedDisplayMatch?.confidenceScore ||
