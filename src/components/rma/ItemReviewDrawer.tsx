@@ -79,7 +79,7 @@ export function ItemReviewDrawer({
     setData(null);
   }, [itemId]);
 
-  const { refreshNow, refreshError } = useLiveRefresh(itemId, async (signal) => {
+  const { refreshError } = useLiveRefresh(itemId, async (signal) => {
     const response = await fetch(`/api/rma-items/${itemId}`, { signal, cache: "no-store" });
     if (response.status === 401) { window.location.assign("/login"); return false; }
     if (!response.ok) throw new Error("Could not load the display item.");
@@ -203,8 +203,8 @@ export function ItemReviewDrawer({
 
   if (!data && refreshError) return <div className="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/60 p-4">
     <div role="alert" className="rounded-xl bg-white p-5 text-neutral-900 dark:bg-neutral-900 dark:text-white">
-      <p>Could not load this display. Check your connection and try again.</p>
-      <div className="mt-4 flex gap-2"><Button onClick={refreshNow}>Try again</Button><Button variant="outline" onClick={onClose}>Close</Button></div>
+      <p>Connection interrupted. Reconnecting to this display automatically…</p>
+      <div className="mt-4"><Button variant="outline" onClick={onClose}>Close</Button></div>
     </div>
   </div>;
 
@@ -259,7 +259,6 @@ export function ItemReviewDrawer({
             <div role="alert" className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 p-2.5 text-xs text-amber-800 dark:text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
               <span>Connection interrupted. Reconnecting automatically…</span>
-              <Button variant="outline" size="sm" onClick={refreshNow}>Retry connection</Button>
             </div>
           )}
 

@@ -197,3 +197,139 @@ test("duplicate upload shows one saved photo with the server side", async ({ pag
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
   await expect(page.getByRole("img", { name: "Front angle 1" })).toBeVisible();
 });
+
+test("a wrong saved photo can be removed and replaced on the same display", async ({ page }, testInfo) => {
+  const deleted: string[] = [];
+  await page.route("**/api/rma-items/test-item/images/*", async (route) => {
+    expect(route.request().method()).toBe("DELETE");
+    deleted.push(new URL(route.request().url()).pathname);
+    await route.fulfill({ json: { success: true, itemStatus: "pending_upload" } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  const remove = page.getByRole("button", { name: "Remove photo 1", exact: true });
+  await remove.scrollIntoViewIfNeeded();
+  const box = await remove.boundingBox();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  await page.screenshot({ path: `.local/verification/remove-photo-${testInfo.project.name}.png`, fullPage: true });
+  await remove.click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Next display" })).toHaveCount(0);
+  await expect(page.getByText("Display 1", { exact: true })).toBeVisible();
+  expect(deleted).toHaveLength(1);
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Next display" })).toBeEnabled();
+});
+
+test("failed photo removal preserves the saved photo and can be retried", async ({ page }) => {
+  let attempts = 0;
+  await page.route("**/api/rma-items/test-item/images/*", async (route) => {
+    attempts++;
+    await route.fulfill({ status: attempts === 1 ? 503 : 200, json: attempts === 1
+      ? { error: "Photo removal interrupted" } : { success: true, itemStatus: "pending_upload" } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Remove photo 1", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Photo removal interrupted" })).toBeVisible();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Remove photo 1", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Remove photo 1", exact: true })).toHaveCount(0);
+  expect(attempts).toBe(2);
+});
+
+test("completed recognition appears automatically without refresh controls", async ({ page }) => {
+  let uploaded = false;
+  let completed = false;
+  await page.route("**/api/rma-items/test-item/upload", route => {
+    uploaded = true;
+    return route.fulfill({ json: { success: true, image: { id: "live-photo" } } });
+  });
+  await page.route("**/api/rmas/test-rma/recognition-status", route => route.fulfill({ json: { items: uploaded ? [{
+    id: "test-item", itemNumber: 1, status: completed ? "review_required" : "processing",
+    predictedModel: completed ? "iPhone 16 Pro" : null, matchStatus: "unknown",
+  }] : [] } }));
+  await page.goto("/rmas/test-rma/capture");
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByText("Identifying model…")).toBeVisible();
+  completed = true;
+  await expect(page.getByText("iPhone 16 Pro", { exact: true })).toBeVisible({ timeout: 2500 });
+  await expect(page.getByRole("button", { name: /refresh|retry connection/i })).toHaveCount(0);
+});
+
+test("a queued upload retry cannot be removed before the upload finishes", async ({ page }) => {
+  let uploads = 0;
+  let release: (() => void) | undefined;
+  await page.route("**/api/rma-items/test-item/upload", async route => {
+    uploads++;
+    if (uploads === 1) return route.fulfill({ status: 400, json: { error: "Image rejected" } });
+    if (uploads === 2) await new Promise<void>(resolve => { release = resolve; });
+    return route.fulfill({ json: { success: true, image: { id: `saved-${uploads}` } } });
+  });
+  await page.goto("/rmas/test-rma/capture");
+  await page.getByRole("button", { name: "Capture front photo" }).click();
+  await expect(page.getByRole("button", { name: "Retry photo 1" })).toBeVisible();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Capture back photo" }).click();
+  await expect.poll(() => Boolean(release)).toBe(true);
+  await page.getByRole("button", { name: "Retry photo 1" }).click();
+  await expect(page.getByRole("button", { name: "Remove photo 1", exact: true })).toBeDisabled();
+  release!();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
+  await expect(page.getByRole("button", { name: "Remove photo 1", exact: true })).toBeEnabled();
+  expect(uploads).toBe(3);
+});
+
+test("mobile resume recovers a suspended request even when fetch ignores abort", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = window as typeof window & { holdRecognition: boolean; testVisibility: string; recognitionReads: number };
+    state.holdRecognition = true;
+    state.testVisibility = "visible";
+    state.recognitionReads = 0;
+    Object.defineProperty(document, "visibilityState", { configurable: true, get: () => state.testVisibility });
+    const original = window.fetch.bind(window);
+    window.fetch = (...args) => {
+      if (String(args[0]).includes("/recognition-status")) {
+        state.recognitionReads++;
+        if (state.holdRecognition) return new Promise<Response>(() => {});
+      }
+      return original(...args);
+    };
+  });
+  await page.route("**/api/rmas/test-rma/recognition-status", route => route.fulfill({ json: { items: [{
+    id: "test-item", itemNumber: 1, status: "review_required", predictedModel: "Resumed model", matchStatus: "unknown",
+  }] } }));
+  await page.goto("/rmas/test-rma/capture");
+  await expect.poll(() => page.evaluate(() => (window as typeof window & { recognitionReads: number }).recognitionReads)).toBeGreaterThan(0);
+  await page.evaluate(() => {
+    const state = window as typeof window & { holdRecognition: boolean; testVisibility: string };
+    state.testVisibility = "hidden";
+    document.dispatchEvent(new Event("visibilitychange"));
+    state.holdRecognition = false;
+    state.testVisibility = "visible";
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(page.getByText("Resumed model", { exact: true })).toBeVisible({ timeout: 3000 });
+});
+
+test("an idle scanner reconciles newly completed results without focus or reload", async ({ page }) => {
+  let completed = false;
+  let reads = 0;
+  await page.route("**/api/rmas/test-rma/recognition-status", route => {
+    reads++;
+    return route.fulfill({ json: { items: completed ? [{
+      id: "test-item", itemNumber: 1, status: "review_required", predictedModel: "Background result", matchStatus: "unknown",
+    }] : [] } });
+  });
+  await page.clock.install();
+  await page.goto("/rmas/test-rma/capture");
+  await expect.poll(() => reads).toBeGreaterThan(0);
+  await page.waitForTimeout(50);
+  completed = true;
+  await page.clock.fastForward(16000);
+  await expect(page.getByText("Background result", { exact: true })).toBeVisible({ timeout: 3000 });
+});

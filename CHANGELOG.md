@@ -2,6 +2,14 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.19] - 2026-10-19
+
+### Fixed
+- Add a visible photo removal control to mobile and desktop camera intake, preserving saved photos when removal fails and allowing replacement on the same display.
+- Remove stale recognition suggestions and evidence when an incorrect photo is removed, and queue remaining photos atomically without changing verified displays.
+- Recover automatically from suspended mobile requests, refresh active results every second, and reconcile idle screens without manual refresh controls.
+- Keep capture controls and live results within small phone and landscape viewports.
+
 ## [0.3.18] - 2026-10-19
 
 ### Fixed

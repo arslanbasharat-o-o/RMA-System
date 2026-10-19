@@ -80,8 +80,18 @@ export async function GET(
     .where(and(eq(recognitionRuns.rmaItemId, id), lte(recognitionRuns.recognitionRevision, item.recognitionRevision)))
     .orderBy(desc(recognitionRuns.recognitionRevision), desc(recognitionRuns.createdAt));
 
-  const latestOcrRun = runs.find((run) => run.pipelineType === "vendor_ocr");
-  const currentOcrRunIds = runs.filter((run) =>
+  const reviews = await db.select().from(reviewActions)
+    .where(eq(reviewActions.rmaItemId, id)).orderBy(desc(reviewActions.createdAt));
+  const evidenceFloor = reviews.reduce((floor, review) => {
+    const state = review.newState as { recognition_revision?: unknown } | null;
+    return review.actionType === "remove_photo" && typeof state?.recognition_revision === "number"
+      ? Math.max(floor, state.recognition_revision) : floor;
+  }, 0);
+  // Keep historical runs for audit, but never show evidence from a removed photo,
+  // including a stale worker that finishes after the deletion was committed.
+  const eligibleRuns = runs.filter((run) => run.recognitionRevision >= evidenceFloor);
+  const latestOcrRun = eligibleRuns.find((run) => run.pipelineType === "vendor_ocr");
+  const currentOcrRunIds = eligibleRuns.filter((run) =>
     run.pipelineType === "vendor_ocr" && run.recognitionRevision === latestOcrRun?.recognitionRevision
   ).map((run) => run.id);
   const extractions = currentOcrRunIds.length ? await db
@@ -90,7 +100,7 @@ export async function GET(
     .where(and(eq(ocrExtractions.rmaItemId, id), inArray(ocrExtractions.recognitionRunId, currentOcrRunIds)))
     .orderBy(desc(ocrExtractions.createdAt)) : [];
 
-  const latestVisualRun = runs.find((run) => run.pipelineType === "visual");
+  const latestVisualRun = eligibleRuns.find((run) => run.pipelineType === "visual");
   const candidates = latestVisualRun ? await db
     .select()
     .from(recognitionCandidates)
@@ -106,12 +116,6 @@ export async function GET(
     const title = sourceMatches[(candidate.rank || 1) - 1]?.title;
     return { ...candidate, candidateTitle: typeof title === "string" ? title : candidate.candidateTitle };
   });
-
-  const reviews = await db
-    .select()
-    .from(reviewActions)
-    .where(eq(reviewActions.rmaItemId, id))
-    .orderBy(desc(reviewActions.createdAt));
 
   return NextResponse.json({
     item: {
