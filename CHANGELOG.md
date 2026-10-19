@@ -2,6 +2,14 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.17] - 2026-10-19
+
+### Fixed
+- Preserve winning candidate model suggestions (`predictedModel` and `predictedDisplayAssembly`) with `[Suggestion]` badge and `review_required` status when visual evidence has variant competition, preventing valid evidence from degrading into `Unidentified Display`.
+- Expand recognition brand coverage to support Nokia (including Nokia G10 / G20), Sony, LG, Realme, and Vivo displays.
+- Add docker-compose healthcheck for pg-boss queue worker service to ensure container status and heartbeat monitors reflect worker liveness.
+- Refine text match assertions in full browser end-to-end test suite.
+
 ## [0.3.16] - 2026-10-19
 
 ### Fixed
