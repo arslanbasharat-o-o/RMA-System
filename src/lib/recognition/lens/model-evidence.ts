@@ -26,7 +26,7 @@ export function extractAppleModels(title: string): string[] {
   }
   // Repair listings commonly abbreviate the model as "16Pro bad lcd".
   if (!models.size && /\b(?:lcd|oled|screen|display)\b/i.test(title) &&
-      !/\b(?:pixel|google|galaxy|samsung|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola)\b/i.test(title)) {
+      !/\b(?:pixel|google|galaxy|samsung|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i.test(title)) {
     for (const match of title.matchAll(/\b(\d{1,2})\s*(pro\s*max|pro|plus|mini)\b/gi)) {
       add(match[1], match[2]);
     }
@@ -53,9 +53,16 @@ function aiOverviewModelEvidence(text?: string): AiOverviewModelEvidence {
   };
 }
 
-export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: string) {
+export interface AppleVisualEvidenceResult {
+  model: string | null;
+  suggestedModel?: string | null;
+  confidence: number;
+  reasoning: string;
+}
+
+export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: string): AppleVisualEvidenceResult | null {
   const overviewEvidence = aiOverviewModelEvidence(aiOverview);
-  const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola)\b/i;
+  const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i;
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
   const accessory = /\b(?:case|cover|screen\s*protector|protector|tempered\s*glass|camera\s*lens|lens\s*protector|charger|cable|battery|adhesive|glue|tools?|repair\s*kit)\b/i;
   const rankedCandidates = [...candidates]
@@ -129,6 +136,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (winner[0] === "iPhone SE") {
     return {
       model: null,
+      suggestedModel: "iPhone SE",
       confidence: 0.45,
       reasoning: `The listings name the iPhone SE family without establishing its exact generation. Similar or compatible assemblies cannot establish the intended device (${detail}). Operator review is required.`,
     };
@@ -142,6 +150,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
     const conflicts = [...new Set([...competingVariants, ...credibleRunners.map(([name]) => name)])];
     return {
       model: null,
+      suggestedModel: winner[0],
       confidence: 0.45,
       reasoning: `Listings disagree between ${winner[0]} and ${conflicts.join(" / ")} across the top ${rankedCandidates.length} results. A larger vote does not establish an exact device variant (${detail}). Operator review is required.`,
     };
@@ -151,6 +160,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (overviewEvidence.ambiguous) {
     return {
       model: null,
+      suggestedModel: winner[0],
       confidence: 0.45,
       reasoning: `Independent listings favor ${winner[0]}, but the unhedged Google AI Overview names multiple models (${overviewEvidence.models.join(" / ")}). The evidence is ambiguous, so manual review is required (${detail}).`,
     };
@@ -158,6 +168,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (overviewEvidence.specificModel && overviewEvidence.specificModel !== winner[0]) {
     return {
       model: null,
+      suggestedModel: winner[0],
       confidence: 0.45,
       reasoning: `Independent listings favor ${winner[0]}, but the specific Google AI Overview names ${overviewEvidence.specificModel}. The evidence conflicts, so manual review is required (${detail}).`,
     };
@@ -165,6 +176,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (!decisive && runner) {
     return {
       model: null,
+      suggestedModel: winner[0],
       confidence: 0.45,
       reasoning: overviewEvidence.specificModel === winner[0]
         ? `The Google AI Overview agrees with ${winner[0]}, but the top ${rankedCandidates.length} listings still split with ${runner[0]} without a decisive margin (${detail}). Manual review is required.`
@@ -175,6 +187,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (!decisive) {
     return {
       model: null,
+      suggestedModel: winner[0],
       confidence: 0.45,
       reasoning: overviewEvidence.specificModel === winner[0]
         ? `The Google AI Overview agrees with ${winner[0]}, but it has only ${winner[1].sources.size} independent display source(s) (${detail}). Manual review is required.`
@@ -184,6 +197,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
 
   return {
     model: winner[0],
+    suggestedModel: winner[0],
     confidence: decisive && winner[1].sources.size >= 4 ? 0.97 : 0.95,
     reasoning: overviewEvidence.specificModel === winner[0]
       ? `${winner[0]} leads with ${winner[1].sources.size} independent display sources and the Google AI Overview names the same exact model (${detail}).`
