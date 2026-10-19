@@ -31,7 +31,7 @@ export default function RmaCapturePage({ params }: { params: Promise<{ id: strin
   }, [rmaId]);
 
   return (
-    <main className="flex h-dvh min-h-[560px] flex-col bg-neutral-950 text-white sm:p-4 lg:mx-auto lg:max-w-6xl">
+    <main className="flex h-dvh min-h-0 flex-col bg-neutral-950 text-white sm:p-4 lg:mx-auto lg:max-w-6xl">
       {error || (rma && !rma.customerName?.trim()) ? <div className="m-auto max-w-sm space-y-4 p-6 text-center">
         <p role="alert">{error || "Add customer information to this RMA before uploading or processing images."}</p>
         <Link href={`/rmas/${rmaId}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-neutral-800 px-4 text-sm"><ArrowLeft className="size-4" /> Return to RMA details</Link>

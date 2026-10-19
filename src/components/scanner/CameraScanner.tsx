@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect, useCallback } from "react";
-import { Camera, SwitchCamera, Images, Check, AlertCircle, ArrowRight, RotateCcw, ScanLine } from "lucide-react";
+import { Camera, SwitchCamera, Images, Check, AlertCircle, ArrowRight, RotateCcw, ScanLine, X } from "lucide-react";
 import { LoadingIcon } from "@/components/ui/loading-icon";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 
@@ -10,9 +10,10 @@ interface CapturedPhoto {
   blob: Blob;
   previewUrl: string;
   imageType: "primary" | "back" | "stamp_closeup";
-  status: "uploading" | "saved" | "error";
+  status: "uploading" | "saved" | "error" | "removing";
   error?: string;
   serverImageId?: string;
+  uploadMayBeSaved?: boolean;
 }
 
 interface LiveRecognitionItem {
@@ -48,6 +49,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const uploadQueue = useRef<Promise<void>>(Promise.resolve());
   const uploadingPhotos = useRef(new Set<string>());
   const savedPhotosByImageId = useRef(new Map<string, string>());
+  const removingPhotoIds = useRef(new Set<string>());
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [facingMode, setFacingMode] = useState<"environment" | "user">("environment");
@@ -62,8 +64,10 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const [liveItems, setLiveItems] = useState<LiveRecognitionItem[]>([]);
   const customerReady = Boolean(customerName?.trim());
   const saving = capturing || photos.some((photo) => photo.status === "uploading");
+  const removing = photos.some((photo) => photo.status === "removing");
+  const busy = saving || removing;
   const failed = photos.some((photo) => photo.status === "error");
-  const canAdvance = photos.length > 0 && !saving && !failed;
+  const canAdvance = photos.length > 0 && !busy && !failed;
   const selectedAngle = angles.find((entry) => entry.type === angle)!;
 
   const { refreshNow: refreshRecognition, refreshError: recognitionRefreshError } = useLiveRefresh(
@@ -84,7 +88,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
       setLiveItems(items);
       return items.some((item) => ["queued", "processing", "uploaded"].includes(item.status));
     },
-    2500
+    1000
   );
 
   const stopTracks = useCallback(() => {
@@ -138,11 +142,11 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
     return () => window.clearTimeout(timer);
   }, [flashing]);
   useEffect(() => {
-    if (!saving && !failed) return;
+    if (!busy && !failed) return;
     const protectUpload = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener("beforeunload", protectUpload);
     return () => window.removeEventListener("beforeunload", protectUpload);
-  }, [saving, failed]);
+  }, [busy, failed]);
 
   const ensureItem = async (): Promise<string> => {
     if (!customerReady) throw new Error("Add customer information before starting intake.");
@@ -161,14 +165,16 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   };
 
   const performUpload = async (photo: CapturedPhoto) => {
-    setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "uploading", error: undefined } : entry));
+    let uploadMayBeSaved = false;
     try {
       const itemId = await ensureItem();
       const form = new FormData();
       const filename = photo.blob instanceof File ? photo.blob.name : `${photo.id}.jpg`;
       form.append("file", photo.blob, filename);
       form.append("imageType", photo.imageType);
+      uploadMayBeSaved = true;
       const response = await fetch(`/api/rma-items/${itemId}/upload`, { method: "POST", body: form });
+      if (response.status >= 400 && response.status < 500) uploadMayBeSaved = false;
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Upload failed. Try again.");
       const serverImageId = data.image?.id;
@@ -189,13 +195,13 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
       }
       savedPhotosByImageId.current.set(serverImageId, photo.id);
       setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
-        ...entry, status: "saved", serverImageId,
+        ...entry, status: "saved", serverImageId, uploadMayBeSaved: false,
         imageType: storedAngle?.type || photo.imageType,
       } : entry));
       refreshRecognition();
     } catch (error) {
       setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? {
-        ...entry, status: "error", error: error instanceof Error ? error.message : "Connection lost. Try again.",
+        ...entry, status: "error", uploadMayBeSaved, error: error instanceof Error ? error.message : "Connection lost. Try again.",
       } : entry));
     }
   };
@@ -203,10 +209,46 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const uploadPhoto = (photo: CapturedPhoto) => {
     if (uploadingPhotos.current.has(photo.id)) return;
     uploadingPhotos.current.add(photo.id);
+    // Mark retries busy immediately, including while they wait behind an upload.
+    setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "uploading", error: undefined } : entry));
+    if (photo.status === "error") setIntakeError(null);
     // Serialize uploads so two selected copies reach server deduplication in order.
     uploadQueue.current = uploadQueue.current.then(() => performUpload(photo)).finally(() => {
       uploadingPhotos.current.delete(photo.id);
     });
+  };
+
+  const removePhoto = async (photo: CapturedPhoto) => {
+    if (photo.status === "uploading" || uploadingPhotos.current.has(photo.id) || removingPhotoIds.current.has(photo.id)) return;
+    if (photo.uploadMayBeSaved && !photo.serverImageId) {
+      setIntakeError("This upload could not be confirmed. Retry it first, then remove the saved photo so it is also removed from the display.");
+      return;
+    }
+    removingPhotoIds.current.add(photo.id);
+    setIntakeError(null);
+    setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: "removing" } : entry));
+    try {
+      if (photo.serverImageId) {
+        const itemId = itemIdRef.current;
+        if (!itemId) throw new Error("Could not find the saved display. Please try again.");
+        const response = await fetch(`/api/rma-items/${itemId}/images/${photo.serverImageId}`, { method: "DELETE" });
+        const data = (await response.json().catch(() => null)) || {};
+        if (response.status !== 404 && (!response.ok || data.success !== true)) throw new Error(data.error || "Could not remove this photo. Try again.");
+        savedPhotosByImageId.current.delete(photo.serverImageId);
+        setLiveItems((previous) => previous.map((item) => item.id === itemId ? {
+          ...item, status: data.itemStatus || "pending_upload", predictedModel: null, matchStatus: "unknown",
+        } : item));
+      }
+      URL.revokeObjectURL(photo.previewUrl);
+      previewUrls.current.delete(photo.previewUrl);
+      setPhotos((previous) => previous.filter((entry) => entry.id !== photo.id));
+      refreshRecognition();
+    } catch (error) {
+      setPhotos((previous) => previous.map((entry) => entry.id === photo.id ? { ...entry, status: photo.status } : entry));
+      setIntakeError(error instanceof Error ? error.message : "Could not remove this photo. Try again.");
+    } finally {
+      removingPhotoIds.current.delete(photo.id);
+    }
   };
 
   const addPhoto = (blob: Blob, imageType: CapturedPhoto["imageType"]) => {
@@ -232,7 +274,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const capture = async () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    if (!customerReady || !cameraActive || saving || uploadingPhotos.current.size > 0 || captureLock.current || !video?.videoWidth || !canvas) return;
+    if (!customerReady || !cameraActive || busy || uploadingPhotos.current.size > 0 || captureLock.current || !video?.videoWidth || !canvas) return;
     const capturedAngle = angle;
     captureLock.current = true;
     setCapturing(true);
@@ -265,7 +307,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   };
 
   const finish = () => {
-    if (saving || failed) return;
+    if (busy || failed) return;
     stopTracks();
     onComplete?.();
   };
@@ -278,7 +320,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
           <p className="text-xs font-mono text-neutral-400">{rmaNumber}</p>
           <h1 className="truncate text-sm font-semibold sm:text-base">{customerName}</h1>
         </div>
-        <button type="button" onClick={finish} disabled={saving || failed} className={`${buttonStyle} bg-neutral-800 hover:bg-neutral-700`}>
+        <button type="button" onClick={finish} disabled={busy || failed} className={`${buttonStyle} bg-neutral-800 hover:bg-neutral-700`}>
           <Check className="size-4" /> Finish <span className="sr-only">intake</span>
         </button>
       </header>
@@ -290,7 +332,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
               <span className="font-semibold">Display {displayNumber}</span>
               <span className="text-neutral-400">{completed + (canAdvance ? 1 : 0)} saved this session</span>
             </div>
-            <div data-testid="camera-viewfinder" className={`relative min-h-40 flex-1 overflow-hidden bg-black ${dragging ? "ring-2 ring-inset ring-emerald-400" : ""}`}
+            <div data-testid="camera-viewfinder" className={`relative min-h-0 flex-1 overflow-hidden bg-black ${dragging ? "ring-2 ring-inset ring-emerald-400" : ""}`}
               onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
               onDragLeave={() => setDragging(false)}
               onDrop={(event) => { event.preventDefault(); setDragging(false); processFiles(Array.from(event.dataTransfer.files), angle); }}>
@@ -323,40 +365,46 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
           </aside>
         </div>
 
-        <footer className="shrink-0 border-t border-neutral-800 bg-neutral-900 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
+        <footer className="max-h-[65dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-neutral-800 bg-neutral-900 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
           <div className="mx-auto max-w-3xl">
             <div className="flex gap-1 rounded-xl bg-neutral-950 p-1" role="group" aria-label="Photo angle">
-              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} disabled={saving} aria-pressed={angle === entry.type}
+              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} disabled={busy} aria-pressed={angle === entry.type}
                 className={`min-h-10 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-white ${angle === entry.type ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}>{entry.label}</button>)}
             </div>
             <p className="mt-2 text-center text-xs leading-5 text-neutral-400">{selectedAngle.hint}</p>
             <div className="mt-2 grid grid-cols-3 items-center justify-items-center">
-              <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive || saving} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
-              <button type="button" onClick={() => void capture()} disabled={!cameraActive || saving} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
+              <button type="button" onClick={() => setFacingMode((previous) => previous === "environment" ? "user" : "environment")} disabled={!cameraActive || busy} aria-label="Switch camera" className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><SwitchCamera className="size-5" /><span className="text-[11px]">Switch</span></button>
+              <button type="button" onClick={() => void capture()} disabled={!cameraActive || busy} aria-label={`Capture ${selectedAngle.label.toLowerCase()} photo`} className="flex size-16 items-center justify-center rounded-full border-[3px] border-white p-1 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:opacity-30 active:scale-95 motion-reduce:transform-none">
                 <span className="flex h-full w-full items-center justify-center rounded-full bg-white">
                   {capturing && <LoadingIcon className="size-5 text-neutral-900" />}
                 </span>
               </button>
-              <button type="button" disabled={saving} onClick={() => { pickerAngle.current = angle; fileInputRef.current?.click(); }} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
+              <button type="button" disabled={busy} onClick={() => { pickerAngle.current = angle; fileInputRef.current?.click(); }} className={`${buttonStyle} flex-col gap-1 px-4 text-neutral-300 hover:bg-neutral-800`}><Images className="size-5" /><span className="text-[11px]">Photos</span></button>
               <input type="file" ref={fileInputRef} accept="image/*" multiple aria-label="Choose display photos" className="hidden" onChange={(event) => { processFiles(Array.from(event.target.files || []), pickerAngle.current); event.target.value = ""; }} />
             </div>
             {photos.length > 0 && <div className="mt-3 flex items-center gap-3 border-t border-neutral-800 pt-3">
               <div aria-label="Captured photos" className="flex min-w-0 flex-1 gap-2 overflow-x-auto">
-                {photos.map((photo, index) => <div key={photo.id} className="relative size-12 shrink-0 overflow-hidden rounded-lg border border-neutral-700">
+                {photos.map((photo, index) => <div key={photo.id} className="relative h-20 w-24 shrink-0 overflow-hidden rounded-lg border border-neutral-700">
                   <img src={photo.previewUrl} alt={`${angles.find((entry) => entry.type === photo.imageType)?.label} angle ${index + 1}`} className="size-full object-cover" />
                   <span className="absolute top-0 left-0 rounded-br bg-black/80 px-1 text-[10px] text-white">{angles.find((entry) => entry.type === photo.imageType)?.label}</span>
                   {photo.status === "uploading" && <span aria-label="Saving photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><LoadingIcon className="size-4" /></span>}
+                  {photo.status === "removing" && <span aria-label="Removing photo" className="absolute inset-0 flex items-center justify-center bg-black/60"><LoadingIcon className="size-4" /></span>}
                   {photo.status === "saved" && <span aria-label="Photo saved" className="absolute bottom-0 right-0 rounded-tl bg-emerald-700 p-1"><Check className="size-3" /></span>}
                   {photo.status === "error" && <button type="button" aria-label={`Retry photo ${index + 1}`} title={photo.error} onClick={() => void uploadPhoto(photo)} className="absolute inset-0 flex items-center justify-center bg-red-950/90"><RotateCcw className="size-5" /></button>}
+                  <button type="button" aria-label={`Remove photo ${index + 1}`} title={photo.status === "uploading" ? "Wait for the upload to finish, then remove this photo" : "Remove this photo from the display"}
+                    disabled={photo.status === "uploading" || photo.status === "removing"} onClick={() => void removePhoto(photo)}
+                    className="absolute top-0 right-0 z-10 flex size-11 items-center justify-center rounded-bl-lg bg-black/85 text-white hover:bg-red-900 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-white disabled:opacity-50">
+                    <X className="size-4" aria-hidden="true" />
+                  </button>
                 </div>)}
               </div>
               <button type="button" onClick={nextDisplay} disabled={!canAdvance} className={`${buttonStyle} shrink-0 bg-white text-neutral-950 hover:bg-neutral-200`}>Next display <ArrowRight className="size-4" /></button>
             </div>}
             <div role="status" aria-live="polite" className="mt-2 text-center text-xs text-neutral-400">
-              {saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"} saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
+              {removing ? "Removing photo…" : saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"} saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
             </div>
             {intakeError && <p role="alert" className="mt-2 flex items-center justify-center gap-2 text-xs text-red-300"><AlertCircle className="size-4" />{intakeError}</p>}
-            {liveItems.length > 0 && <section aria-label="Live display results" className="mt-3 border-t border-neutral-800 pt-3">
+            {liveItems.length > 0 && <section aria-label="Live display results" aria-live="polite" className="mt-3 border-t border-neutral-800 pt-3">
               <div className="flex items-center justify-between gap-3 text-xs">
                 <h2 className="font-semibold text-neutral-200">Live results</h2>
                 {recognitionRefreshError
@@ -370,7 +418,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                   const processing = ["queued", "processing", "uploaded"].includes(item.status);
                   const needsReview = item.status === "review_required" || item.matchStatus === "ambiguous";
                   const badge = processing ? "Processing" : item.status === "failed" ? "Retry needed"
-                    : item.status === "verified" ? "Verified" : needsReview ? "Needs review"
+                    : item.status === "pending_upload" ? "Awaiting photo" : item.status === "verified" ? "Verified" : needsReview ? "Needs review"
                       : item.predictedModel ? "Suggested" : "Awaiting result";
                   return <article key={item.id} role="listitem" className="min-w-40 max-w-52 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2">
                     <div className="flex items-center justify-between gap-2 text-[11px]">
@@ -378,7 +426,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                       <span className={needsReview ? "text-amber-300" : item.status === "failed" ? "text-red-300" : "text-neutral-400"}>{badge}</span>
                     </div>
                     <p className="mt-1 truncate text-xs font-semibold text-white" title={item.predictedModel || undefined}>
-                      {item.predictedModel || (processing ? "Identifying model…" : "No model suggestion")}
+                      {item.predictedModel || (processing ? "Identifying model…" : item.status === "pending_upload" ? "Add a replacement photo" : "No model suggestion")}
                     </p>
                   </article>;
                 })}
