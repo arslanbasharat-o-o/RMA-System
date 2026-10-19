@@ -3,7 +3,7 @@ export interface ModelResultFields {
   predictedDisplayAssembly?: string | null;
 }
 
-function isUnidentifiedLabel(value?: string | null) {
+export function isUnidentifiedLabel(value?: string | null) {
   const normalized = value?.trim();
   return !normalized || /^(?:unidentified|unknown|pending identification)\b/i.test(normalized);
 }
