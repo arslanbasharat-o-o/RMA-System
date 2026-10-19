@@ -2,6 +2,11 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.18] - 2026-10-19
+
+### Fixed
+- Ensure snapshot round-trip serialization and visual decision policy v7 are packaged into tagged release containers, invalidating stale v6 machine caches on deployed environments.
+
 ## [0.3.17] - 2026-10-19
 
 ### Fixed
