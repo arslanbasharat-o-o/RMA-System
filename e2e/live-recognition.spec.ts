@@ -60,6 +60,7 @@ test("inspection recovers a failed refresh immediately when the connection resum
   state.failItem = true;
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await expect(drawer.getByRole("alert")).toContainText("Connection interrupted");
+  await expect(drawer.getByRole("button", { name: /refresh|retry connection/i })).toHaveCount(0);
   state.failItem = false;
   state.completed = true;
   await page.evaluate(() => window.dispatchEvent(new Event("online")));

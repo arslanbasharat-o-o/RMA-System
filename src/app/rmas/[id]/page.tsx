@@ -101,7 +101,7 @@ export default function RmaDetailPage({
       // Keep polling whenever items are processing or the RMA is in active intake/processing
       return isBusy || json.rma?.status === "receiving" || json.rma?.status === "processing";
     },
-    2500
+    1000
   );
 
   const { rma, items = [], stats = {} } = data || {};
@@ -197,8 +197,7 @@ export default function RmaDetailPage({
     return (
       <AppShell>
         <div role="alert" className="space-y-3 p-4">
-          <p>Could not load this RMA. Check your connection and try again.</p>
-          <Button onClick={fetchRmaData}>Try again</Button>
+          <p>Connection interrupted. Reconnecting to this RMA automatically…</p>
         </div>
       </AppShell>
     );

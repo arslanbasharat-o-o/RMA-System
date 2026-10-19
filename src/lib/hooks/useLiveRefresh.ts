@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useLiveRefresh(
   resourceKey: string,
   refresh: (signal: AbortSignal) => Promise<boolean | void>,
-  intervalMs = 4000
+  intervalMs = 1000
 ) {
   const callback = useRef(refresh);
   const trigger = useRef<() => void>(() => {});
@@ -29,19 +29,30 @@ export function useLiveRefresh(
       inFlight = true;
       const request = new AbortController();
       controller = request;
-      const deadline = window.setTimeout(() => request.abort(), 15000);
+      let timedOut = false;
+      const deadline = window.setTimeout(() => { timedOut = true; request.abort(); }, 15000);
+      // A suspended mobile request can ignore abort until its network operation
+      // settles. Release the refresh loop independently so resume can read again.
+      let onAbort: () => void = () => {};
+      const interrupted = new Promise<never>((_, reject) => {
+        onAbort = () => reject(new DOMException("Refresh interrupted", "AbortError"));
+        request.signal.addEventListener("abort", onAbort, { once: true });
+      });
       let keepPolling = true;
       try {
-        keepPolling = (await callback.current(request.signal)) !== false;
+        keepPolling = (await Promise.race([callback.current(request.signal), interrupted])) !== false;
         if (!stopped && !request.signal.aborted) setRefreshError(false);
       } catch {
-        if (!stopped && document.visibilityState === "visible") setRefreshError(true);
+        if (!stopped && document.visibilityState === "visible" && (!request.signal.aborted || timedOut)) setRefreshError(true);
       } finally {
         window.clearTimeout(deadline);
+        request.signal.removeEventListener("abort", onAbort);
         inFlight = false;
         if (!stopped && document.visibilityState === "visible") {
           if (pending) { pending = false; void run(); }
-          else if (keepPolling) timer = window.setTimeout(() => void run(), intervalMs);
+          // Reconcile idle screens too: a missed mobile lifecycle event or work
+          // started elsewhere must not require the user to reload the page.
+          else timer = window.setTimeout(() => void run(), keepPolling ? intervalMs : Math.max(intervalMs, 15000));
         }
       }
     };
@@ -49,7 +60,10 @@ export function useLiveRefresh(
       if (document.visibilityState === "hidden") { clearTimer(); controller?.abort(); }
       else void run();
     };
-    const onResume = () => { void run(); };
+    const onResume = () => {
+      if (inFlight) { pending = true; controller?.abort(); }
+      else void run();
+    };
     trigger.current = onResume;
     void run();
     window.addEventListener("focus", onResume);
