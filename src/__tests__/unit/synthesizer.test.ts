@@ -87,8 +87,8 @@ describe("Unified Synthesizer", () => {
       unreadable_regions: [],
       extraction_notes: [],
     }, visual);
-    expect(unresolved.predictedModel).toBeNull();
-    expect(unresolved.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+    expect(unresolved.predictedModel).toBe("iPhone 13 Pro");
+    expect(unresolved.predictedDisplayAssembly).toBe("Apple iPhone 13 Pro Display");
     expect(unresolved.catalogDisplayId).toBeNull();
     expect(unresolved.itemStatus).toBe("review_required");
   });
@@ -142,8 +142,8 @@ describe("Unified Synthesizer", () => {
     };
 
     const unresolved = synthesizeRecognition(aliasMatch, vendorMatch, ocr, visual);
-    expect(unresolved.predictedModel).toBeNull();
-    expect(unresolved.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+    expect(unresolved.predictedModel).toBe("iPhone 13 Pro");
+    expect(unresolved.predictedDisplayAssembly).toBe("Apple iPhone 13 Pro Display");
     expect(unresolved.catalogDisplayId).toBeNull();
     expect(unresolved.itemStatus).toBe("review_required");
   });

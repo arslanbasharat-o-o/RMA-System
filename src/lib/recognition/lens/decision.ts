@@ -4,6 +4,7 @@ import type { VisualCandidate } from "./types";
 export interface CleanDisplayDecision {
   manufacturer: string | null;
   model: string | null;
+  suggestedModel?: string | null;
   displayName: string;
   confidence: number;
   cleanedCandidates: string[];
@@ -69,11 +70,13 @@ export function cleanVisualCandidatesHeuristic(
 
   let manufacturer: string | null = null;
   let model: string | null = null;
+  let suggestedModel: string | null = null;
 
   // Apple detection
   if (appleEvidence) {
     manufacturer = "Apple";
     model = appleEvidence.model;
+    suggestedModel = appleEvidence.suggestedModel || null;
   } else if (!/\biphone\b/i.test(combinedText) && /\bipad\b/i.test(combinedText)) {
     const ipadCandidates = candidates.filter((c) => /\bipad\b/i.test(c.title));
     if (ipadCandidates.length >= 2) {
@@ -175,17 +178,63 @@ export function cleanVisualCandidatesHeuristic(
     model = pMatch ? pMatch[0].toUpperCase() : "Huawei Device";
   }
 
-  const cleanModelForDisplay =
-    model && manufacturer && manufacturer !== "OnePlus" && model.toLowerCase().startsWith(manufacturer.toLowerCase())
-      ? model.slice(manufacturer.length).trim()
-      : model;
+  // Nokia detection
+  if (!model && /\bnokia\b/i.test(combinedText)) {
+    manufacturer = "Nokia";
+    const gMatch = combinedText.match(/\bnokia\s*(g\s*10\s*[\/\-]?\s*g?\s*20|g\s*20\s*[\/\-]?\s*g?\s*10)\b/i);
+    if (gMatch) {
+      model = "Nokia G10 / G20";
+    } else {
+      const nokiaMatch = combinedText.match(/\bnokia\s*([a-z0-9\s\/\+\.]+?)(?:\s*(?:lcd|display|screen|touch|assembly|digitizer|pantalla|para|\(ta-)|$)/i);
+      if (nokiaMatch) {
+        const m = nokiaMatch[1].trim().replace(/[\/\s]+$/, "");
+        model = `Nokia ${m}`;
+      } else {
+        model = "Nokia Device";
+      }
+    }
+  }
 
-  const displayName = appleEvidence && !appleEvidence.model
-    ? "Unidentified Apple Display"
-    : cleanModelForDisplay
+  // LG detection
+  if (!model && /\blg\b/i.test(combinedText)) {
+    manufacturer = "LG";
+    const lgMatch = combinedText.match(/\blg\s*([a-z0-9\s\+]+?)(?:screen|display|lcd|assembly|$)/i);
+    model = lgMatch ? `LG ${lgMatch[1].trim()}` : "LG Device";
+  }
+
+  // Sony detection
+  if (!model && /\b(?:sony|xperia)\b/i.test(combinedText)) {
+    manufacturer = "Sony";
+    const sonyMatch = combinedText.match(/\b(?:sony\s*)?xperia\s*([a-z0-9\s]+?)(?:screen|display|lcd|assembly|$)/i);
+    model = sonyMatch ? `Sony Xperia ${sonyMatch[1].trim()}` : "Sony Xperia";
+  }
+
+  // Realme detection
+  if (!model && /\brealme\b/i.test(combinedText)) {
+    manufacturer = "Realme";
+    const realmeMatch = combinedText.match(/\brealme\s*([a-z0-9\s\+]+?)(?:screen|display|lcd|assembly|$)/i);
+    model = realmeMatch ? `Realme ${realmeMatch[1].trim()}` : "Realme Device";
+  }
+
+  // Vivo detection
+  if (!model && /\b(?:vivo|iqoo)\b/i.test(combinedText)) {
+    manufacturer = "Vivo";
+    const vivoMatch = combinedText.match(/\b(?:vivo|iqoo)\s*([a-z0-9\s\+]+?)(?:screen|display|lcd|assembly|$)/i);
+    model = vivoMatch ? `Vivo ${vivoMatch[1].trim()}` : "Vivo Device";
+  }
+
+  const displayModel = model || suggestedModel;
+  const cleanModelForDisplay =
+    displayModel && manufacturer && manufacturer !== "OnePlus" && displayModel.toLowerCase().startsWith(manufacturer.toLowerCase())
+      ? displayModel.slice(manufacturer.length).trim()
+      : displayModel;
+
+  const displayName = cleanModelForDisplay
     ? manufacturer && !cleanModelForDisplay.toLowerCase().includes(manufacturer.toLowerCase())
       ? `${manufacturer} ${cleanModelForDisplay} Display`
       : `${cleanModelForDisplay} Display`
+    : appleEvidence && !appleEvidence.model && !appleEvidence.suggestedModel
+    ? "Unidentified Apple Display"
     : manufacturer
     ? `${manufacturer} Display`
     : "Unidentified Display";
@@ -213,12 +262,13 @@ export function cleanVisualCandidatesHeuristic(
 
   return {
     manufacturer,
-    model: cleanModelForDisplay || model,
+    model: model,
+    suggestedModel: suggestedModel || (model && confidence < 0.85 ? cleanModelForDisplay || model : null),
     displayName,
     confidence,
     cleanedCandidates: cleanedTitles,
-    reasoning: appleEvidence?.reasoning || (model
-      ? `Visual candidates consistently match ${manufacturer} ${cleanModelForDisplay || model}.`
+    reasoning: appleEvidence?.reasoning || (displayModel
+      ? `Visual candidates consistently match ${manufacturer} ${cleanModelForDisplay || displayModel}.`
       : "Visual candidates lacked a definitive model consensus."),
   };
 }
@@ -230,6 +280,12 @@ function otherDeviceModel(title: string): string | null {
   if (pixel) return `Pixel ${pixel[1]}${pixel[2] ? ` ${pixel[2]}` : ""}`;
   const oneplus = title.match(/\bone\s*plus\s*(\d+[tr]?(?:\s*pro)?|nord\s*\w*)\b/i);
   if (oneplus) return `OnePlus ${oneplus[1]}`;
+  const nokia = title.match(/\bnokia\s*(g\s*10\s*[\/\-]?\s*g?\s*20|g\s*20\s*[\/\-]?\s*g?\s*10|[a-z0-9]+(?:\s*[\/\-]\s*[a-z0-9]+)?|\d+(?:\.\d+)?(?:\s*plus)?)\b/i);
+  if (nokia) return `Nokia ${nokia[1].trim()}`;
+  const sony = title.match(/\b(?:sony\s*)?xperia\s*([a-z0-9\s]+?)(?:screen|display|lcd|assembly|$)/i);
+  if (sony) return `Sony Xperia ${sony[1].trim()}`;
+  const lg = title.match(/\blg\s*([a-z0-9\s\+]+?)(?:screen|display|lcd|assembly|$)/i);
+  if (lg) return `LG ${lg[1].trim()}`;
   return null;
 }
 
@@ -277,16 +333,21 @@ Never manufacture a confidence score.` },
     if (typeof check.manufacturer === "string" && typeof check.model === "string" &&
         identityKey(check.manufacturer, check.model) === identityKey(evidence.manufacturer, evidence.model)) return evidence;
     return {
-      ...evidence, model: null,
-      displayName: evidence.manufacturer ? `Unidentified ${evidence.manufacturer} Display` : "Unidentified Display",
+      ...evidence,
+      model: null,
+      suggestedModel: evidence.suggestedModel || evidence.model,
       confidence: 0.45,
       reasoning: `The photograph did not corroborate the exact model suggested by source evidence. ${typeof check.reasoning === "string" ? check.reasoning.slice(0, 1000) : "Operator review is required."}`,
     };
   } catch {
     // Corroboration failure must not silently certify an unchecked image.
-    return { ...evidence, model: null,
-      displayName: evidence.manufacturer ? `Unidentified ${evidence.manufacturer} Display` : "Unidentified Display",
-      confidence: 0.45, reasoning: "Photo corroboration was unavailable. Source suggestions are retained for operator review." };
+    return {
+      ...evidence,
+      model: null,
+      suggestedModel: evidence.suggestedModel || evidence.model,
+      confidence: 0.45,
+      reasoning: "Photo corroboration was unavailable. Source suggestions are retained for operator review.",
+    };
   }
 }
 
