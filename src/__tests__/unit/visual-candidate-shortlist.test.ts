@@ -245,6 +245,62 @@ describe("visual candidate catalog shortlist", () => {
     expect(visualCandidateCatalogIds(result, modelCatalog)).toEqual(models.map(({ id }) => id));
   });
 
+  it("uses full Lens payload models beyond the parsed preview when a confident result has competitors", () => {
+    const models = [
+      { id: "iphone-x", modelName: "iPhone X" },
+      { id: "iphone-12-pro-max", modelName: "iPhone 12 Pro Max" },
+      { id: "iphone-14-pro-max", modelName: "iPhone 14 Pro Max" },
+      { id: "iphone-11", modelName: "iPhone 11" },
+      { id: "iphone-13-pro-max", modelName: "iPhone 13 Pro Max" },
+    ];
+    const modelCatalog = models.map(({ id, modelName }) => ({
+      id,
+      manufacturer: "Apple",
+      modelName,
+      normalizedModelIdentifier: id,
+      aliases: [],
+      internalSku: null,
+      knownPartNumbers: [],
+      displayTechnology: "OLED",
+    }));
+    const visualMatches = [
+      { title: "iPhone X OLED display assembly", source: "eBay", position: 1 },
+      { title: "iPhone X XR 11 and 12 LCD display", source: "eBay", position: 2 },
+      { title: "iPhone X display replacement", source: "Repairs Universe", position: 3 },
+      { title: "iPhone 12 Pro Max display assembly", source: "MobileSentrix", position: 4 },
+      { title: "iPhone 14 Pro Max screen display", source: "iFixit", position: 5 },
+      { title: "iPhone 11 display assembly", source: "GadgetApple", position: 10 },
+      { title: "iPhone 13 Pro Max screen display", source: "iFixit", position: 12 },
+      { title: "iPhone X LCD display", source: "CELL4LESS", position: 14 },
+      { title: "iPhone X OLED display assembly", source: "Amazon.com", position: 17 },
+      { title: "iPhone X screen replacement", source: "Alibaba", position: 23 },
+      { title: "iPhone 12 Pro Max replacement display", source: "Amazon.com", position: 21 },
+    ].map((match) => ({
+      ...match,
+      link: "https://www.google.com/goto?url=test",
+    }));
+    const result = visualResult({
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: "iPhone X",
+        suggestedModel: "iPhone X",
+        displayName: "Apple iPhone X Display",
+        confidence: 0.95,
+        cleanedCandidates: [],
+        reasoning: "iPhone X leads with independent display sources.",
+      },
+      candidates: visualMatches.slice(0, 6).map(({ title, link, source, position }) => ({
+        title,
+        sourceUrl: link,
+        sourceName: source,
+        rank: position,
+      })),
+      rawResponse: { result: { visual_matches: visualMatches } },
+    });
+
+    expect(visualCandidateCatalogIds(result, modelCatalog, "iphone-x")).toEqual(models.map(({ id }) => id));
+  });
+
   it("uses the same catalog-based voting for non-Apple manufacturers", () => {
     const result = visualResult({
       candidates: Array.from({ length: 4 }, (_, index) => ({
