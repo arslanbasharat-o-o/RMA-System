@@ -1,9 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
-import { cn } from "@/lib/utils/cn";
 import {
   Plus,
   Layers,
@@ -14,7 +13,6 @@ import {
   AnimatedDisplayModule,
   AnimatedGauge,
   AnimatedAlertTriage,
-  AnimatedArrowRight,
 } from "@/components/icons/AnimatedIcons";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { BlurIn } from "@/components/ui/blur-in";

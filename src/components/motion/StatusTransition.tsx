@@ -7,20 +7,6 @@ import {
 } from "lucide-react";
 import { StatusText, type StatusTone } from "@/components/ui/status-text";
 
-export type RecognitionStatus =
-  | "queued"
-  | "pending"
-  | "processing"
-  | "analyzing"
-  | "suggested_match"
-  | "candidate_found"
-  | "verified"
-  | "exact_match"
-  | "review_required"
-  | "needs_review"
-  | "failed"
-  | "unknown";
-
 interface StatusTransitionProps {
   status: string;
   className?: string;

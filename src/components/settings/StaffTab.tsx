@@ -1,14 +1,13 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
 import { LoadingMessage } from "@/components/ui/loading-message";
-import { Users, UserPlus, Search, Shield, UserCheck, UserX } from "lucide-react";
+import { Users, UserPlus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { CardSpotlight, CopyBadge, ShimmerButton, StatusText } from "@/components/premium";
 

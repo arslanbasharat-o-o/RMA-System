@@ -3,10 +3,6 @@ import { getSession, SessionPayload } from "./session";
 
 export type Role = "admin" | "operator" | "viewer";
 
-export interface AuthenticatedRouteContext {
-  user: SessionPayload;
-}
-
 /**
  * Validates session and checks role authorization for API routes.
  */

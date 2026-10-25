@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { rmas, customers, returnReasons, rmaItems } from "@/db/schema";
+import { rmas, customers, returnReasons } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { generateNextRmaNumber } from "@/lib/utils/rma-sequence";
 import { eq, desc, and, or, ilike, sql } from "drizzle-orm";

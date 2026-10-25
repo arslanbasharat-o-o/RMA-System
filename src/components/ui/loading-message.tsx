@@ -1,4 +1,3 @@
-import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoadingIcon } from "@/components/ui/loading-icon";
 import { cn } from "@/lib/utils/cn";

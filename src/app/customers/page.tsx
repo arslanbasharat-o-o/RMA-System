@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Plus, Search, Building2, Mail, Phone, X, User } from "lucide-react";
+import { Plus, Search, Mail, Phone, X, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";

@@ -2,6 +2,11 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.22] - 2026-10-26
+
+### Maintenance
+- Remove unused imports, declarations, and unreachable UI components; enable TypeScript unused-local and unused-parameter checks.
+
 ## [0.3.21] - 2026-10-25
 
 ### Fixed
