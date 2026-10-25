@@ -2,6 +2,17 @@
 
 Changes to the public source are recorded here.
 
+## [Unreleased]
+
+## [0.3.23] - 2026-10-26
+
+### Fixed
+- Use catalog names and aliases to shortlist visual candidates across manufacturers; count independent publishers per catalog ID, reject mixed-model listings, and keep ambiguous matches in review.
+
+### Verification
+- PR #79 passed full CI, including database fixtures, TypeScript, ESLint, Vitest, production build, container build, and desktop/mobile browser checks.
+- Live single-image validation on production v0.3.22 remains separate from this release; it returned an iPhone X suggestion with conflicting candidates and required review.
+
 ## [0.3.22] - 2026-10-26
 
 ### Maintenance
