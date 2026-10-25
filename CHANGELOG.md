@@ -4,6 +4,11 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.25] - 2026-10-26
+
+### Fixed
+- Keep competing catalog models in the verified-photo comparison shortlist when listing votes are decisive but the image decision remains uncertain.
+
 ## [0.3.24] - 2026-10-26
 
 ### Fixed
