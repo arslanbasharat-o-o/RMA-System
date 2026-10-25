@@ -42,6 +42,19 @@ export function displayImageTypeLabel(value?: string): string {
   return IMAGE_TYPE_LABELS[normalizeDisplayImageType(value)];
 }
 
+export function selectDisplayImagesForOcr<T extends { id: string; imageType: string }>(images: T[]): T[] {
+  const preferred = [
+    images.find((image) => image.imageType === "primary" || image.imageType === "front"),
+    images.find((image) => image.imageType === "flex_cable"),
+    images.find((image) => image.imageType === "back"),
+    ...images.filter((image) => image.imageType === "stamp_closeup" || image.imageType === "sticker_closeup"),
+    ...images,
+  ];
+  return [...new Map(
+    preferred.filter((image): image is T => Boolean(image)).map((image) => [image.id, image])
+  ).values()].slice(0, 4);
+}
+
 /**
  * Normalize the image, then crop only the physical region implied by its
  * captured angle. Front photos expose the camera notch; back photos expose
