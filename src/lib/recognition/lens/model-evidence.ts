@@ -141,12 +141,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
       reasoning: `The listings name the iPhone SE family without establishing its exact generation. Similar or compatible assemblies cannot establish the intended device (${detail}). Operator review is required.`,
     };
   }
-  const family = (name: string) => {
-    const generation = name.match(/^iPhone\s+(\d+|SE|XR|XS|X)\b/i)?.[1]?.toUpperCase();
-    return generation && ["X", "XR", "XS", "11"].includes(generation)
-      ? "X/XR/XS/11"
-      : generation;
-  };
+  const family = (name: string) => name.match(/^iPhone\s+(\d+|SE|XR|XS|X)\b/i)?.[1]?.toUpperCase();
   const competingVariants = [...attributableModels].filter(name =>
     name !== winner[0] && family(name) === family(winner[0])
   );

@@ -55,23 +55,6 @@ describe("ranked Apple display evidence", () => {
     expect(evidence?.reasoning).toContain("disagree between");
   });
 
-  it.each(["iPhone XR", "iPhone X", "iPhone XS"])(
-    "requires review when iPhone 11 votes conflict with %s, even at 3:1",
-    (conflictingModel) => {
-      const evidence = appleVisualEvidence(matches([
-        ["iPhone 11 OLED display assembly", "eleven-a.example"],
-        ["iPhone 11 LCD replacement display", "eleven-b.example"],
-        ["iPhone 11 display panel", "eleven-c.example"],
-        [`${conflictingModel} screen assembly`, "conflict.example"],
-      ]));
-
-      expect(evidence?.model).toBeNull();
-      expect(evidence?.suggestedModel).toBe("iPhone 11");
-      expect(evidence?.confidence).toBeLessThan(0.5);
-      expect(evidence?.reasoning).toContain("Listings disagree");
-    }
-  );
-
   it("does not count a single marketplace as multiple independent sources", () => {
     const evidence = appleVisualEvidence(matches([
       ["iPhone 14 Plus LCD display assembly", "marketplace.example"],
