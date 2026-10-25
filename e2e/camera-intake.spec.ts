@@ -104,10 +104,13 @@ test("camera preview, failed upload retry, and progression work without losing p
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "Capture back photo" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
+  await page.getByRole("button", { name: "Flex", exact: true }).click();
+  await page.getByRole("button", { name: "Capture flex photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(3);
   await page.getByRole("button", { name: "Next display" }).click();
   await expect(page.getByText("Display 2", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Front", exact: true })).toHaveAttribute("aria-pressed", "true");
-  expect(uploads).toBe(3);
+  expect(uploads).toBe(4);
   expect(errors).toEqual([]);
 });
 
@@ -146,7 +149,7 @@ test("scanner stays usable on a small phone and in landscape", async ({ page }) 
   }
 });
 
-test("front capture keeps the explicitly selected side", async ({ page }) => {
+test("camera capture keeps the explicitly selected angle", async ({ page }) => {
   const uploadedSides: string[] = [];
   await page.route("**/api/rma-items/test-item/upload", async (route) => {
     const body = route.request().postDataBuffer()!.toString();
@@ -161,7 +164,10 @@ test("front capture keeps the explicitly selected side", async ({ page }) => {
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.getByRole("button", { name: "Capture back photo" }).click();
   await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
-  expect(uploadedSides).toEqual(["primary", "back"]);
+  await page.getByRole("button", { name: "Flex", exact: true }).click();
+  await page.getByRole("button", { name: "Capture flex photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(3);
+  expect(uploadedSides).toEqual(["primary", "back", "flex_cable"]);
 });
 
 test("photo picker preserves the side selected when it opened", async ({ page }) => {
