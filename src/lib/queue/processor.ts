@@ -240,28 +240,59 @@ async function loadVerifiedVisualReferenceRows(
     .limit(200);
 }
 
-export function visualCandidateCatalogIds(
-  visualResult: VisualIdentificationResult,
-  catalog: Parameters<typeof matchDisplayToCatalog>[1],
-  preferredCatalogId?: string | null
-): string[] {
-  const decision = visualResult.cleanDecision;
-  const rankedCandidates = [...visualResult.candidates]
-    .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
-    .sort((a, b) => a.rank - b.rank)
-    .slice(0, 30);
-  const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
-  const accessoryListing = /\b(?:case|cover|screen\s*protector|tempered\s*glass|camera\s*lens|charger|cable|battery|adhesive|glue|repair\s*kit|tools?)\b/i;
-  const normalizePhrase = (value: string) => value.toLowerCase()
+type DisplayCatalogItem = Parameters<typeof matchDisplayToCatalog>[1][number];
+
+interface VisualCatalogModelVote {
+  key: string;
+  catalogId: string;
+  manufacturer: string;
+  modelName: string;
+  score: number;
+  sources: Set<string>;
+}
+
+interface VisualCatalogEvidence {
+  rankedVotes: VisualCatalogModelVote[];
+  candidateIds: string[];
+  decisiveWinner: VisualCatalogModelVote | null;
+}
+
+function normalizeCatalogPhrase(value: string): string {
+  return value.toLowerCase()
     .replace(/\+/g, " plus ")
     .replace(/([a-z])(\d)/g, "$1 $2")
     .replace(/(\d)([a-z])/g, "$1 $2")
     .replace(/[^a-z0-9]+/g, " ")
     .trim()
     .replace(/\s+/g, " ");
-  const catalogPhraseOffsets = (title: string, phrase: string) => {
-    const normalizedTitle = normalizePhrase(title);
-    const normalizedPhrase = normalizePhrase(phrase);
+}
+
+function catalogDeviceModelName(item: Pick<DisplayCatalogItem, "manufacturer" | "modelName">): string {
+  const manufacturer = normalizeCatalogPhrase(item.manufacturer);
+  const normalizedModel = normalizeCatalogPhrase(item.modelName);
+  return normalizedModel.startsWith(`${manufacturer} `)
+    ? normalizedModel.slice(manufacturer.length + 1)
+    : normalizedModel;
+}
+
+function catalogModelKey(item: Pick<DisplayCatalogItem, "manufacturer" | "modelName">): string {
+  return `${normalizeCatalogPhrase(item.manufacturer)}\u0000${catalogDeviceModelName(item)}`;
+}
+
+function visualCatalogEvidence(
+  visualResult: VisualIdentificationResult,
+  catalog: DisplayCatalogItem[],
+  preferredCatalogId?: string | null
+): VisualCatalogEvidence {
+  const rankedCandidates = [...visualResult.candidates]
+    .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
+    .sort((a, b) => a.rank - b.rank)
+    .slice(0, 30);
+  const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
+  const accessoryListing = /\b(?:case|cover|screen\s*protector|tempered\s*glass|camera\s*lens|charger|cable|battery|adhesive|glue|repair\s*kit|tools?)\b/i;
+  const phraseOffsets = (title: string, phrase: string) => {
+    const normalizedTitle = normalizeCatalogPhrase(title);
+    const normalizedPhrase = normalizeCatalogPhrase(phrase);
     if (!normalizedPhrase) return [];
     const paddedTitle = ` ${normalizedTitle} `;
     const paddedPhrase = ` ${normalizedPhrase} `;
@@ -275,82 +306,181 @@ export function visualCandidateCatalogIds(
     }
     return offsets;
   };
-  const candidateCatalogId = (candidate: typeof rankedCandidates[number]): string | undefined => {
-    const matchingItems = catalog.flatMap((item) => {
+  const modelForCandidate = (title: string): DisplayCatalogItem | undefined => {
+    const matches = catalog.flatMap((item) => {
       const phrases = [item.modelName, ...(item.aliases || [])];
-      const matchingPhrases = phrases.filter((phrase) => catalogPhraseOffsets(candidate.title, phrase).length > 0);
-      const matchedPhrase = matchingPhrases.sort((a, b) => normalizePhrase(b).length - normalizePhrase(a).length)[0];
-      const specificity = matchedPhrase ? normalizePhrase(matchedPhrase).length : 0;
-      return specificity ? [{ item, specificity, matchedPhrase }] : [];
+      const matchedPhrase = phrases
+        .filter((phrase) => phraseOffsets(title, phrase).length > 0)
+        .sort((a, b) => normalizeCatalogPhrase(b).length - normalizeCatalogPhrase(a).length)[0];
+      return matchedPhrase
+        ? [{ item, matchedPhrase, specificity: normalizeCatalogPhrase(matchedPhrase).length }]
+        : [];
     });
-    const strongestSpecificity = Math.max(0, ...matchingItems.map((match) => match.specificity));
-    const strongestItems = matchingItems.filter((match) => match.specificity === strongestSpecificity);
-    if (!strongestSpecificity || strongestItems.length !== 1) return undefined;
+    const strongestSpecificity = Math.max(0, ...matches.map((match) => match.specificity));
+    const strongest = matches.filter((match) => match.specificity === strongestSpecificity);
+    const modelKeys = new Set(strongest.map(({ item }) => catalogModelKey(item)));
+    if (!strongestSpecificity || modelKeys.size !== 1) return undefined;
 
-    const item = strongestItems[0].item;
-    const selectedPhrase = strongestItems[0].matchedPhrase;
-    const modelName = normalizePhrase(item.modelName);
-    const manufacturer = normalizePhrase(item.manufacturer);
-    const hasUnrelatedModelMention = matchingItems.some(({ item: other, matchedPhrase: otherPhrase }) => {
-      if (other.id === item.id) return false;
-      const otherModelName = normalizePhrase(other.modelName);
-      if (normalizePhrase(other.manufacturer) !== manufacturer || !modelName.startsWith(`${otherModelName} `)) {
-        return true;
-      }
-      const selectedOccurrences = catalogPhraseOffsets(candidate.title, selectedPhrase);
-      const otherOccurrences = catalogPhraseOffsets(candidate.title, otherPhrase);
-      return !otherOccurrences.every((otherOccurrence) => selectedOccurrences.some((selectedOccurrence) =>
+    const selectedKey = [...modelKeys][0];
+    const selectedItem = strongest.find(({ item }) => item.id === preferredCatalogId)?.item || strongest[0].item;
+    const selectedPhrase = strongest[0].matchedPhrase;
+    const selectedModel = catalogDeviceModelName(selectedItem);
+    const selectedManufacturer = normalizeCatalogPhrase(selectedItem.manufacturer);
+    const hasUnrelatedModelMention = matches.some(({ item: other, matchedPhrase }) => {
+      if (catalogModelKey(other) === selectedKey) return false;
+      const otherModel = catalogDeviceModelName(other);
+      if (normalizeCatalogPhrase(other.manufacturer) !== selectedManufacturer ||
+          !selectedModel.startsWith(`${otherModel} `)) return true;
+      const selectedOccurrences = phraseOffsets(title, selectedPhrase);
+      return !phraseOffsets(title, matchedPhrase).every((otherOccurrence) => selectedOccurrences.some((selectedOccurrence) =>
         otherOccurrence.start >= selectedOccurrence.start && otherOccurrence.end <= selectedOccurrence.end
       ));
     });
     if (hasUnrelatedModelMention) return undefined;
 
-    const match = matchDisplayToCatalog({
-      ...visualResult,
-      candidates: [candidate],
-      cleanDecision: undefined,
-      normalizedManufacturer: undefined,
-      normalizedModel: undefined,
-      detectedDisplayAssembly: undefined,
-    }, [{ ...item, aliases: [...new Set([...(item.aliases || []), item.modelName])] }], []);
-    return match?.catalogId;
+    return catalog.find((item) => item.id === preferredCatalogId && catalogModelKey(item) === selectedKey) || selectedItem;
   };
-  const votes = new Map<string, { score: number; sources: Set<string> }>();
-  const seenVotes = new Set<string>();
-  const candidateIds: string[] = [];
 
+  const candidateIdByModel = new Map<string, string>();
+  const votes = new Map<string, VisualCatalogModelVote>();
+  const seenVotes = new Set<string>();
   for (const candidate of rankedCandidates) {
     if (accessoryListing.test(candidate.title) || !displayListing.test(candidate.title)) continue;
-    const catalogId = candidateCatalogId(candidate);
-    if (!catalogId) continue;
-    if (!candidateIds.includes(catalogId)) candidateIds.push(catalogId);
+    const item = modelForCandidate(candidate.title);
+    if (!item) continue;
+
+    const key = catalogModelKey(item);
+    const representative = catalog.find((entry) => entry.id === preferredCatalogId && catalogModelKey(entry) === key) ||
+      catalog.find((entry) => catalogModelKey(entry) === key) || item;
+    if (!candidateIdByModel.has(key)) candidateIdByModel.set(key, representative.id);
 
     const source = independentSource(candidate.sourceUrl, candidate.sourceName);
     if (!source) continue;
-    const voteKey = `${catalogId}\u0000${source}`;
+    const voteKey = `${key}\u0000${source}`;
     if (seenVotes.has(voteKey)) continue;
     seenVotes.add(voteKey);
 
-    const evidence = votes.get(catalogId) || { score: 0, sources: new Set<string>() };
+    const evidence = votes.get(key) || {
+      key,
+      catalogId: representative.id,
+      manufacturer: representative.manufacturer,
+      modelName: representative.modelName,
+      score: 0,
+      sources: new Set<string>(),
+    };
     evidence.score += 1 / Math.log2(candidate.rank + 1);
     evidence.sources.add(source);
-    votes.set(catalogId, evidence);
+    votes.set(key, evidence);
   }
 
-  const rankedVotes = [...votes].sort((a, b) =>
-    b[1].sources.size - a[1].sources.size || b[1].score - a[1].score
+  const rankedVotes = [...votes.values()].sort((a, b) =>
+    b.sources.size - a.sources.size || b.score - a.score
   );
   const [winner, runner] = rankedVotes;
-  const voteMargin = runner && winner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
+  const voteMargin = runner && winner ? winner.score / runner.score : Number.POSITIVE_INFINITY;
   const sourceMargin = runner && winner
-    ? winner[1].sources.size / runner[1].sources.size
+    ? winner.sources.size / runner.sources.size
     : Number.POSITIVE_INFINITY;
-  const decisiveVote = Boolean(
-    winner &&
-    winner[1].sources.size >= 3 &&
-    voteMargin >= 1.8 &&
-    sourceMargin >= 1.8
-  );
+  const decisiveWinner = winner && winner.sources.size >= 3 && voteMargin >= 1.8 && sourceMargin >= 1.8
+    ? winner
+    : null;
+
+  return { rankedVotes, candidateIds: [...candidateIdByModel.values()], decisiveWinner };
+}
+
+function decisionMatchesCatalogModel(
+  decision: VisualIdentificationResult["cleanDecision"],
+  modelKey: string,
+  catalog: DisplayCatalogItem[]
+): boolean {
+  if (!decision?.manufacturer || !decision.model) return false;
+  const manufacturer = decision.manufacturer;
+  const normalizeDeviceName = (manufacturer: string, value: string) => {
+    const normalized = normalizeCatalogPhrase(value);
+    const normalizedManufacturer = normalizeCatalogPhrase(manufacturer);
+    return normalized.startsWith(`${normalizedManufacturer} `)
+      ? normalized.slice(normalizedManufacturer.length + 1)
+      : normalized;
+  };
+  const decisionModel = normalizeDeviceName(manufacturer, decision.model);
+  return catalog.some((item) => catalogModelKey(item) === modelKey &&
+    normalizeCatalogPhrase(item.manufacturer) === normalizeCatalogPhrase(manufacturer) &&
+    [item.modelName, ...(item.aliases || [])].some((name) =>
+      normalizeDeviceName(item.manufacturer, name) === decisionModel
+    ));
+}
+
+export function applyVisualCatalogConsensus(
+  visualResult: VisualIdentificationResult,
+  catalog: DisplayCatalogItem[]
+): VisualIdentificationResult {
+  const evidence = visualCatalogEvidence(visualResult, catalog);
+  const winner = evidence.decisiveWinner;
+  if (!winner) return visualResult;
+
+  const decision = visualResult.cleanDecision;
+  if (/photograph did not corroborate|photo corroboration was unavailable/i.test(decision?.reasoning || "")) {
+    return visualResult;
+  }
+  if (decision && decision.confidence >= 0.85) {
+    if (decisionMatchesCatalogModel(decision, winner.key, catalog)) return visualResult;
+    const conflictingModel = decision.model || decision.suggestedModel || "the image-based result";
+    return {
+      ...visualResult,
+      normalizedManufacturer: undefined,
+      normalizedModel: undefined,
+      detectedDisplayAssembly: undefined,
+      cleanDecision: {
+        ...decision,
+        manufacturer: winner.manufacturer,
+        model: null,
+        suggestedModel: winner.modelName,
+        displayName: `Unidentified ${winner.manufacturer} Display`,
+        confidence: 0.45,
+        reasoning: `Independent listing votes favor ${winner.manufacturer} ${winner.modelName}, but image-based recognition suggested ${conflictingModel}. The signals conflict, so the system has abstained for human review.`,
+      },
+    };
+  }
+
+  const modelLabel = normalizeCatalogPhrase(winner.modelName).startsWith(`${normalizeCatalogPhrase(winner.manufacturer)} `)
+    ? winner.modelName
+    : `${winner.manufacturer} ${winner.modelName}`;
+  const displayName = `${modelLabel} Display`;
+  return {
+    ...visualResult,
+    normalizedManufacturer: winner.manufacturer,
+    normalizedModel: winner.modelName,
+    detectedDisplayAssembly: displayName,
+    cleanDecision: {
+      manufacturer: winner.manufacturer,
+      model: winner.modelName,
+      suggestedModel: null,
+      displayName,
+      confidence: 0.84,
+      cleanedCandidates: decision?.cleanedCandidates || visualResult.candidates.map((candidate) => candidate.title).slice(0, 5),
+      reasoning: `${winner.sources.size} independent catalog-matched display listings favor ${modelLabel}. This is search-source consensus only and remains below automatic verification confidence.`,
+    },
+  };
+}
+
+export function visualCandidateCatalogIds(
+  visualResult: VisualIdentificationResult,
+  catalog: DisplayCatalogItem[],
+  preferredCatalogId?: string | null
+): string[] {
+  const decision = visualResult.cleanDecision;
+  const evidence = visualCatalogEvidence(visualResult, catalog, preferredCatalogId);
+  const winner = evidence.decisiveWinner;
+  const preferredItem = catalog.find((item) => item.id === preferredCatalogId);
+
+  if (winner) {
+    const decisionConflicts = Boolean(decision && decision.confidence >= 0.9 &&
+      !decisionMatchesCatalogModel(decision, winner.key, catalog));
+    const preferredConflicts = Boolean(preferredItem && catalogModelKey(preferredItem) !== winner.key);
+    if (decisionConflicts || preferredConflicts) return [];
+    return [preferredItem && catalogModelKey(preferredItem) === winner.key ? preferredItem.id : winner.catalogId];
+  }
+
   const decisionMatch = decision?.manufacturer && decision.model
     ? matchDisplayToCatalog({
       ...visualResult,
@@ -361,28 +491,28 @@ export function visualCandidateCatalogIds(
       detectedDisplayAssembly: decision.displayName,
     }, catalog, [])
     : null;
-
-  if (decisiveVote && winner) {
-    if (
-      (decision && decision.confidence >= 0.9 && (!decisionMatch || decisionMatch.catalogId !== winner[0])) ||
-      (preferredCatalogId && preferredCatalogId !== winner[0])
-    ) return [];
-    return [winner[0]];
-  }
-
-  if (votes.size === 0 && decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
-    if (!decisionMatch || (preferredCatalogId && preferredCatalogId !== decisionMatch.catalogId)) return [];
+  if (!evidence.rankedVotes.length && decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
+    if (!decisionMatch || (preferredItem && catalogModelKey(preferredItem) !== catalogModelKey(
+      catalog.find((item) => item.id === decisionMatch.catalogId) || preferredItem
+    ))) return [];
     return [decisionMatch.catalogId];
   }
 
-  // Inconclusive evidence only supplies a bounded set to the verified-reference
-  // comparator; it cannot establish a final identity on its own.
-  const ids = new Set<string>();
-  if (preferredCatalogId) ids.add(preferredCatalogId);
-  for (const [catalogId] of rankedVotes) ids.add(catalogId);
-  if (decisionMatch) ids.add(decisionMatch.catalogId);
-  for (const catalogId of candidateIds.slice(0, 8)) ids.add(catalogId);
-  const alternatives = [...ids].slice(0, 3);
+  // Only one representative ID per device model may enter the verified-reference shortlist.
+  const ids: string[] = [];
+  const seenModels = new Set<string>();
+  const addModel = (catalogId: string) => {
+    const item = catalog.find((entry) => entry.id === catalogId);
+    const key = item ? catalogModelKey(item) : catalogId;
+    if (seenModels.has(key)) return;
+    seenModels.add(key);
+    ids.push(catalogId);
+  };
+  if (preferredCatalogId) addModel(preferredCatalogId);
+  for (const vote of evidence.rankedVotes) addModel(vote.catalogId);
+  if (decisionMatch) addModel(decisionMatch.catalogId);
+  for (const catalogId of evidence.candidateIds.slice(0, 8)) addModel(catalogId);
+  const alternatives = ids.slice(0, 3);
   return alternatives.length >= 2 ? alternatives : [];
 }
 
@@ -846,11 +976,25 @@ export async function processRmaItem(
   ];
 
   const vendorMatch = vendorMatcher.matchTokens(ocrTokens);
-  const proposedDisplayMatch = matchDisplayToCatalog(
+  let proposedDisplayMatch = matchDisplayToCatalog(
     visualResult,
     catalogWithVerifiedPartNumbers,
     ocrStructured.part_numbers
   );
+
+  // Apply catalog-wide voting only when it cannot overrule exact part-number
+  // evidence or a prior verified-part-number conflict.
+  if (!verifiedPartNumberConflicts.length && proposedDisplayMatch?.matchType !== "part_number") {
+    const catalogConsensus = applyVisualCatalogConsensus(visualResult, catalogWithVerifiedPartNumbers);
+    if (catalogConsensus !== visualResult) {
+      visualResult = catalogConsensus;
+      proposedDisplayMatch = matchDisplayToCatalog(
+        visualResult,
+        catalogWithVerifiedPartNumbers,
+        ocrStructured.part_numbers
+      );
+    }
+  }
 
   // Contradictory operator-confirmed labels are a hard abstention signal.
   // Do not let a fresh Lens guess silently choose one side of the conflict.
