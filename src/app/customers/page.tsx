@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import { toast } from "sonner";
 import {
   CardSpotlight,
@@ -103,9 +104,11 @@ export default function CustomersPage() {
         {/* Executive Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Customer Directory
-            </h1>
+            <BlurIn
+              word="Customer Directory"
+              duration={0.24}
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            />
           </div>
 
           <ShimmerButton

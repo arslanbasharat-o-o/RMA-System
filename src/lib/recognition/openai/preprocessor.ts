@@ -1,92 +1,144 @@
 import sharp from "sharp";
 
+export type DisplayImageType =
+  | "primary"
+  | "front"
+  | "back"
+  | "flex_cable"
+  | "stamp_closeup"
+  | "sticker_closeup"
+  | "general";
+
+export interface DisplayFeatureCrop {
+  kind: "camera_notch" | "flex_area" | "connector_markings" | "detail";
+  label: string;
+  buffer: Buffer;
+}
+
 export interface PreprocessedImages {
   primaryBuffer: Buffer;
   cropBuffer?: Buffer;
   enhancedStampBuffer?: Buffer;
-  allCrops: Buffer[];
+  allCrops: DisplayFeatureCrop[];
+}
+
+const IMAGE_TYPE_LABELS: Record<DisplayImageType, string> = {
+  primary: "front view",
+  front: "front view",
+  back: "back view",
+  flex_cable: "flex cable close-up",
+  stamp_closeup: "stamp close-up",
+  sticker_closeup: "sticker close-up",
+  general: "general view",
+};
+
+export function normalizeDisplayImageType(value?: string): DisplayImageType {
+  return value && Object.prototype.hasOwnProperty.call(IMAGE_TYPE_LABELS, value)
+    ? value as DisplayImageType
+    : "general";
+}
+
+export function displayImageTypeLabel(value?: string): string {
+  return IMAGE_TYPE_LABELS[normalizeDisplayImageType(value)];
+}
+
+export function selectDisplayImagesForOcr<T extends { id: string; imageType: string }>(images: T[]): T[] {
+  const preferred = [
+    images.find((image) => image.imageType === "primary" || image.imageType === "front"),
+    images.find((image) => image.imageType === "flex_cable"),
+    images.find((image) => image.imageType === "back"),
+    ...images.filter((image) => image.imageType === "stamp_closeup" || image.imageType === "sticker_closeup"),
+    ...images,
+  ];
+  return [...new Map(
+    preferred.filter((image): image is T => Boolean(image)).map((image) => [image.id, image])
+  ).values()].slice(0, 4);
 }
 
 /**
- * Preprocesses an image buffer using Sharp for optimal OCR readability of display assemblies.
- * - Auto-rotates via EXIF.
- * - Normalizes dynamic range and contrast.
- * - Uses 4:4:4 chroma subsampling so ink stamp colors (purple/violet) and sharp edges don't blur.
- * - Generates targeted high-contrast crops of the bottom flex cable and connector stamp regions.
+ * Normalize the image, then crop only the physical region implied by its
+ * captured angle. Front photos expose the camera notch; back photos expose
+ * flex cables and their markings.
  */
 export async function preprocessForOcr(
   imageBuffer: Buffer,
-  generateFlexCrop = true
+  imageTypeOrLegacyFlexCrop?: string | boolean
 ): Promise<PreprocessedImages> {
-  // 1. Process primary image with contrast normalization and high chroma fidelity
+  const type = typeof imageTypeOrLegacyFlexCrop === "boolean"
+    ? imageTypeOrLegacyFlexCrop ? "back" : "stamp_closeup"
+    : normalizeDisplayImageType(imageTypeOrLegacyFlexCrop);
   const primaryBuffer = await sharp(imageBuffer)
-    .rotate() // auto-orient based on EXIF
+    .rotate()
     .resize(2560, 2560, { fit: "inside", withoutEnlargement: true })
-    .normalize() // stretch dynamic range to make faint markings legible
-    .jpeg({
-      quality: 95,
-      chromaSubsampling: "4:4:4", // preserve exact color borders for violet/cyan ink stamps
-    })
+    .normalize()
+    .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
     .toBuffer();
 
-  const crops: Buffer[] = [];
+  const crops: DisplayFeatureCrop[] = [];
   let cropBuffer: Buffer | undefined;
   let enhancedStampBuffer: Buffer | undefined;
 
-  if (generateFlexCrop) {
-    try {
-      const meta = await sharp(primaryBuffer).metadata();
-      const width = meta.width || 1000;
-      const height = meta.height || 1000;
+  try {
+    const meta = await sharp(primaryBuffer).metadata();
+    const width = meta.width || 1000;
+    const height = meta.height || 1000;
+    if (width <= 10 || height <= 10) return { primaryBuffer, allCrops: crops };
 
-      if (width > 10 && height > 10) {
-        // Extract bottom 40% of the display assembly where flex cables, ICs and stamps live
-        const cropHeight = Math.max(1, Math.floor(height * 0.4));
-        const cropTop = height - cropHeight;
-
+    if (type === "primary" || type === "front") {
+      const notchHeight = Math.max(1, Math.floor(height * 0.34));
+      const notch = await sharp(primaryBuffer)
+        .extract({ left: 0, top: 0, width, height: notchHeight })
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "camera_notch", label: "front camera notch and top edge", buffer: notch });
+    } else if (type === "back" || type === "general") {
+      const flexHeight = Math.max(1, Math.floor(height * 0.4));
+      const flexTop = height - flexHeight;
       cropBuffer = await sharp(primaryBuffer)
-        .extract({
-          left: 0,
-          top: cropTop,
-          width,
-          height: cropHeight,
-        })
+        .extract({ left: 0, top: flexTop, width, height: flexHeight })
         .sharpen({ sigma: 1.5, m1: 1.0, m2: 2.0 })
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
+      crops.push({ kind: "flex_area", label: "lower flex cable and connector region", buffer: cropBuffer });
 
-      crops.push(cropBuffer);
-
-      // Extract ultra-close-up center-bottom connector area with enhanced micro-contrast
-      // Specifically tuned for faint silver/gold laser etchings on black flexible printed circuits
-      const stampWidth = Math.floor(width * 0.7);
-      const stampLeft = Math.floor((width - stampWidth) / 2);
-      const stampHeight = Math.floor(cropHeight * 0.7);
-      const stampTop = cropTop + Math.floor((cropHeight - stampHeight) / 2);
-
+      const markingWidth = Math.max(1, Math.floor(width * 0.7));
+      const markingHeight = Math.max(1, Math.floor(flexHeight * 0.7));
+      const markingLeft = Math.floor((width - markingWidth) / 2);
+      const markingTop = flexTop + Math.floor((flexHeight - markingHeight) / 2);
       enhancedStampBuffer = await sharp(primaryBuffer)
-        .extract({
-          left: stampLeft,
-          top: stampTop,
-          width: stampWidth,
-          height: stampHeight,
-        })
-        .linear(1.2, -15) // boost micro-contrast for laser etchings & faint ink stamps
+        .extract({ left: markingLeft, top: markingTop, width: markingWidth, height: markingHeight })
+        .linear(1.2, -15)
         .sharpen({ sigma: 2.0, m1: 1.5, m2: 3.0 })
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
-
-        crops.push(enhancedStampBuffer);
-      }
-    } catch {
-      // If crop fails gracefully, primary image remains valid
+      crops.push({ kind: "connector_markings", label: "flex cable connector markings close-up", buffer: enhancedStampBuffer });
+    } else if (type === "flex_cable") {
+      const detailWidth = Math.max(1, Math.floor(width * 0.85));
+      const detailHeight = Math.max(1, Math.floor(height * 0.85));
+      const detailLeft = Math.floor((width - detailWidth) / 2);
+      const detailTop = Math.floor((height - detailHeight) / 2);
+      cropBuffer = await sharp(primaryBuffer)
+        .extract({ left: detailLeft, top: detailTop, width: detailWidth, height: detailHeight })
+        .sharpen({ sigma: 1.5, m1: 1.0, m2: 2.0 })
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "flex_area", label: "flex cable and printed code close-up", buffer: cropBuffer });
+    } else if (type === "stamp_closeup" || type === "sticker_closeup") {
+      const detailWidth = Math.max(1, Math.floor(width * 0.85));
+      const detailHeight = Math.max(1, Math.floor(height * 0.85));
+      const detailLeft = Math.floor((width - detailWidth) / 2);
+      const detailTop = Math.floor((height - detailHeight) / 2);
+      const detail = await sharp(primaryBuffer)
+        .extract({ left: detailLeft, top: detailTop, width: detailWidth, height: detailHeight })
+        .linear(1.2, -15)
+        .sharpen({ sigma: 1.5, m1: 1.0, m2: 2.0 })
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "detail", label: `${displayImageTypeLabel(type)} detail`, buffer: detail });
     }
+  } catch {
+    // Keep the full normalized image usable if a targeted crop cannot be produced.
   }
 
-  return {
-    primaryBuffer,
-    cropBuffer,
-    enhancedStampBuffer,
-    allCrops: crops,
-  };
+  return { primaryBuffer, cropBuffer, enhancedStampBuffer, allCrops: crops };
 }
