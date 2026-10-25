@@ -16,6 +16,7 @@ import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
+import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import {
   VISUAL_DECISION_POLICY,
@@ -569,18 +570,7 @@ export async function processRmaItem(
 
       const ocrService = new OpenAiVisionOcrService(undefined, configuredOpenAiVisionModel);
 
-      // Prefer the front notch, flex close-up, and back view before optional label photos.
-      const preferredOcrImages = [
-        images.find((img) => img.imageType === "primary" || img.imageType === "front"),
-        images.find((img) => img.imageType === "flex_cable"),
-        images.find((img) => img.imageType === "back"),
-        ...images.filter((img) => img.imageType === "stamp_closeup" || img.imageType === "sticker_closeup"),
-        ...images,
-      ];
-      const targetImages = [...new Map(
-        preferredOcrImages.filter((img): img is typeof images[number] => Boolean(img))
-          .map((img) => [img.id, img])
-      ).values()].slice(0, 3);
+      const targetImages = selectDisplayImagesForOcr(images);
 
       for (const img of targetImages) {
         try {
