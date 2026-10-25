@@ -1,11 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion, type SVGMotionProps } from "framer-motion";
 import { cn } from "@/lib/utils/cn";
-import { RmaLogo } from "@/components/brand/RmaLogo";
-export { RmaLogo } from "@/components/brand/RmaLogo";
-
 interface IconProps extends Omit<SVGMotionProps<SVGSVGElement>, "animate"> {
   size?: number;
   className?: string;
@@ -490,19 +487,6 @@ export function AnimatedAlertTriage({
 }
 
 /**
- * AnimatedBrandEmblem - Clean handcrafted RMA System Brand Emblem.
- */
-export function AnimatedBrandEmblem({
-  size = 32,
-  className,
-}: {
-  size?: number;
-  className?: string;
-}) {
-  return <RmaLogo size={size} className={className} variant="icon" />;
-}
-
-/**
  * AnimatedArrowRight - Sleek directional action arrow with sliding motion.
  */
 export function AnimatedArrowRight({
@@ -578,57 +562,6 @@ export function AnimatedCheckCircle({
         animate={isHovered ? { pathLength: [0, 1] } : { pathLength: 1 }}
         transition={{ duration: 0.3 }}
       />
-    </motion.svg>
-  );
-}
-
-/**
- * AnimatedRefresh - Rotating sync glyph.
- */
-interface AnimatedRefreshProps extends IconProps {
-  spinning?: boolean;
-}
-
-export function AnimatedRefresh({
-  size = 18,
-  className,
-  spinning = false,
-  animateOnHover = true,
-  ...props
-}: AnimatedRefreshProps) {
-  const [isHovered, setIsHovered] = useState(false);
-
-  return (
-    <motion.svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      onMouseEnter={() => animateOnHover && setIsHovered(true)}
-      onMouseLeave={() => animateOnHover && setIsHovered(false)}
-      animate={
-        spinning
-          ? { rotate: 360 }
-          : isHovered
-          ? { rotate: [0, 180] }
-          : { rotate: 0 }
-      }
-      transition={
-        spinning
-          ? { repeat: Infinity, duration: 0.8, ease: "linear" }
-          : { duration: 0.4, ease: "easeOut" }
-      }
-      className={cn("shrink-0 select-none", className)}
-      {...props}
-    >
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
-      <path d="M21 3v5h-5" />
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
-      <path d="M3 21v-5h5" />
     </motion.svg>
   );
 }

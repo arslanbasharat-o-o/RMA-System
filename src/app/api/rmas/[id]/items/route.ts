@@ -1,7 +1,7 @@
 import { hasIntakeCustomer, CUSTOMER_REQUIRED } from "@/lib/intake-customer";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { rmaItems, rmas, itemImages } from "@/db/schema";
+import { rmaItems, rmas } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { eq, desc, asc } from "drizzle-orm";
 

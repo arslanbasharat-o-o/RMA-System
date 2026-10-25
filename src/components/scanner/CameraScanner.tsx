@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { Camera, SwitchCamera, Images, Check, AlertCircle, ArrowRight, RotateCcw, ScanLine, X } from "lucide-react";
 import { LoadingIcon } from "@/components/ui/loading-icon";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";

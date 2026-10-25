@@ -10,7 +10,6 @@ import {
   index,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
 
 // ---------------------------------------------------------------------------
 // 1. Users & Authentication
@@ -516,51 +515,3 @@ export const appSettings = pgTable("app_settings", {
     .defaultNow()
     .notNull(),
 });
-
-// ---------------------------------------------------------------------------
-// Relations
-// ---------------------------------------------------------------------------
-export const usersRelations = relations(users, ({ many }) => ({
-  sessions: many(sessions),
-  rmas: many(rmas),
-}));
-
-export const rmasRelations = relations(rmas, ({ one, many }) => ({
-  customer: one(customers, {
-    fields: [rmas.customerId],
-    references: [customers.id],
-  }),
-  returnReason: one(returnReasons, {
-    fields: [rmas.returnReasonId],
-    references: [returnReasons.id],
-  }),
-  createdByUser: one(users, {
-    fields: [rmas.createdByUserId],
-    references: [users.id],
-  }),
-  items: many(rmaItems),
-}));
-
-export const rmaItemsRelations = relations(rmaItems, ({ one, many }) => ({
-  rma: one(rmas, {
-    fields: [rmaItems.rmaId],
-    references: [rmas.id],
-  }),
-  images: many(itemImages),
-  runs: many(recognitionRuns),
-  candidates: many(recognitionCandidates),
-  reviews: many(reviewActions),
-}));
-
-export const vendorsRelations = relations(vendors, ({ many }) => ({
-  variants: many(vendorVariants),
-  rules: many(vendorRecognitionRules),
-}));
-
-export const vendorVariantsRelations = relations(vendorVariants, ({ one, many }) => ({
-  vendor: one(vendors, {
-    fields: [vendorVariants.vendorId],
-    references: [vendors.id],
-  }),
-  rules: many(vendorRecognitionRules),
-}));

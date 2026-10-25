@@ -2,8 +2,8 @@ import { chooseOption } from "./select-option";
 import { E2E_TEST_PASSWORD } from "./credentials";
 import { test, expect, Page } from "@playwright/test";
 import { db } from "@/db";
-import { customers, returnReasons, rmas, rmaItems, itemImages, displayCatalog, vendors } from "@/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { rmaItems } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import sharp from "sharp";
 import { processRmaItem } from "@/lib/queue/processor";
 
