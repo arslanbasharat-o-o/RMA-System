@@ -18,7 +18,7 @@ import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/
 import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
 import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
-import { extractAppleModels, independentSource } from "@/lib/recognition/lens/model-evidence";
+import { independentSource } from "@/lib/recognition/lens/model-evidence";
 import {
   VISUAL_DECISION_POLICY,
   isCurrentVisualDecisionPolicy,
@@ -250,109 +250,61 @@ export function visualCandidateCatalogIds(
     .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
     .sort((a, b) => a.rank - b.rank)
     .slice(0, 30);
-  const mentionsAppleModel = rankedCandidates.some((candidate) => extractAppleModels(candidate.title).length > 0);
-
-  if (decision?.manufacturer?.toLowerCase() === "apple" || mentionsAppleModel) {
-    const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
-    const accessoryListing = /\b(?:case|cover|screen\s*protector|tempered\s*glass|camera\s*lens|charger|cable|battery|adhesive|glue|repair\s*kit|tools?)\b/i;
-    const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s*plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i;
-    const votes = new Map<string, { score: number; sources: Set<string> }>();
-    const seenVotes = new Set<string>();
-
-    for (const candidate of rankedCandidates) {
-      const models = extractAppleModels(candidate.title);
-      if (
-        models.length !== 1 ||
-        otherDevice.test(candidate.title) ||
-        accessoryListing.test(candidate.title) ||
-        !displayListing.test(candidate.title)
-      ) continue;
-
-      const source = independentSource(candidate.sourceUrl, candidate.sourceName);
-      if (!source) continue;
-      const voteKey = `${models[0]}\u0000${source}`;
-      if (seenVotes.has(voteKey)) continue;
-      seenVotes.add(voteKey);
-
-      const evidence = votes.get(models[0]) || { score: 0, sources: new Set<string>() };
-      evidence.score += 1 / Math.log2(candidate.rank + 1);
-      evidence.sources.add(source);
-      votes.set(models[0], evidence);
+  const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
+  const accessoryListing = /\b(?:case|cover|screen\s*protector|tempered\s*glass|camera\s*lens|charger|cable|battery|adhesive|glue|repair\s*kit|tools?)\b/i;
+  const normalizePhrase = (value: string) => value.toLowerCase()
+    .replace(/\+/g, " plus ")
+    .replace(/([a-z])(\d)/g, "$1 $2")
+    .replace(/(\d)([a-z])/g, "$1 $2")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+  const catalogPhraseOffsets = (title: string, phrase: string) => {
+    const normalizedTitle = normalizePhrase(title);
+    const normalizedPhrase = normalizePhrase(phrase);
+    if (!normalizedPhrase) return [];
+    const paddedTitle = ` ${normalizedTitle} `;
+    const paddedPhrase = ` ${normalizedPhrase} `;
+    const offsets: Array<{ start: number; end: number }> = [];
+    let searchFrom = 0;
+    let offset = paddedTitle.indexOf(paddedPhrase, searchFrom);
+    while (offset >= 0) {
+      offsets.push({ start: offset + 1, end: offset + 1 + normalizedPhrase.length });
+      searchFrom = offset + paddedPhrase.length;
+      offset = paddedTitle.indexOf(paddedPhrase, searchFrom);
     }
+    return offsets;
+  };
+  const candidateCatalogId = (candidate: typeof rankedCandidates[number]): string | undefined => {
+    const matchingItems = catalog.flatMap((item) => {
+      const phrases = [item.modelName, ...(item.aliases || [])];
+      const matchingPhrases = phrases.filter((phrase) => catalogPhraseOffsets(candidate.title, phrase).length > 0);
+      const matchedPhrase = matchingPhrases.sort((a, b) => normalizePhrase(b).length - normalizePhrase(a).length)[0];
+      const specificity = matchedPhrase ? normalizePhrase(matchedPhrase).length : 0;
+      return specificity ? [{ item, specificity, matchedPhrase }] : [];
+    });
+    const strongestSpecificity = Math.max(0, ...matchingItems.map((match) => match.specificity));
+    const strongestItems = matchingItems.filter((match) => match.specificity === strongestSpecificity);
+    if (!strongestSpecificity || strongestItems.length !== 1) return undefined;
 
-    const rankedVotes = [...votes].sort((a, b) => b[1].score - a[1].score);
-    const [winner, runner] = rankedVotes;
-    const voteMargin = runner && winner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
-    const sourceMargin = runner && winner
-      ? winner[1].sources.size / runner[1].sources.size
-      : Number.POSITIVE_INFINITY;
-    const decisiveVote = Boolean(
-      winner &&
-      winner[1].sources.size >= 3 &&
-      voteMargin >= 1.8 &&
-      sourceMargin >= 1.8
-    );
+    const item = strongestItems[0].item;
+    const selectedPhrase = strongestItems[0].matchedPhrase;
+    const modelName = normalizePhrase(item.modelName);
+    const manufacturer = normalizePhrase(item.manufacturer);
+    const hasUnrelatedModelMention = matchingItems.some(({ item: other, matchedPhrase: otherPhrase }) => {
+      if (other.id === item.id) return false;
+      const otherModelName = normalizePhrase(other.modelName);
+      if (normalizePhrase(other.manufacturer) !== manufacturer || !modelName.startsWith(`${otherModelName} `)) {
+        return true;
+      }
+      const selectedOccurrences = catalogPhraseOffsets(candidate.title, selectedPhrase);
+      const otherOccurrences = catalogPhraseOffsets(candidate.title, otherPhrase);
+      return !otherOccurrences.every((otherOccurrence) => selectedOccurrences.some((selectedOccurrence) =>
+        otherOccurrence.start >= selectedOccurrence.start && otherOccurrence.end <= selectedOccurrence.end
+      ));
+    });
+    if (hasUnrelatedModelMention) return undefined;
 
-    if (decisiveVote && winner) {
-      const decisionModels = decision?.model ? extractAppleModels(decision.model) : [];
-      if (
-        decision &&
-        decision.confidence >= 0.9 &&
-        (decision.manufacturer?.toLowerCase() !== "apple" ||
-          (decisionModels.length === 1 && decisionModels[0] !== winner[0]))
-      ) return [];
-
-      const winnerMatch = matchDisplayToCatalog({
-        ...visualResult,
-        candidates: [],
-        cleanDecision: undefined,
-        normalizedManufacturer: "Apple",
-        normalizedModel: winner[0],
-        detectedDisplayAssembly: `Apple ${winner[0]} Display`,
-      }, catalog, []);
-      if (!winnerMatch || (preferredCatalogId && preferredCatalogId !== winnerMatch.catalogId)) return [];
-      return [winnerMatch.catalogId];
-    }
-
-    // If Apple listings were attributable but the vote was not decisive, do
-    // not let a single cleaned title break the tie. Keep only the bounded
-    // alternatives below for verified-reference comparison.
-    if (votes.size > 0) {
-      // Continue into the conservative comparison shortlist below.
-    } else if (decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
-      const winnerMatch = matchDisplayToCatalog({
-        ...visualResult,
-        candidates: [],
-        normalizedManufacturer: decision.manufacturer,
-        normalizedModel: decision.model,
-        detectedDisplayAssembly: decision.displayName,
-      }, catalog, []);
-      if (!winnerMatch || (preferredCatalogId && preferredCatalogId !== winnerMatch.catalogId)) return [];
-      return [winnerMatch.catalogId];
-    }
-  } else if (decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
-    const winner = matchDisplayToCatalog({
-      ...visualResult,
-      candidates: [],
-      normalizedManufacturer: decision.manufacturer,
-      normalizedModel: decision.model,
-      detectedDisplayAssembly: decision.displayName,
-    }, catalog, []);
-    if (!winner || (preferredCatalogId && preferredCatalogId !== winner.catalogId)) return [];
-    return [winner.catalogId];
-  }
-
-  // Inconclusive votes retain a small alternative set only for the verified
-  // reference comparator; it cannot become a final identity by itself.
-  const ids = new Set<string>();
-  if (preferredCatalogId) ids.add(preferredCatalogId);
-
-  if (visualResult.cleanDecision) {
-    const match = matchDisplayToCatalog({ ...visualResult, candidates: [] }, catalog, []);
-    if (match) ids.add(match.catalogId);
-  }
-
-  for (const candidate of visualResult.candidates.slice(0, 8)) {
     const match = matchDisplayToCatalog({
       ...visualResult,
       candidates: [candidate],
@@ -360,9 +312,76 @@ export function visualCandidateCatalogIds(
       normalizedManufacturer: undefined,
       normalizedModel: undefined,
       detectedDisplayAssembly: undefined,
-    }, catalog, []);
-    if (match) ids.add(match.catalogId);
+    }, [{ ...item, aliases: [...new Set([...(item.aliases || []), item.modelName])] }], []);
+    return match?.catalogId;
+  };
+  const votes = new Map<string, { score: number; sources: Set<string> }>();
+  const seenVotes = new Set<string>();
+  const candidateIds: string[] = [];
+
+  for (const candidate of rankedCandidates) {
+    if (accessoryListing.test(candidate.title) || !displayListing.test(candidate.title)) continue;
+    const catalogId = candidateCatalogId(candidate);
+    if (!catalogId) continue;
+    if (!candidateIds.includes(catalogId)) candidateIds.push(catalogId);
+
+    const source = independentSource(candidate.sourceUrl, candidate.sourceName);
+    if (!source) continue;
+    const voteKey = `${catalogId}\u0000${source}`;
+    if (seenVotes.has(voteKey)) continue;
+    seenVotes.add(voteKey);
+
+    const evidence = votes.get(catalogId) || { score: 0, sources: new Set<string>() };
+    evidence.score += 1 / Math.log2(candidate.rank + 1);
+    evidence.sources.add(source);
+    votes.set(catalogId, evidence);
   }
+
+  const rankedVotes = [...votes].sort((a, b) =>
+    b[1].sources.size - a[1].sources.size || b[1].score - a[1].score
+  );
+  const [winner, runner] = rankedVotes;
+  const voteMargin = runner && winner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
+  const sourceMargin = runner && winner
+    ? winner[1].sources.size / runner[1].sources.size
+    : Number.POSITIVE_INFINITY;
+  const decisiveVote = Boolean(
+    winner &&
+    winner[1].sources.size >= 3 &&
+    voteMargin >= 1.8 &&
+    sourceMargin >= 1.8
+  );
+  const decisionMatch = decision?.manufacturer && decision.model
+    ? matchDisplayToCatalog({
+      ...visualResult,
+      candidates: [],
+      cleanDecision: undefined,
+      normalizedManufacturer: decision.manufacturer,
+      normalizedModel: decision.model,
+      detectedDisplayAssembly: decision.displayName,
+    }, catalog, [])
+    : null;
+
+  if (decisiveVote && winner) {
+    if (
+      (decision && decision.confidence >= 0.9 && (!decisionMatch || decisionMatch.catalogId !== winner[0])) ||
+      (preferredCatalogId && preferredCatalogId !== winner[0])
+    ) return [];
+    return [winner[0]];
+  }
+
+  if (votes.size === 0 && decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
+    if (!decisionMatch || (preferredCatalogId && preferredCatalogId !== decisionMatch.catalogId)) return [];
+    return [decisionMatch.catalogId];
+  }
+
+  // Inconclusive evidence only supplies a bounded set to the verified-reference
+  // comparator; it cannot establish a final identity on its own.
+  const ids = new Set<string>();
+  if (preferredCatalogId) ids.add(preferredCatalogId);
+  for (const [catalogId] of rankedVotes) ids.add(catalogId);
+  if (decisionMatch) ids.add(decisionMatch.catalogId);
+  for (const catalogId of candidateIds.slice(0, 8)) ids.add(catalogId);
   const alternatives = [...ids].slice(0, 3);
   return alternatives.length >= 2 ? alternatives : [];
 }
