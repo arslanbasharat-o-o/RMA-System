@@ -165,7 +165,7 @@ describe("visual candidate catalog shortlist", () => {
     ]);
   });
 
-  it("returns one catalog ID when independent listing votes clearly favor a model", () => {
+  it("keeps competing models available for verified comparison when the visual result abstains", () => {
     const candidates = [
       ...Array.from({ length: 10 }, (_, index) => ({
         title: "Apple iPhone 16 Pro Max OLED Display Assembly",
@@ -191,7 +191,58 @@ describe("visual candidate catalog shortlist", () => {
       candidates,
     });
 
-    expect(visualCandidateCatalogIds(result, iphone16Catalog)).toEqual(["iphone-16-pro-max"]);
+    expect(visualCandidateCatalogIds(result, iphone16Catalog)).toEqual([
+      "iphone-16-pro-max",
+      "iphone-16-pro",
+    ]);
+  });
+
+  it("includes lower-ranked catalog models in the bounded shortlist for an uncertain image", () => {
+    const models = [
+      { id: "iphone-x", modelName: "iPhone X" },
+      { id: "iphone-12-pro-max", modelName: "iPhone 12 Pro Max" },
+      { id: "iphone-14-pro-max", modelName: "iPhone 14 Pro Max" },
+      { id: "iphone-11", modelName: "iPhone 11" },
+      { id: "iphone-13-pro-max", modelName: "iPhone 13 Pro Max" },
+      { id: "iphone-xr", modelName: "iPhone XR" },
+    ];
+    const modelCatalog = models.map(({ id, modelName }) => ({
+      id,
+      manufacturer: "Apple",
+      modelName,
+      normalizedModelIdentifier: id,
+      aliases: [],
+      internalSku: null,
+      knownPartNumbers: [],
+      displayTechnology: "OLED",
+    }));
+    const candidates = [
+      ...Array.from({ length: 4 }, (_, index) => ({
+        title: "Apple iPhone X OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/iphone-x/${index + 1}`,
+        rank: index + 1,
+      })),
+      { title: "Apple iPhone 12 Pro Max OLED display", sourceUrl: "https://shop-one.com/12pm", rank: 5 },
+      { title: "Apple iPhone 12 Pro Max display assembly", sourceUrl: "https://shop-two.com/12pm", rank: 6 },
+      { title: "Apple iPhone 14 Pro Max display assembly", sourceUrl: "https://shop-three.com/14pm", rank: 7 },
+      { title: "Apple iPhone 11 display assembly", sourceUrl: "https://shop-four.com/11", rank: 8 },
+      { title: "Apple iPhone 13 Pro Max screen assembly", sourceUrl: "https://shop-five.com/13pm", rank: 9 },
+      { title: "Apple iPhone XR OLED display assembly", sourceUrl: "https://shop-six.com/xr", rank: 10 },
+    ];
+    const result = visualResult({
+      candidates,
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: null,
+        suggestedModel: "iPhone X",
+        displayName: "Unidentified Apple Display",
+        confidence: 0.45,
+        cleanedCandidates: [],
+        reasoning: "The image-based decision is uncertain.",
+      },
+    });
+
+    expect(visualCandidateCatalogIds(result, modelCatalog)).toEqual(models.map(({ id }) => id));
   });
 
   it("uses the same catalog-based voting for non-Apple manufacturers", () => {

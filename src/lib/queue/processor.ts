@@ -473,13 +473,15 @@ export function visualCandidateCatalogIds(
   const winner = evidence.decisiveWinner;
   const preferredItem = catalog.find((item) => item.id === preferredCatalogId);
 
-  if (winner) {
-    const decisionConflicts = Boolean(decision && decision.confidence >= 0.9 &&
-      !decisionMatchesCatalogModel(decision, winner.key, catalog));
-    const preferredConflicts = Boolean(preferredItem && catalogModelKey(preferredItem) !== winner.key);
-    if (decisionConflicts || preferredConflicts) return [];
-    return [preferredItem && catalogModelKey(preferredItem) === winner.key ? preferredItem.id : winner.catalogId];
-  }
+  const ids: string[] = [];
+  const seenModels = new Set<string>();
+  const addModel = (catalogId: string) => {
+    const item = catalog.find((entry) => entry.id === catalogId);
+    const key = item ? catalogModelKey(item) : catalogId;
+    if (seenModels.has(key)) return;
+    seenModels.add(key);
+    ids.push(catalogId);
+  };
 
   const decisionMatch = decision?.manufacturer && decision.model
     ? matchDisplayToCatalog({
@@ -491,6 +493,40 @@ export function visualCandidateCatalogIds(
       detectedDisplayAssembly: decision.displayName,
     }, catalog, [])
     : null;
+
+  if (winner) {
+    const decisionConflicts = Boolean(decision?.model && decision.confidence >= 0.9 &&
+      !decisionMatchesCatalogModel(decision, winner.key, catalog));
+    const preferredConflicts = Boolean(preferredItem && catalogModelKey(preferredItem) !== winner.key);
+    if (decisionConflicts || preferredConflicts) return [];
+
+    // A listing-vote winner is not enough to resolve an uncertain image. Keep
+    // competing catalog models available for the verified-photo comparison.
+    // This is capped because each shortlisted model adds reference images to
+    // the vision request; the comparison still has to meet its strict match
+    // threshold before it can affect the result.
+    if (decision && (!decision.model || decision.confidence < 0.85)) {
+      const suggestedDecision = decision?.manufacturer && decision.suggestedModel
+        ? { ...decision, model: decision.suggestedModel }
+        : null;
+      const suggestedCatalogItem = suggestedDecision
+        ? catalog.find((item) => decisionMatchesCatalogModel(
+          suggestedDecision,
+          catalogModelKey(item),
+          catalog
+        ))
+        : undefined;
+      if (suggestedCatalogItem) addModel(suggestedCatalogItem.id);
+      if (decisionMatch) addModel(decisionMatch.catalogId);
+      for (const vote of evidence.rankedVotes.slice(0, 8)) addModel(vote.catalogId);
+      for (const catalogId of evidence.candidateIds.slice(0, 8)) addModel(catalogId);
+      const comparisonCandidates = ids.slice(0, 8);
+      return comparisonCandidates.length >= 2 ? comparisonCandidates : [];
+    }
+
+    return [preferredItem && catalogModelKey(preferredItem) === winner.key ? preferredItem.id : winner.catalogId];
+  }
+
   if (!evidence.rankedVotes.length && decision?.manufacturer && decision.model && decision.confidence >= 0.9) {
     if (!decisionMatch || (preferredItem && catalogModelKey(preferredItem) !== catalogModelKey(
       catalog.find((item) => item.id === decisionMatch.catalogId) || preferredItem
@@ -499,15 +535,6 @@ export function visualCandidateCatalogIds(
   }
 
   // Only one representative ID per device model may enter the verified-reference shortlist.
-  const ids: string[] = [];
-  const seenModels = new Set<string>();
-  const addModel = (catalogId: string) => {
-    const item = catalog.find((entry) => entry.id === catalogId);
-    const key = item ? catalogModelKey(item) : catalogId;
-    if (seenModels.has(key)) return;
-    seenModels.add(key);
-    ids.push(catalogId);
-  };
   if (preferredCatalogId) addModel(preferredCatalogId);
   for (const vote of evidence.rankedVotes) addModel(vote.catalogId);
   if (decisionMatch) addModel(decisionMatch.catalogId);
