@@ -2,6 +2,11 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.21] - 2026-10-25
+
+### Fixed
+- Vote across unique, attributable display listings before shortlisting a single Apple catalog model; require independent-source and rank-score margins, and abstain from a single-ID result when evidence conflicts.
+
 ## [0.3.20] - 2026-10-25
 
 ### Added
