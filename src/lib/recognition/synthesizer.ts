@@ -16,6 +16,8 @@ export interface CatalogDisplayMatch {
   matchType: "exact" | "alias" | "candidate" | "part_number";
   contradictionDetected?: boolean;
   contradictionDetails?: string;
+  verifiedExampleCount?: number;
+  matchedPartNumber?: string;
 }
 
 export interface UnifiedIdentificationResult {
@@ -80,6 +82,10 @@ function compactSlug(value: string): string {
     .replace(/[^a-z0-9]/g, "");
 }
 
+function compactPartNumber(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+}
+
 /**
  * Normalizes and matches Google Lens candidates against internal display catalog items.
  */
@@ -94,21 +100,30 @@ export function matchDisplayToCatalog(
     internalSku: string | null;
     knownPartNumbers: string[];
     displayTechnology: string | null;
+    verifiedPartNumberSupport?: Record<string, number>;
   }>,
   extractedPartNumbers: string[] = []
 ): CatalogDisplayMatch | null {
   // 1. First priority: Exact match via extracted part number
-  const partNumberMatches = new Map<string, (typeof catalog)[number]>();
+  const partNumberMatches = new Map<string, {
+    item: (typeof catalog)[number];
+    matchedPartNumber: string;
+    verifiedExampleCount: number;
+  }>();
   for (const partNum of extractedPartNumbers) {
-    const cleanPart = partNum.trim().toUpperCase();
+    const cleanPart = compactPartNumber(partNum);
     for (const item of catalog) {
-      if (item.knownPartNumbers.some((k) => k.trim().toUpperCase() === cleanPart)) {
-        partNumberMatches.set(item.id, item);
+      if (item.knownPartNumbers.some((known) => compactPartNumber(known) === cleanPart)) {
+        partNumberMatches.set(item.id, {
+          item,
+          matchedPartNumber: partNum,
+          verifiedExampleCount: item.verifiedPartNumberSupport?.[cleanPart] || 0,
+        });
       }
     }
   }
   if (partNumberMatches.size === 1) {
-    const item = [...partNumberMatches.values()][0];
+    const { item, matchedPartNumber, verifiedExampleCount } = [...partNumberMatches.values()][0];
     let contradictionDetected = false;
     let contradictionDetails: string | undefined;
 
@@ -135,10 +150,16 @@ export function matchDisplayToCatalog(
       normalizedIdentifier: item.normalizedModelIdentifier,
       displayTechnology: item.displayTechnology,
       internalSku: item.internalSku,
-      confidenceScore: contradictionDetected ? 0.7 : 0.99,
+      confidenceScore: contradictionDetected
+        ? 0.7
+        : verifiedExampleCount
+        ? verifiedExampleCount >= 3 ? 0.96 : 0.91
+        : 0.99,
       matchType: "part_number",
       contradictionDetected,
       contradictionDetails,
+      verifiedExampleCount: verifiedExampleCount || undefined,
+      matchedPartNumber,
     };
   } else if (partNumberMatches.size > 1) {
     return null;

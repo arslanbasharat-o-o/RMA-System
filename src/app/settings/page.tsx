@@ -4,6 +4,7 @@ import React, { useEffect, useState, useTransition, Suspense, lazy } from "react
 import { AppShell } from "@/components/layout/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import { toast } from "sonner";
 import { Sliders, Eye, Users, Palette } from "lucide-react";
 
@@ -177,9 +178,11 @@ export default function SettingsPage() {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-100">
-            System Settings
-          </h1>
+          <BlurIn
+            word="System Settings"
+            duration={0.24}
+            className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-100"
+          />
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>

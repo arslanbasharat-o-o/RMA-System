@@ -2,6 +2,19 @@
 
 Changes to the public source are recorded here.
 
+## [0.3.20] - 2026-10-25
+
+### Added
+- Reuse independent operator-verified part numbers and angle-matched display photos as bounded feedback during later recognition, while withholding uncertain or conflicting results for review.
+- Capture an optional flex-cable close-up and crop front-notch, back-flex, connector-marking, and label regions according to the selected photo angle.
+- Record verified-example comparison inputs and outcomes for recognition audit.
+- Add reduced-motion-aware blur-in animation to the login and main app page headings.
+
+### Fixed
+- Send up to four prioritized front, flex, back, and label photos through angle-aware OCR, and compare like-for-like display regions against verified references.
+- Exclude all current target photo checksums from verified reference selection to prevent a display from matching against a duplicate of its own image.
+- Upgrade vulnerable runtime dependencies and update the settings record schema for Zod 4.
+
 ## [0.3.19] - 2026-10-19
 
 ### Fixed

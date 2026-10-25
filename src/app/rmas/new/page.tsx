@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -156,9 +157,11 @@ export default function CreateRmaPage() {
 
         {/* Header */}
         <div className="pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-            New RMA
-          </h1>
+          <BlurIn
+            word="New RMA"
+            duration={0.24}
+            className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+          />
         </div>
 
         {/* Intake Form with CardSpotlight */}

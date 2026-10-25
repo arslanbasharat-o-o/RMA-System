@@ -12,10 +12,11 @@ import {
   appSettings,
   reviewActions,
 } from "@/db/schema";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
-import { OpenAiVisionOcrService } from "@/lib/recognition/openai";
+import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
+import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import {
   VISUAL_DECISION_POLICY,
@@ -27,6 +28,12 @@ import {
   type VisualDecisionSnapshot,
 } from "@/lib/recognition/lens/stable-decision";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
+import {
+  addVerifiedPartNumbersToCatalog,
+  findVerifiedPartNumberConflicts,
+  shouldApplyVerifiedVisualComparison,
+  type VerifiedDisplayExample,
+} from "@/lib/recognition/verified-feedback";
 import { VendorRuleMatcher } from "@/lib/recognition/rules/matcher";
 import {
   matchDisplayToCatalog,
@@ -162,6 +169,168 @@ async function previousVisualDecisions(
 
 function selectedRecognitionImage<T extends { imageType: string; sortOrder: number }>(images: T[]): T | undefined {
   return images.find((image) => image.imageType === "primary" || image.imageType === "front") || images[0];
+}
+
+async function loadVerifiedDisplayExamples(excludeItemId: string): Promise<VerifiedDisplayExample[]> {
+  // Integration tests share a disposable database and execute concurrently;
+  // synthetic verified fixtures must not become each other's feedback. Unit
+  // tests cover the feedback rules, and a dedicated integration test can opt in.
+  if (process.env.NODE_ENV === "test" && process.env.TEST_VERIFIED_FEEDBACK !== "true") {
+    return [];
+  }
+
+  const rows = await db
+    .select({
+      itemId: rmaItems.id,
+      catalogDisplayId: rmaItems.catalogDisplayId,
+      partNumbers: ocrExtractions.partNumbers,
+      runRevision: recognitionRuns.recognitionRevision,
+    })
+    .from(ocrExtractions)
+    .innerJoin(rmaItems, eq(ocrExtractions.rmaItemId, rmaItems.id))
+    .innerJoin(recognitionRuns, eq(ocrExtractions.recognitionRunId, recognitionRuns.id))
+    .where(and(
+      eq(rmaItems.status, "verified"),
+      isNotNull(rmaItems.catalogDisplayId),
+      ne(rmaItems.id, excludeItemId),
+      eq(recognitionRuns.pipelineType, "vendor_ocr"),
+      eq(recognitionRuns.status, "completed")
+    ))
+    .orderBy(desc(rmaItems.verifiedAt))
+    .limit(10000);
+
+  const latestRevisionByItem = new Map<string, number>();
+  for (const row of rows) {
+    latestRevisionByItem.set(row.itemId, Math.max(latestRevisionByItem.get(row.itemId) || -1, row.runRevision));
+  }
+  return rows
+    .filter((row) => row.runRevision === latestRevisionByItem.get(row.itemId))
+    .map((row) => ({
+      itemId: row.itemId,
+      catalogDisplayId: row.catalogDisplayId,
+      partNumbers: row.partNumbers || [],
+    }));
+}
+
+async function loadVerifiedVisualReferenceRows(
+  excludeItemId: string,
+  catalogIds: string[]
+) {
+  if (catalogIds.length < 2) return [];
+  return db
+    .select({
+      itemId: rmaItems.id,
+      catalogDisplayId: rmaItems.catalogDisplayId,
+      verifiedAt: rmaItems.verifiedAt,
+      imageType: itemImages.imageType,
+      storagePath: itemImages.storagePath,
+      checksumSha256: itemImages.checksumSha256,
+      sortOrder: itemImages.sortOrder,
+    })
+    .from(rmaItems)
+    .innerJoin(itemImages, eq(itemImages.rmaItemId, rmaItems.id))
+    .where(and(
+      eq(rmaItems.status, "verified"),
+      isNotNull(rmaItems.catalogDisplayId),
+      inArray(rmaItems.catalogDisplayId, catalogIds),
+      ne(rmaItems.id, excludeItemId)
+    ))
+    .orderBy(desc(rmaItems.verifiedAt), asc(itemImages.sortOrder))
+    .limit(200);
+}
+
+function visualCandidateCatalogIds(
+  visualResult: VisualIdentificationResult,
+  catalog: Parameters<typeof matchDisplayToCatalog>[1],
+  preferredCatalogId?: string | null
+): string[] {
+  const ids = new Set<string>();
+  if (preferredCatalogId) ids.add(preferredCatalogId);
+
+  if (visualResult.cleanDecision) {
+    const match = matchDisplayToCatalog({ ...visualResult, candidates: [] }, catalog, []);
+    if (match) ids.add(match.catalogId);
+  }
+
+  for (const candidate of visualResult.candidates.slice(0, 8)) {
+    const match = matchDisplayToCatalog({
+      ...visualResult,
+      candidates: [candidate],
+      cleanDecision: undefined,
+      normalizedManufacturer: undefined,
+      normalizedModel: undefined,
+      detectedDisplayAssembly: undefined,
+    }, catalog, []);
+    if (match) ids.add(match.catalogId);
+  }
+  return [...ids].slice(0, 3);
+}
+
+async function loadVerifiedVisualReferences(
+  excludeItemId: string,
+  excludedChecksums: string[],
+  catalogIds: string[],
+  catalog: Array<{ id: string; manufacturer: string; modelName: string }>
+): Promise<VerifiedDisplayReference[]> {
+  const rows = await loadVerifiedVisualReferenceRows(excludeItemId, catalogIds);
+  const rowsByCatalog = new Map<string, Map<string, typeof rows>>();
+  for (const row of rows) {
+    if (!row.catalogDisplayId) continue;
+    const items = rowsByCatalog.get(row.catalogDisplayId) || new Map<string, typeof rows>();
+    const itemImages = items.get(row.itemId) || [];
+    itemImages.push(row);
+    items.set(row.itemId, itemImages);
+    rowsByCatalog.set(row.catalogDisplayId, items);
+  }
+
+  const selected: Array<{
+    itemId: string;
+    catalogDisplayId: string;
+    label: string;
+    images: Array<{ storagePath: string; imageType: string; checksumSha256: string }>;
+  }> = [];
+  // Never compare an upload against a copy of any of its own target photos,
+  // even if that same photo was previously attached to another verified item.
+  const usedChecksums = new Set<string>(excludedChecksums);
+  for (const catalogId of catalogIds) {
+    const examples = rowsByCatalog.get(catalogId);
+    if (!examples) continue;
+    const catalogItem = catalog.find((entry) => entry.id === catalogId);
+    if (!catalogItem) continue;
+    for (const [exampleItemId, images] of examples) {
+      const front = selectedRecognitionImage(images);
+      const detail = images.find((image) => image.imageType === "flex_cable") ||
+        images.find((image) => image.imageType === "back");
+      const availableImages = [front, detail]
+        .filter((image): image is NonNullable<typeof image> => image !== undefined);
+      const chosenImages = availableImages
+        .filter((image, index, list) => list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index)
+        .filter((image) => !usedChecksums.has(image.checksumSha256));
+      if (!chosenImages.length) continue;
+      for (const image of chosenImages) usedChecksums.add(image.checksumSha256);
+      selected.push({
+        itemId: exampleItemId,
+        catalogDisplayId: catalogId,
+        label: `${catalogItem.manufacturer} ${catalogItem.modelName}`,
+        images: chosenImages.map((image) => ({
+          storagePath: image.storagePath,
+          imageType: image.imageType,
+          checksumSha256: image.checksumSha256,
+        })),
+      });
+      break;
+    }
+  }
+
+  return Promise.all(selected.map(async (example) => ({
+    itemId: example.itemId,
+    catalogDisplayId: example.catalogDisplayId,
+    label: example.label,
+    images: await Promise.all(example.images.map(async (image) => ({
+      imageType: image.imageType,
+      imageBuffer: await storage.getImageBuffer(image.storagePath),
+    }))),
+  })));
 }
 
 export async function processRmaItem(
@@ -383,37 +552,32 @@ export async function processRmaItem(
 
   let ocrHadSuccess = false;
   let lastError: string | null = null;
+  let configuredOpenAiVisionModel: string | undefined;
 
   const ocrTask = (async () => {
     if (shouldRunOcr) {
-      let configuredModel: string | undefined;
       try {
         const [setting] = await db
           .select()
           .from(appSettings)
           .where(eq(appSettings.key, "OPENAI_VISION_MODEL"));
         if (setting?.value && typeof setting.value === "string") {
-          configuredModel = setting.value;
+          configuredOpenAiVisionModel = setting.value;
         }
       } catch {
         // Fallback to env default
       }
 
-      const ocrService = new OpenAiVisionOcrService(undefined, configuredModel);
+      const ocrService = new OpenAiVisionOcrService(undefined, configuredOpenAiVisionModel);
 
-      // Select OCR-relevant images (back, stamp_closeup, sticker_closeup, flex_cable)
-      const ocrImages = images.filter((img) =>
-        ["back", "stamp_closeup", "sticker_closeup", "flex_cable"].includes(img.imageType)
-      );
-
-      // If no specialized angles, analyze all available images (up to 3 to bound resources)
-      const targetImages = (ocrImages.length > 0 ? ocrImages : images).slice(0, 3);
+      const targetImages = selectDisplayImagesForOcr(images);
 
       for (const img of targetImages) {
         try {
           const imgBuffer = await storage.getImageBuffer(img.storagePath);
           const res = await ocrService.extractMarkings(imgBuffer, {
             filename: img.originalFilename,
+            imageType: img.imageType,
           });
 
           if (res.error) {
@@ -540,6 +704,17 @@ export async function processRmaItem(
   const allVariants = await db.select().from(vendorVariants).where(eq(vendorVariants.isActive, true));
   const allCatalog = await db.select().from(displayCatalog).where(eq(displayCatalog.isActive, true));
 
+  // Human-verified examples become a reusable part-number index. We require
+  // two separate verified items for a learned mapping and preserve conflicts.
+  const verifiedExamples = ocrStructured.part_numbers.length
+    ? await loadVerifiedDisplayExamples(itemId)
+    : [];
+  const catalogWithVerifiedPartNumbers = addVerifiedPartNumbersToCatalog(allCatalog, verifiedExamples);
+  const verifiedPartNumberConflicts = findVerifiedPartNumberConflicts(
+    ocrStructured.part_numbers,
+    verifiedExamples
+  );
+
   const vendorMatcher = new VendorRuleMatcher(allRules, allVendors, allVariants);
 
   // Collect all extracted tokens
@@ -551,18 +726,162 @@ export async function processRmaItem(
   ];
 
   const vendorMatch = vendorMatcher.matchTokens(ocrTokens);
-  const displayMatch = matchDisplayToCatalog(
+  const proposedDisplayMatch = matchDisplayToCatalog(
     visualResult,
-    allCatalog,
+    catalogWithVerifiedPartNumbers,
     ocrStructured.part_numbers
   );
+
+  // Contradictory operator-confirmed labels are a hard abstention signal.
+  // Do not let a fresh Lens guess silently choose one side of the conflict.
+  let displayMatch = verifiedPartNumberConflicts.length ? null : proposedDisplayMatch;
+  let synthesisVisualResult: VisualIdentificationResult = verifiedPartNumberConflicts.length
+    ? {
+        ...visualResult,
+        normalizedManufacturer: undefined,
+        normalizedModel: undefined,
+        detectedDisplayAssembly: undefined,
+        cleanDecision: undefined,
+      }
+    : visualResult;
+
+  let verifiedComparisonDisagrees = false;
+  let verifiedComparison: Awaited<ReturnType<OpenAiVisionOcrService["compareToVerifiedExamples"]>> | null = null;
+  const needsVisualHelp = !proposedDisplayMatch ||
+    proposedDisplayMatch.confidenceScore < 0.85 ||
+    Boolean(proposedDisplayMatch.contradictionDetected) ||
+    (visualResult.cleanDecision?.confidence ?? 0) < 0.75;
+
+  // On uncertain results, compare the front image with one human-verified
+  // reference for each of up to three plausible catalog models. This is a
+  // bounded inference-time example lookup, never a background weight update.
+  if (
+    shouldRunVisual &&
+    !verifiedPartNumberConflicts.length &&
+    needsVisualHelp &&
+    proposedDisplayMatch?.matchType !== "part_number"
+  ) {
+    const candidateIds = visualCandidateCatalogIds(visualResult, allCatalog, proposedDisplayMatch?.catalogId);
+    if (candidateIds.length >= 2) {
+      try {
+        if (!configuredOpenAiVisionModel) {
+          const [setting] = await db.select().from(appSettings)
+            .where(eq(appSettings.key, "OPENAI_VISION_MODEL"));
+          if (typeof setting?.value === "string") configuredOpenAiVisionModel = setting.value;
+        }
+        const targetComparisonImages = [
+          primaryImage,
+          ...images.filter((image) => image.imageType === "flex_cable" || image.imageType === "back"),
+        ].filter((image, index, list) =>
+          list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index
+        ).slice(0, 3);
+        const references = await loadVerifiedVisualReferences(
+          itemId,
+          targetComparisonImages.map((image) => image.checksumSha256),
+          candidateIds,
+          allCatalog
+        );
+        if (references.length >= 2) {
+          const comparator = new OpenAiVisionOcrService(undefined, configuredOpenAiVisionModel);
+          const targetImages = await Promise.all(targetComparisonImages.map(async (image) => ({
+            imageType: image.imageType,
+            imageBuffer: await storage.getImageBuffer(image.storagePath),
+          })));
+          verifiedComparison = await comparator.compareToVerifiedExamples(targetImages, references);
+
+          await db.insert(recognitionRuns).values({
+            rmaItemId: itemId,
+            recognitionRevision: revision,
+            pipelineType: "unified",
+            providerName: `openai-verified-examples:${verifiedComparison.model}`,
+            status: verifiedComparison.error ? "failed" : "completed",
+            rawRequest: {
+              targetChecksumSha256s: targetComparisonImages.map((image) => image.checksumSha256),
+              candidateCatalogIds: references.map((reference) => reference.catalogDisplayId),
+              referenceItemIds: references.map((reference) => reference.itemId),
+            },
+            rawResponse: {
+              selectedCatalogDisplayId: verifiedComparison.selectedCatalogDisplayId,
+              confidence: verifiedComparison.confidence,
+              matchingCues: verifiedComparison.matchingCues,
+              conflictingCues: verifiedComparison.conflictingCues,
+            },
+            durationMs: verifiedComparison.durationMs,
+            errorMessage: verifiedComparison.error || null,
+          });
+
+          const selectedCatalogItem = verifiedComparison.selectedCatalogDisplayId
+            ? allCatalog.find((entry) => entry.id === verifiedComparison?.selectedCatalogDisplayId)
+            : undefined;
+          if (selectedCatalogItem && shouldApplyVerifiedVisualComparison(
+            verifiedComparison.selectedCatalogDisplayId,
+            verifiedComparison.confidence,
+            candidateIds
+          )) {
+            const selectedComparison = {
+              ...visualResult,
+              normalizedManufacturer: selectedCatalogItem.manufacturer,
+              normalizedModel: selectedCatalogItem.modelName,
+              detectedDisplayAssembly: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
+              cleanDecision: {
+                manufacturer: selectedCatalogItem.manufacturer,
+                model: selectedCatalogItem.modelName,
+                displayName: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
+                confidence: verifiedComparison.confidence,
+                cleanedCandidates: visualResult.candidates.map((candidate) => candidate.title).slice(0, 5),
+                reasoning: `Compared the upload with ${references.length} operator-verified reference displays. ${verifiedComparison.matchingCues.join("; ")}`,
+              },
+            } satisfies VisualIdentificationResult;
+            const comparedMatch = matchDisplayToCatalog(
+              selectedComparison,
+              catalogWithVerifiedPartNumbers,
+              ocrStructured.part_numbers
+            );
+            if (comparedMatch?.catalogId === selectedCatalogItem.id) {
+              const previousBestCatalogId = proposedDisplayMatch?.catalogId || candidateIds[0];
+              verifiedComparisonDisagrees = previousBestCatalogId !== selectedCatalogItem.id;
+              synthesisVisualResult = selectedComparison;
+              displayMatch = comparedMatch;
+            }
+          }
+        }
+      } catch (error) {
+        console.warn("[Processor] Verified-example comparison could not run:", error);
+      }
+    }
+  }
 
   const unified = synthesizeRecognition(
     displayMatch,
     vendorMatch,
     ocrStructured,
-    visualResult
+    synthesisVisualResult
   );
+
+  if (displayMatch?.verifiedExampleCount && displayMatch.matchedPartNumber) {
+    unified.evidenceNotes.push(
+      `Verified feedback matched part number ${displayMatch.matchedPartNumber} across ${displayMatch.verifiedExampleCount} independently verified displays.`
+    );
+  }
+  if (verifiedComparison?.selectedCatalogDisplayId && displayMatch?.catalogId === verifiedComparison.selectedCatalogDisplayId) {
+    unified.evidenceNotes.push(
+      `Compared available front and flex/back photos with operator-verified examples using ${verifiedComparison.model} (confidence ${verifiedComparison.confidence.toFixed(2)}). Matching cues: ${verifiedComparison.matchingCues.join("; ") || "none reported"}.`
+    );
+    if (verifiedComparison.conflictingCues.length) {
+      unified.evidenceNotes.push(`Conflicting visual cues: ${verifiedComparison.conflictingCues.join("; ")}.`);
+    }
+  } else if (verifiedComparison?.selectedCatalogDisplayId) {
+    unified.evidenceNotes.push("Verified-example comparison did not reach the confidence threshold; the candidate remains unconfirmed.");
+  } else if (verifiedComparison?.error) {
+    unified.evidenceNotes.push(`Verified-example comparison unavailable: ${verifiedComparison.error}`);
+  } else if (verifiedComparison && verifiedComparison.selectedCatalogDisplayId === null) {
+    unified.evidenceNotes.push("Verified-example comparison abstained because the reference images did not clearly match one candidate.");
+  }
+  for (const conflict of verifiedPartNumberConflicts) {
+    unified.evidenceNotes.push(
+      `Verified feedback conflict: part number ${conflict.partNumber} appears on ${conflict.exampleCount} verified displays labeled as ${conflict.modelCount} different models. Model identification was withheld.`
+    );
+  }
 
   // Determine final item status considering provider health
   const currentVisualStatus = visualResult.error
@@ -578,6 +897,20 @@ export async function processRmaItem(
     : item.vendorOcrStatus;
 
   let finalItemStatus = unified.itemStatus;
+  if (
+    verifiedPartNumberConflicts.length ||
+    verifiedComparisonDisagrees ||
+    Boolean(verifiedComparison?.conflictingCues.length)
+  ) {
+    finalItemStatus = "review_required";
+    unified.overallMatchStatus = "ambiguous";
+    if (verifiedComparisonDisagrees) {
+      unified.evidenceNotes.push("Verified-example comparison selected a different model than the initial recognition result. Human confirmation is required.");
+    }
+    if (verifiedComparison?.conflictingCues.length) {
+      unified.evidenceNotes.push("Verified-example comparison found conflicting physical cues. Human confirmation is required.");
+    }
+  }
   if (currentVisualStatus === "failed" && currentOcrStatus === "failed") {
     finalItemStatus = "failed";
   } else if (currentVisualStatus !== "success" || currentOcrStatus !== "success") {

@@ -12,6 +12,7 @@ import {
   Package,
 } from "lucide-react";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import {
   CardSpotlight,
   DataTableToolbar,
@@ -130,9 +131,11 @@ export default function RmaListPage() {
         {/* Executive Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
           <div>
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-              RMA Shipments
-            </h1>
+            <BlurIn
+              word="RMA Shipments"
+              duration={0.24}
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            />
           </div>
 
           <Link href="/rmas/new" className="shrink-0 self-start sm:self-auto">
