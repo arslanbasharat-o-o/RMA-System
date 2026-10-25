@@ -66,6 +66,20 @@ describe("ranked Apple display evidence", () => {
     expect(evidence?.reasoning).toContain("1 independent display source(s)");
   });
 
+  it("counts one publisher once per model instead of erasing its different-model listing", () => {
+    const evidence = appleVisualEvidence(matches([
+      ["iPhone 14 Pro Max OLED display assembly", "ifixit.com"],
+      ["iPhone 13 Pro Max OLED display assembly", "ifixit.com"],
+      ["iPhone 13 Pro Max replacement screen", "mobile-sentrix.example"],
+      ["iPhone 13 Pro Max display panel", "fixez.example"],
+      ["iPhone 13 Pro Max screen assembly", "injured-gadgets.example"],
+    ]));
+
+    expect(evidence?.model).toBe("iPhone 13 Pro Max");
+    expect(evidence?.confidence).toBeGreaterThan(0.5);
+    expect(evidence?.reasoning).toContain("4 independent display sources");
+  });
+
   it("does not treat matching titles without attributable listing URLs as independent evidence", () => {
     const evidence = appleVisualEvidence([
       { title: "iPhone 14 Plus LCD display", rank: 1 },

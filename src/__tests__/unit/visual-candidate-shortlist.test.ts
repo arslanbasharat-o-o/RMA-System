@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { visualCandidateCatalogIds } from "@/lib/queue/processor";
+import { applyVisualCatalogConsensus, visualCandidateCatalogIds } from "@/lib/queue/processor";
 import type { VisualIdentificationResult } from "@/lib/recognition/lens/types";
 
 const catalog = [
@@ -78,6 +78,20 @@ const samsungCatalog = [
     internalSku: null,
     knownPartNumbers: [],
     displayTechnology: "OLED",
+  },
+];
+
+const samsungVariantCatalog = [
+  ...samsungCatalog,
+  {
+    id: "samsung-s21-ultra-soft",
+    manufacturer: "Samsung",
+    modelName: "Samsung Galaxy S21 Ultra",
+    normalizedModelIdentifier: "samsung-galaxy-s21-ultra-soft",
+    aliases: ["Galaxy S21 Ultra", "S21 Ultra"],
+    internalSku: "S21U-SOFT",
+    knownPartNumbers: [],
+    displayTechnology: "Soft OLED",
   },
 ];
 
@@ -190,6 +204,92 @@ describe("visual candidate catalog shortlist", () => {
     });
 
     expect(visualCandidateCatalogIds(result, samsungCatalog)).toEqual(["samsung-s21-ultra"]);
+  });
+
+  it("votes by device model when several catalog rows describe the same model", () => {
+    const result = visualResult({
+      candidates: Array.from({ length: 4 }, (_, index) => ({
+        title: "Samsung Galaxy S21 Ultra OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/item/${index + 1}`,
+        rank: index + 1,
+      })),
+    });
+
+    expect(visualCandidateCatalogIds(result, samsungVariantCatalog)).toEqual(["samsung-s21-ultra"]);
+  });
+
+  it("keeps a publisher vote for each model and returns one shortlist entry per model", () => {
+    const result = visualResult({
+      candidates: [
+        { title: "Samsung Galaxy S21 Ultra display assembly", sourceUrl: "https://ifixit.com/ultra", rank: 1 },
+        { title: "Samsung Galaxy S21 OLED display", sourceUrl: "https://ifixit.com/standard", rank: 2 },
+        { title: "Samsung Galaxy S21 Ultra replacement screen", sourceUrl: "https://parts-two.com/ultra", rank: 3 },
+        { title: "Samsung Galaxy S21 display assembly", sourceUrl: "https://parts-three.com/standard", rank: 4 },
+        { title: "Samsung Galaxy S21 Ultra OLED screen", sourceUrl: "https://parts-four.com/ultra", rank: 5 },
+        { title: "Samsung Galaxy S21 touch display", sourceUrl: "https://parts-five.com/standard", rank: 6 },
+      ],
+    });
+
+    expect(visualCandidateCatalogIds(result, samsungVariantCatalog)).toEqual([
+      "samsung-s21-ultra",
+      "samsung-s21",
+    ]);
+  });
+
+  it("uses decisive catalog voting for a generic catalog model without upgrading a photo conflict", () => {
+    const candidates = Array.from({ length: 4 }, (_, index) => ({
+      title: "Samsung Galaxy S21 Ultra OLED display assembly",
+      sourceUrl: `https://seller${index + 1}.com/item/${index + 1}`,
+      rank: index + 1,
+    }));
+    const undecided = visualResult({
+      candidates,
+      cleanDecision: {
+        manufacturer: "Samsung",
+        model: null,
+        suggestedModel: "Galaxy S21",
+        displayName: "Unidentified Samsung Display",
+        confidence: 0.45,
+        cleanedCandidates: [],
+        reasoning: "Visual listings were ambiguous.",
+      },
+    });
+    const photoConflict = visualResult({
+      ...undecided,
+      cleanDecision: {
+        ...undecided.cleanDecision!,
+        reasoning: "The photograph did not corroborate the suggested model.",
+      },
+    });
+
+    const consensus = applyVisualCatalogConsensus(undecided, samsungVariantCatalog);
+    expect(consensus.cleanDecision?.model).toBe("Galaxy S21 Ultra");
+    expect(consensus.cleanDecision?.confidence).toBe(0.84);
+    expect(applyVisualCatalogConsensus(photoConflict, samsungVariantCatalog)).toBe(photoConflict);
+  });
+
+  it("abstains when decisive catalog votes conflict with a confident visual decision", () => {
+    const result = visualResult({
+      candidates: Array.from({ length: 4 }, (_, index) => ({
+        title: "Samsung Galaxy S21 Ultra OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/item/${index + 1}`,
+        rank: index + 1,
+      })),
+      cleanDecision: {
+        manufacturer: "Samsung",
+        model: "Galaxy S21",
+        displayName: "Samsung Galaxy S21 Display",
+        confidence: 0.95,
+        cleanedCandidates: [],
+        reasoning: "The uploaded photo corroborates the model.",
+      },
+    });
+
+    const consensus = applyVisualCatalogConsensus(result, samsungVariantCatalog);
+    expect(consensus.cleanDecision?.model).toBeNull();
+    expect(consensus.cleanDecision?.suggestedModel).toBe("Galaxy S21 Ultra");
+    expect(consensus.cleanDecision?.confidence).toBe(0.45);
+    expect(consensus.cleanDecision?.reasoning).toContain("signals conflict");
   });
 
   it("abstains when one search listing mentions unrelated catalog models", () => {
