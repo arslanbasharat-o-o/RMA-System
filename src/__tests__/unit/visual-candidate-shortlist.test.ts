@@ -58,6 +58,29 @@ const iphone16Catalog = [
   },
 ];
 
+const samsungCatalog = [
+  {
+    id: "samsung-s21-ultra",
+    manufacturer: "Samsung",
+    modelName: "Galaxy S21 Ultra",
+    normalizedModelIdentifier: "samsung-galaxy-s21-ultra",
+    aliases: ["Galaxy S21 Ultra", "S21 Ultra"],
+    internalSku: null,
+    knownPartNumbers: [],
+    displayTechnology: "OLED",
+  },
+  {
+    id: "samsung-s21",
+    manufacturer: "Samsung",
+    modelName: "Galaxy S21",
+    normalizedModelIdentifier: "samsung-galaxy-s21",
+    aliases: ["Galaxy S21", "S21"],
+    internalSku: null,
+    knownPartNumbers: [],
+    displayTechnology: "OLED",
+  },
+];
+
 function visualResult(overrides: Partial<VisualIdentificationResult> = {}): VisualIdentificationResult {
   return {
     provider: "test",
@@ -157,7 +180,31 @@ describe("visual candidate catalog shortlist", () => {
     expect(visualCandidateCatalogIds(result, iphone16Catalog)).toEqual(["iphone-16-pro-max"]);
   });
 
-  it("does not let duplicate listings from one seller create a winner", () => {
+  it("uses the same catalog-based voting for non-Apple manufacturers", () => {
+    const result = visualResult({
+      candidates: Array.from({ length: 4 }, (_, index) => ({
+        title: "Samsung Galaxy S21 Ultra OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/item/${index + 1}`,
+        rank: index + 1,
+      })),
+    });
+
+    expect(visualCandidateCatalogIds(result, samsungCatalog)).toEqual(["samsung-s21-ultra"]);
+  });
+
+  it("abstains when one search listing mentions unrelated catalog models", () => {
+    const result = visualResult({
+      candidates: Array.from({ length: 4 }, (_, index) => ({
+        title: "Apple iPhone 16 Pro Max and Samsung Galaxy S21 Ultra OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/item/${index + 1}`,
+        rank: index + 1,
+      })),
+    });
+
+    expect(visualCandidateCatalogIds(result, [...iphone16Catalog, ...samsungCatalog])).toEqual([]);
+  });
+
+  it("keeps competing catalog IDs for comparison when one seller repeats a listing", () => {
     const candidates = [
       ...Array.from({ length: 10 }, (_, index) => ({
         title: "Apple iPhone 16 Pro Max OLED Display Assembly",
@@ -183,6 +230,9 @@ describe("visual candidate catalog shortlist", () => {
       candidates,
     });
 
-    expect(visualCandidateCatalogIds(result, iphone16Catalog)).toEqual([]);
+    expect(visualCandidateCatalogIds(result, iphone16Catalog)).toEqual([
+      "iphone-16-pro",
+      "iphone-16-pro-max",
+    ]);
   });
 });
