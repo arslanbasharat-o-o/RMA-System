@@ -4,8 +4,13 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.24] - 2026-10-26
+
 ### Fixed
 - Aggregate visual-source votes by device model across catalog assembly variants, and keep conflicting or uncorroborated results in human review.
+
+### Verification
+- PR #81 passed required CI: database fixtures, typecheck, ESLint, Vitest, production build, runtime image build, camera intake, and Safari live-result checks.
 
 ## [0.3.23] - 2026-10-26
 
