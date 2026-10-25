@@ -1,6 +1,5 @@
 "use client";
 
-import React from "react";
 import { motion, HTMLMotionProps } from "motion/react";
 import { cardEntranceVariants, staggerContainerVariants } from "@/lib/motion/variants";
 

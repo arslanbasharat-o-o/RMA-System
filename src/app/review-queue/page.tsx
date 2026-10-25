@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -10,22 +10,18 @@ import {
   ChevronLeft,
   HelpCircle,
   Sparkles,
-  Maximize2,
   CheckCircle2,
-  Cpu,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { BlurIn } from "@/components/ui/blur-in";
-import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
 import {
   CardSpotlight,
   StatusText,
   CopyBadge,
-  ShimmerButton,
 } from "@/components/premium";
 
 export default function ReviewQueuePage() {

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, use, useEffect } from "react";
+import { useState, use, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
 import { AppShell } from "@/components/layout/AppShell";
@@ -12,11 +12,7 @@ import {
   Eye,
   Check,
   ArrowLeft,
-  Smartphone,
-  CheckCircle2,
-  AlertCircle,
   AlertTriangle,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageLoading } from "@/components/ui/loading-message";

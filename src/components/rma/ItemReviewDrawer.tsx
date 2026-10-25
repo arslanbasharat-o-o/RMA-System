@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   Check,
   RotateCcw,
   AlertTriangle,
   ZoomIn,
-  Smartphone,
-  Building2,
   Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -210,7 +208,6 @@ export function ItemReviewDrawer({
 
   const { item, images, candidates, ocrExtractions, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
-  const currentCatalogItem = catalogList.find((c) => c.id === (selectedCatalogId || item?.catalogDisplayId));
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">

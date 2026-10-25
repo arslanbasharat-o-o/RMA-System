@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { rmas, rmaItems, vendors, vendorVariants, customers, returnReasons } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { buildCsv } from "@/lib/utils/export-csv";
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req);

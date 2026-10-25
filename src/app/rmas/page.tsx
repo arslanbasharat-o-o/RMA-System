@@ -1,15 +1,13 @@
 "use client";
 
-import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import Link from "next/link";
 import { AppShell } from "@/components/layout/AppShell";
 import {
   Plus,
-  Search,
   Smartphone,
   Camera,
   ArrowRight,
-  Package,
 } from "lucide-react";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { BlurIn } from "@/components/ui/blur-in";

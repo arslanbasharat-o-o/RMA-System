@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Download, FileText, Smartphone, Users, CheckCircle2 } from "lucide-react";
+import { Download, Smartphone, Users, CheckCircle2 } from "lucide-react";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { BlurIn } from "@/components/ui/blur-in";
 import {

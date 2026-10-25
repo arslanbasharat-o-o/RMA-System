@@ -56,10 +56,3 @@ export const springs = {
     mass: 0.8,
   },
 } as const;
-
-// Stagger delays
-export const stagger = {
-  fast: 0.03,      // Quick list items
-  standard: 0.05,  // Cards and grid items
-  relaxed: 0.08,   // Header/content multi-part reveals
-} as const;
