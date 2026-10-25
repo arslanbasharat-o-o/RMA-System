@@ -17,6 +17,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "sonner";
@@ -141,9 +142,11 @@ export default function ReviewQueuePage() {
         {/* Header */}
         <div className="flex items-center justify-between gap-3 pb-3 border-b border-neutral-200/80 dark:border-neutral-800">
           <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Review Queue
-            </h1>
+            <BlurIn
+              word="Review Queue"
+              duration={0.24}
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            />
             <StatusText variant={queue.length > 0 ? "warning" : "success"}>
               {queue.length > 0 ? `${queue.length} pending` : "Queue clear"}
             </StatusText>

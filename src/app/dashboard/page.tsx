@@ -17,6 +17,7 @@ import {
   AnimatedArrowRight,
 } from "@/components/icons/AnimatedIcons";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import {
   MetricBentoCard,
   CardSpotlight,
@@ -167,12 +168,12 @@ export default function DashboardPage() {
         {/* Executive Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
           <div>
-            <h1
+            <BlurIn
+              word="Operations Dashboard"
               data-testid="dashboard-title"
-              className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
-            >
-              Operations Dashboard
-            </h1>
+              duration={0.24}
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            />
           </div>
 
           <div className="flex items-center gap-2.5">
