@@ -9,7 +9,7 @@ interface CapturedPhoto {
   id: string;
   blob: Blob;
   previewUrl: string;
-  imageType: "primary" | "back" | "stamp_closeup";
+  imageType: "primary" | "back" | "flex_cable" | "stamp_closeup";
   status: "uploading" | "saved" | "error" | "removing";
   error?: string;
   serverImageId?: string;
@@ -25,8 +25,9 @@ interface LiveRecognitionItem {
 }
 
 const angles = [
-  { type: "primary", label: "Front", hint: "Fit the entire front of the display inside the guide." },
-  { type: "back", label: "Back", hint: "Turn the display over. Keep connectors and labels in focus." },
+  { type: "primary", label: "Front", hint: "Keep the camera notch at the top and fit the full display in frame." },
+  { type: "back", label: "Back", hint: "Turn the display over. Keep the connectors near the bottom and in focus." },
+  { type: "flex_cable", label: "Flex", hint: "Fill the frame with the flex cable and keep its printed code in focus." },
   { type: "stamp_closeup", label: "Label", hint: "Move closer to the stamp or sticker. Avoid glare." },
 ] as const;
 
@@ -357,9 +358,10 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
             <ScanLine className="mb-4 size-6 text-neutral-400" />
             <h2 className="font-semibold">Capture each display</h2>
             <ol className="mt-4 space-y-4 text-sm text-neutral-400">
-              <li><span className="block font-medium text-white">1. Front</span>Keep the full display in frame.</li>
-              <li><span className="block font-medium text-white">2. Back</span>Photograph connectors and markings.</li>
-              <li><span className="block font-medium text-white">3. Label, if needed</span>Add a close-up of stamps or stickers.</li>
+              <li><span className="block font-medium text-white">1. Front</span>Keep the camera notch at the top.</li>
+              <li><span className="block font-medium text-white">2. Back</span>Photograph the whole display and connectors.</li>
+              <li><span className="block font-medium text-white">3. Flex</span>Add a close-up of the flex cable and code.</li>
+              <li><span className="block font-medium text-white">4. Label, if needed</span>Add a close-up of stamps or stickers.</li>
             </ol>
             <p className="mt-6 border-t border-neutral-800 pt-4 text-xs leading-relaxed text-neutral-500">Use even lighting and avoid reflections. You can also drag photos into the viewfinder.</p>
           </aside>
