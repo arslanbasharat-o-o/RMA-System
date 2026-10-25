@@ -127,31 +127,6 @@ export const drawerSlideVariants: Variants = {
 };
 
 /**
- * Table row entrance / update animation
- */
-export const tableRowVariants: Variants = {
-  hidden: {
-    opacity: 0,
-    y: 4,
-  },
-  visible: {
-    opacity: 1,
-    y: 0,
-    transition: {
-      duration: duration.fast,
-      ease: easing.smoothOut,
-    },
-  },
-  exit: {
-    opacity: 0,
-    scale: 0.98,
-    transition: {
-      duration: duration.instant,
-    },
-  },
-};
-
-/**
  * Accordion / Expandable content height animation
  */
 export const accordionVariants: Variants = {
@@ -201,34 +176,5 @@ export const errorAlertVariants: Variants = {
     transition: {
       duration: duration.instant,
     },
-  },
-};
-
-/**
- * Shutter camera flash / capture feedback
- */
-export const shutterFlashVariants: Variants = {
-  idle: { opacity: 0 },
-  flash: {
-    opacity: [0, 0.45, 0],
-    transition: {
-      duration: 0.18,
-      times: [0, 0.2, 1],
-    },
-  },
-};
-
-/**
- * Reduced motion variants - replaces translations and scales with pure fast opacity
- */
-export const reducedMotionVariants: Variants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { duration: duration.instant },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: duration.instant },
   },
 };

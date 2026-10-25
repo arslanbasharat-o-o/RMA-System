@@ -85,7 +85,7 @@ export function RmaStatusPipeline({
         {loading ? (
           <LoadingMessage label="Loading processing status…" compact className="col-span-full justify-center py-8" />
         ) : (
-          activeStages.map((stage, idx) => {
+          activeStages.map((stage) => {
             const Icon = stage.icon;
             const isCurrent = stage.status === "current";
             const isComplete = stage.status === "complete";

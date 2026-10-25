@@ -8,9 +8,6 @@ import {
   rmaItems,
   itemImages,
   displayCatalog,
-  vendors,
-  vendorVariants,
-  vendorRecognitionRules,
   reviewActions,
 } from "@/db/schema";
 import { generateNextRmaNumber } from "@/lib/utils/rma-sequence";

@@ -1,5 +1,4 @@
 import {
-  cleanVisualCandidatesHeuristic,
   cleanVisualCandidatesWithOpenAi,
 } from "./decision";
 import {

@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   Circle,
   Clock3,
-  HelpCircle,
   Sparkles,
   XCircle,
   type LucideIcon,

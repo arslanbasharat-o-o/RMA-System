@@ -1,4 +1,4 @@
-import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_TEST_PASSWORD } from "./credentials";
+import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./credentials";
 import { test, expect } from "@playwright/test";
 import { db } from "@/db";
 import { rmas, customers, returnReasons, rmaItems } from "@/db/schema";
@@ -124,7 +124,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
       })
       .returning();
 
-    const [testItem] = await db
+    const [] = await db
       .insert(rmaItems)
       .values({
         rmaId: testRma.id,

@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { pool, db } from "./index";
+import { db } from "./index";
 import { appSettings, displayCatalog, returnReasons, users } from "./schema";
 import { hashPassword } from "../lib/auth/password";
 import { eq } from "drizzle-orm";

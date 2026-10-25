@@ -1,7 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { db, pool } from "@/db";
+import { db } from "@/db";
 import {
-  users,
   customers,
   returnReasons,
   rmas,

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useTransition, Suspense, lazy } from "react";
+import React, { useEffect, useState, Suspense, lazy } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { LoadingMessage } from "@/components/ui/loading-message";

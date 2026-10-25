@@ -1,4 +1,4 @@
-import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD, E2E_TEST_PASSWORD } from "./credentials";
+import { E2E_ADMIN_EMAIL, E2E_ADMIN_PASSWORD } from "./credentials";
 import { test, expect, Page } from "@playwright/test";
 
 /**
