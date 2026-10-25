@@ -54,7 +54,11 @@ jobs:
           cache: npm
       - name: Generate per-run test secrets
         run: |
-          node -e "const c=require('node:crypto'); console.log('INITIAL_ADMIN_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('E2E_TEST_PASSWORD='+c.randomBytes(32).toString('base64url')); console.log('SESSION_SECRET='+c.randomBytes(32).toString('base64url'))" >> "$GITHUB_ENV"
+          for name in INITIAL_ADMIN_PASSWORD E2E_TEST_PASSWORD SESSION_SECRET; do
+            value="$(node -e "process.stdout.write(require('node:crypto').randomBytes(32).toString('base64url'))")"
+            echo "::add-mask::$value"
+            echo "$name=$value" >> "$GITHUB_ENV"
+          done
       - run: npm ci
       - run: npm audit --omit=dev --audit-level=high
       - run: npm run db:migrate
