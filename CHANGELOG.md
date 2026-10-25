@@ -4,6 +4,9 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+### Fixed
+- Aggregate visual-source votes by device model across catalog assembly variants, and keep conflicting or uncorroborated results in human review.
+
 ## [0.3.23] - 2026-10-26
 
 ### Fixed

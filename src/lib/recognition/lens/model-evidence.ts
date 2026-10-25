@@ -73,7 +73,7 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
   if (firstSpecific && !extractAppleModels(firstSpecific.title).length) return null;
 
   const scores = new Map<string, { score: number; sources: Set<string> }>();
-  const seenSources = new Set<string>();
+  const seenSourcesByModel = new Map<string, Set<string>>();
   const attributableModels = new Set<string>();
   let mixedListings = 0;
   let accessoryListings = 0;
@@ -112,8 +112,10 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
     // Keep variant disagreements even when one publisher has multiple cards.
     // Deduplication may reduce votes; it must not erase contrary evidence.
     attributableModels.add(models[0]);
+    const seenSources = seenSourcesByModel.get(models[0]) || new Set<string>();
     if (seenSources.has(source)) continue;
     seenSources.add(source);
+    seenSourcesByModel.set(models[0], seenSources);
 
     const entry = scores.get(models[0]) || { score: 0, sources: new Set<string>() };
     entry.score += 1 / Math.log2(candidate.rank + 1);
