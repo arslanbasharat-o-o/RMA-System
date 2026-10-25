@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ settings: formatted, providerStatus });
 }
 
-const UpdateSettingsSchema = z.record(z.any());
+const UpdateSettingsSchema = z.record(z.string(), z.any());
 
 export async function PUT(req: NextRequest) {
   const auth = await requireAuth(req, ["admin"]);
