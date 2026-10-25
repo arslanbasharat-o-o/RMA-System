@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ThemeToggle } from "@/components/theme/ThemeToggle";
 import { CardSpotlight, ShimmerButton } from "@/components/premium";
 import { LoadingIcon } from "@/components/ui/loading-icon";
+import { BlurIn } from "@/components/ui/blur-in";
 import { RmaLogo } from "@/components/brand/RmaLogo";
 import {
   AnimatedShield,
@@ -76,9 +77,11 @@ export default function LoginPage() {
           <div className="flex justify-center">
             <RmaLogo size={46} variant="icon" />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
-            RMA Operations
-          </h1>
+          <BlurIn
+            word="RMA Operations"
+            duration={0.24}
+            className="text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-slate-900 dark:text-slate-50"
+          />
         </div>
 
         {/* Card with Animated Views */}

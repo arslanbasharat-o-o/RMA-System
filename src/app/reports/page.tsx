@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { Download, FileText, Smartphone, Users, CheckCircle2 } from "lucide-react";
 import { LoadingMessage } from "@/components/ui/loading-message";
+import { BlurIn } from "@/components/ui/blur-in";
 import {
   CardSpotlight,
   DataTableToolbar,
@@ -142,9 +143,11 @@ export default function ReportsPage() {
         {/* Executive Header */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-neutral-200/80 dark:border-neutral-800">
           <div>
-            <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50">
-              Operations & Inventory Reports
-            </h1>
+            <BlurIn
+              word="Operations & Inventory Reports"
+              duration={0.24}
+              className="text-left text-lg sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+            />
           </div>
 
           <a href="/api/reports?format=csv" className="shrink-0 self-start sm:self-auto">
