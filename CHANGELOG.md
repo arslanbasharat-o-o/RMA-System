@@ -4,6 +4,12 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
+### Changed
+- Align repository release metadata with the deployed RMA System v0.4.0.
+- Preserve the existing recognition engine and processing behavior.
+
 ## [0.3.27] - 2026-10-26
 
 ### Fixed
