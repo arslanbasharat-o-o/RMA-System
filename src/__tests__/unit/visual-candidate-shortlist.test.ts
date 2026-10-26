@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { applyVisualCatalogConsensus, visualCandidateCatalogIds } from "@/lib/queue/processor";
+import {
+  applyVisualCatalogConsensus,
+  shortlistVerifiedVisualCatalogIds,
+  visualCandidateCatalogIds,
+} from "@/lib/queue/processor";
 import type { VisualIdentificationResult } from "@/lib/recognition/lens/types";
 
 const catalog = [
@@ -206,16 +210,28 @@ describe("visual candidate catalog shortlist", () => {
       { id: "iphone-13-pro-max", modelName: "iPhone 13 Pro Max" },
       { id: "iphone-xr", modelName: "iPhone XR" },
     ];
-    const modelCatalog = models.map(({ id, modelName }) => ({
-      id,
-      manufacturer: "Apple",
-      modelName,
-      normalizedModelIdentifier: id,
-      aliases: [],
-      internalSku: null,
-      knownPartNumbers: [],
-      displayTechnology: "OLED",
-    }));
+    const modelCatalog = [
+      ...models.map(({ id, modelName }) => ({
+        id,
+        manufacturer: "Apple",
+        modelName,
+        normalizedModelIdentifier: id,
+        aliases: [],
+        internalSku: null,
+        knownPartNumbers: [],
+        displayTechnology: "OLED",
+      })),
+      {
+        id: "xiaomi-13-pro",
+        manufacturer: "Xiaomi",
+        modelName: "13 Pro",
+        normalizedModelIdentifier: "xiaomi-13-pro",
+        aliases: [],
+        internalSku: null,
+        knownPartNumbers: [],
+        displayTechnology: "OLED",
+      },
+    ];
     const candidates = [
       ...Array.from({ length: 4 }, (_, index) => ({
         title: "Apple iPhone X OLED display assembly",
@@ -299,6 +315,80 @@ describe("visual candidate catalog shortlist", () => {
     });
 
     expect(visualCandidateCatalogIds(result, modelCatalog, "iphone-x")).toEqual(models.map(({ id }) => id));
+  });
+
+  it("keeps lower-ranked catalog models available until verified-reference availability is known", () => {
+    const models = [
+      "iPhone X", "iPhone 12 Pro Max", "iPhone 14 Pro Max", "iPhone 11",
+      "iPhone XR", "iPhone XS", "iPhone XS Max", "iPhone 8", "iPhone 8 Plus",
+      "iPhone 12", "iPhone 12 mini", "iPhone 12 Pro", "iPhone 13 Pro Max",
+    ].map((modelName, index) => ({ id: `model-${index}`, modelName }));
+    const modelCatalog = models.map(({ id, modelName }) => ({
+      id,
+      manufacturer: "Apple",
+      modelName,
+      normalizedModelIdentifier: id,
+      aliases: [],
+      internalSku: null,
+      knownPartNumbers: [],
+      displayTechnology: "OLED",
+    }));
+    const candidates = [
+      ...Array.from({ length: 4 }, (_, index) => ({
+        title: "Apple iPhone X OLED display assembly",
+        sourceUrl: `https://seller${index + 1}.com/iphone-x/${index + 1}`,
+        rank: index + 1,
+      })),
+      ...models.slice(1).map(({ modelName }, index) => ({
+        title: `Apple ${modelName} display assembly`,
+        sourceUrl: `https://seller${index + 5}.com/display/${index + 5}`,
+        rank: index + 5,
+      })),
+    ];
+    const result = visualResult({
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: "iPhone X",
+        displayName: "Apple iPhone X Display",
+        confidence: 0.95,
+        cleanedCandidates: [],
+        reasoning: "The first-pass result is confident.",
+      },
+      candidates,
+    });
+
+    expect(visualCandidateCatalogIds(result, modelCatalog, "model-0", 30)).toContain("model-12");
+  });
+
+  it("selects verified reference variants for the same device model and caps comparison at eight", () => {
+    const variantCatalog = [
+      ...Array.from({ length: 9 }, (_, index) => ({
+        id: `candidate-${index}`,
+        manufacturer: "Apple",
+        modelName: `iPhone ${index + 20}`,
+        normalizedModelIdentifier: `candidate-${index}`,
+        aliases: [],
+        internalSku: null,
+        knownPartNumbers: [],
+        displayTechnology: "OLED",
+      })),
+      ...Array.from({ length: 9 }, (_, index) => ({
+        id: `verified-variant-${index}`,
+        manufacturer: "Apple",
+        modelName: `Apple iPhone ${index + 20}`,
+        normalizedModelIdentifier: `verified-variant-${index}`,
+        aliases: [],
+        internalSku: null,
+        knownPartNumbers: [],
+        displayTechnology: "Soft OLED",
+      })),
+    ];
+
+    expect(shortlistVerifiedVisualCatalogIds(
+      Array.from({ length: 9 }, (_, index) => `candidate-${index}`),
+      variantCatalog,
+      Array.from({ length: 9 }, (_, index) => `verified-variant-${index}`)
+    )).toEqual(Array.from({ length: 8 }, (_, index) => `verified-variant-${index}`));
   });
 
   it("uses the same catalog-based voting for non-Apple manufacturers", () => {
