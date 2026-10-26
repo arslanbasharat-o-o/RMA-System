@@ -138,7 +138,7 @@ it("reuses unresolved visual evidence for identical image bytes without repeatin
   expect(providerCall).toHaveBeenCalledTimes(1);
   const [reused] = await db.select().from(rmaItems).where(eq(rmaItems.id, items[1].id));
   expect(reused.predictedModel).toBeNull();
-  expect(reused.predictedDisplayAssembly).toBe("Unidentified Display");
+  expect(reused.predictedDisplayAssembly).toBe("Unidentified Apple Display");
   expect(reused.status).toBe("review_required");
   const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, items[1].id));
   expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");

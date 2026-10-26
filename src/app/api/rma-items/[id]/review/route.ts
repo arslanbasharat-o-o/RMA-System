@@ -14,6 +14,9 @@ const ReviewActionSchema = z.object({
     "manual_verify",
   ]),
   catalogDisplayId: z.string().uuid().optional().nullable(),
+  predictedManufacturer: z.string().optional().nullable(),
+  predictedModel: z.string().optional().nullable(),
+  selectedCandidateTitle: z.string().optional().nullable(),
   vendorId: z.string().uuid().optional().nullable(),
   vendorVariantId: z.string().uuid().optional().nullable(),
   notes: z.string().optional(),
@@ -47,21 +50,15 @@ export async function POST(
     );
   }
 
-  const { action, catalogDisplayId, vendorId, vendorVariantId, notes } = parsed.data;
+  const { action, catalogDisplayId, predictedManufacturer, predictedModel, vendorId, vendorVariantId, notes } = parsed.data;
 
-  // An ambiguous status can still carry a concrete, reference-backed catalog
-  // suggestion. The operator is explicitly confirming it, so allow the
-  // one-click approval when both the model and catalog ID are present. Items
-  // with no concrete suggestion remain blocked.
-  const hasConcreteModelSuggestion = Boolean(item.catalogDisplayId && item.predictedModel);
   if (action === "accept_suggestion" &&
     (!(["suggested_match", "review_required"].includes(item.status)) ||
-      !(item.predictedModel || item.identifiedVendorId) ||
-      (!hasConcreteModelSuggestion && ["unknown", "ambiguous"].includes(item.matchStatus)))) {
+      !(item.predictedModel || item.identifiedVendorId))) {
     return NextResponse.json({ error: "This item has no eligible suggestion to accept." }, { status: 409 });
   }
-  if (action === "change_model" && !catalogDisplayId) {
-    return NextResponse.json({ error: "Choose a catalog model before saving this action." }, { status: 400 });
+  if (action === "change_model" && !catalogDisplayId && !predictedModel) {
+    return NextResponse.json({ error: "Choose or enter a display model before saving this action." }, { status: 400 });
   }
   if (action === "change_vendor" && !vendorId) {
     return NextResponse.json({ error: "Choose a vendor before saving this action." }, { status: 400 });
@@ -70,7 +67,7 @@ export async function POST(
     return NextResponse.json({ error: "A vendor is required when choosing a variant." }, { status: 400 });
   }
   if (action === "manual_verify" && !(
-    catalogDisplayId || vendorId || item.catalogDisplayId || item.predictedModel || item.identifiedVendorId || notes
+    catalogDisplayId || predictedModel || vendorId || item.predictedModel || item.identifiedVendorId || notes
   )) {
     return NextResponse.json({ error: "Add a model, vendor identification, or verification notes before manual verification." }, { status: 400 });
   }
@@ -105,7 +102,7 @@ export async function POST(
     updatePayload.verifiedAt = new Date();
     if (notes) updatePayload.reviewNotes = notes;
 
-    // Apply model override if provided
+    // Apply model override if provided via catalog ID or direct model name (from search candidates)
     if (catalogDisplayId) {
       const [cat] = await db
         .select()
@@ -125,6 +122,13 @@ export async function POST(
         ? cat.modelName
         : `${cat.manufacturer} ${cat.modelName}`;
       updatePayload.predictedDisplayAssembly = `${displayLabel} (${cat.displayTechnology || "Display"})`;
+    } else if (predictedModel) {
+      const cleanModel = predictedModel.trim();
+      const manufacturer = predictedManufacturer?.trim() || item.predictedManufacturer || "Unspecified";
+      updatePayload.predictedManufacturer = manufacturer;
+      updatePayload.predictedModel = cleanModel;
+      updatePayload.predictedDisplayAssembly = `${manufacturer} ${cleanModel} Display`;
+      updatePayload.catalogDisplayId = null;
     }
 
     // Apply vendor override if provided

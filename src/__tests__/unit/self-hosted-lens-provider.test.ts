@@ -220,6 +220,7 @@ describe("SelfHostedLensProvider", () => {
 
   it("keeps a visible AI Overview separate and maps up to 30 listing candidates", async () => {
     vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("OPENAI_API_KEY", "");
     const visual_matches = Array.from({ length: 35 }, (_, index) => ({
       title: `iPhone 14 Plus display panel listing ${index + 1}`,
       link: `https://parts-${index + 1}.example/display`,

@@ -94,8 +94,8 @@ export default function RmaDetailPage({
         json.items?.some((i: any) =>
           ["queued", "processing", "pending_upload", "uploaded"].includes(i.status)
         );
-      // Keep polling whenever items are processing or the RMA is in active intake/processing
-      return isBusy || json.rma?.status === "receiving" || json.rma?.status === "processing";
+      // Only poll while items are actively processing or queued
+      return isBusy;
     },
     1000
   );

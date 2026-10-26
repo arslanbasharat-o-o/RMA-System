@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   ZoomIn,
   Trash2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
@@ -17,6 +18,27 @@ import { LoadingMessage } from "@/components/ui/loading-message";
 import { useScrollLock } from "@/lib/utils/scroll-lock";
 import { toast } from "sonner";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
+
+function extractManufacturerAndModel(title: string): { manufacturer: string; model: string } {
+  const clean = cleanRawCandidateTitle(title);
+  if (/iphone|apple|ipad/i.test(clean)) {
+    const model = clean.replace(/^(?:apple\s+)?(iphone\s+[a-z0-9\s+]+)/i, "$1").trim();
+    return { manufacturer: "Apple", model: model || clean };
+  }
+  if (/galaxy|samsung/i.test(clean)) {
+    const model = clean.replace(/^(?:samsung\s+)?(galaxy\s+[a-z0-9\s+]+)/i, "$1").trim();
+    return { manufacturer: "Samsung", model: model || clean };
+  }
+  if (/pixel|google/i.test(clean)) {
+    const model = clean.replace(/^(?:google\s+)?(pixel\s+[a-z0-9\s+]+)/i, "$1").trim();
+    return { manufacturer: "Google", model: model || clean };
+  }
+  if (/oneplus/i.test(clean)) {
+    const model = clean.replace(/^(?:oneplus\s+)?([a-z0-9\s+]+)/i, "$1").trim();
+    return { manufacturer: "OnePlus", model: model || clean };
+  }
+  return { manufacturer: "Other", model: clean };
+}
 import { motion } from "motion/react";
 import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
@@ -34,11 +56,13 @@ export function ItemReviewDrawer({
 }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
-  const [catalogList, setCatalogList] = useState<any[]>([]);
   const [vendorList, setVendorList] = useState<any[]>([]);
 
   // Correction form state
   const [selectedCatalogId, setSelectedCatalogId] = useState("");
+  const [customManufacturer, setCustomManufacturer] = useState("");
+  const [customModel, setCustomModel] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [reviewNotes, setReviewNotes] = useState("");
@@ -89,19 +113,17 @@ export function ItemReviewDrawer({
     // Live recognition updates must never erase a correction being typed.
     if (!editing.current) {
       setSelectedCatalogId(itemJson.item.catalogDisplayId || "");
+      setCustomManufacturer(itemJson.item.predictedManufacturer || "");
+      setCustomModel(itemJson.item.predictedModel || "");
       setSelectedVendorId(itemJson.item.identifiedVendorId || "");
       setSelectedVariantId(itemJson.item.identifiedVendorVariantId || "");
       setReviewNotes(itemJson.item.reviewNotes || "");
     }
     if (!optionsLoaded.current) {
-      const [catRes, venRes] = await Promise.all([
-        fetch("/api/display-catalog?compact=true&all=true", { signal, cache: "no-store" }),
-        fetch("/api/vendors", { signal, cache: "no-store" }),
-      ]);
-      if (!catRes.ok || !venRes.ok) throw new Error("Could not load review options.");
-      const [catJson, venJson] = await Promise.all([catRes.json(), venRes.json()]);
+      const venRes = await fetch("/api/vendors", { signal, cache: "no-store" });
+      if (!venRes.ok) throw new Error("Could not load review options.");
+      const venJson = await venRes.json();
       if (signal.aborted) return;
-      setCatalogList(catJson.catalog || []);
       setVendorList(venJson.vendors || []);
       optionsLoaded.current = true;
     }
@@ -117,6 +139,8 @@ export function ItemReviewDrawer({
         body: JSON.stringify({
           action,
           catalogDisplayId: selectedCatalogId || null,
+          predictedManufacturer: customManufacturer || data?.item?.predictedManufacturer || null,
+          predictedModel: customModel || data?.item?.predictedModel || null,
           vendorId: selectedVendorId || null,
           vendorVariantId: selectedVariantId || null,
           notes: reviewNotes,
@@ -367,52 +391,99 @@ export function ItemReviewDrawer({
               </div>
             )}
 
-            {/* Visual Candidates Dropdown */}
+            {/* Visual Search Candidates from Google Lens */}
             {candidates && candidates.length > 0 && (
-              <details className="pt-1 group text-xs text-neutral-600 dark:text-neutral-400">
-                <summary className="cursor-pointer text-[11px] text-neutral-500 dark:text-neutral-400 font-medium hover:text-neutral-800 dark:hover:text-neutral-200 select-none flex items-center justify-between">
-                  <span>Visual Search Candidates ({candidates.length})</span>
-                  <span className="text-[10px] text-neutral-400 group-open:rotate-180 transition-transform">▼</span>
-                </summary>
-                <ul className="mt-1.5 space-y-1 divide-y divide-neutral-200/60 dark:divide-neutral-800">
-                  {candidates.slice(0, 4).map((c: any) => {
-                    const cleanTitle = cleanRawCandidateTitle(c.candidateTitle);
+              <div className="space-y-2 pt-2 border-t border-neutral-200/60 dark:border-neutral-800">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <Sparkles className="h-3 w-3 text-indigo-500" />
+                    Google Search Matches ({candidates.length})
+                  </span>
+                  <span className="text-[10px] text-neutral-400">Click to select as correct model</span>
+                </div>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                  {candidates.slice(0, 8).map((c: any) => {
+                    const parsed = extractManufacturerAndModel(c.candidateTitle);
+                    const isSelected = selectedCandidateId === c.id || (customModel && customModel.toLowerCase() === parsed.model.toLowerCase());
                     return (
-                      <li key={c.id} className="pt-1 flex items-center justify-between">
-                        <span className="truncate pr-2 font-medium text-neutral-800 dark:text-neutral-200">
-                          {cleanTitle || c.candidateTitle}
-                        </span>
-                        <span className="text-[10px] text-neutral-400 font-mono">#{c.rank}</span>
-                      </li>
+                      <div
+                        key={c.id}
+                        onClick={() => {
+                          editing.current = true;
+                          setCustomManufacturer(parsed.manufacturer);
+                          setCustomModel(parsed.model);
+                          setSelectedCandidateId(c.id);
+                          toast.info(`Selected ${parsed.manufacturer} ${parsed.model}`);
+                        }}
+                        className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-start justify-between gap-2 ${
+                          isSelected
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500 shadow-xs"
+                            : "bg-white dark:bg-[#18181c] border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-700"
+                        }`}
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
+                              #{c.rank}
+                            </span>
+                            <span className="font-bold text-neutral-900 dark:text-neutral-100 truncate">
+                              {parsed.manufacturer} {parsed.model}
+                            </span>
+                          </div>
+                          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-1 break-words">
+                            {c.candidateTitle}
+                          </p>
+                        </div>
+                        {isSelected ? (
+                          <span className="shrink-0 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px] font-semibold">
+                            <Check className="h-3.5 w-3.5" />
+                            Selected
+                          </span>
+                        ) : (
+                          <span className="shrink-0 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
+                            Select
+                          </span>
+                        )}
+                      </div>
                     );
                   })}
-                </ul>
-              </details>
+                </div>
+              </div>
             )}
           </div>
 
           {/* Verification & Manual Overrides */}
           <div className="space-y-3.5 pt-1">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Verify or Correct
+              Confirm or Correct Model
             </h4>
 
-            {/* Model Selector */}
-            <div>
-              <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                Verified Display Model:
-              </label>
-              <Select
-                value={selectedCatalogId}
-                onChange={(e) => { editing.current = true; setSelectedCatalogId(e.target.value); }}
-              >
-                <option value="">-- Keep Current Model --</option>
-                {catalogList.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.manufacturer} {cat.modelName} ({cat.displayTechnology})
-                  </option>
-                ))}
-              </Select>
+            {/* Model Inputs */}
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Manufacturer:
+                </label>
+                <input
+                  type="text"
+                  value={customManufacturer}
+                  onChange={(e) => { editing.current = true; setCustomManufacturer(e.target.value); }}
+                  placeholder="e.g. Samsung"
+                  className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                  Verified Model:
+                </label>
+                <input
+                  type="text"
+                  value={customModel}
+                  onChange={(e) => { editing.current = true; setCustomModel(e.target.value); }}
+                  placeholder="e.g. Galaxy Note 20 Ultra"
+                  className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-semibold"
+                />
+              </div>
             </div>
 
             {/* Vendor Selector */}

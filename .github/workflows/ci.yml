@@ -41,6 +41,7 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
+      DEBIAN_FRONTEND: noninteractive
       DATABASE_URL: postgresql://postgres:ci-only@127.0.0.1:5432/rma_ci
       LENS_PROVIDER: mock
       APP_URL: http://localhost:3000
@@ -72,7 +73,9 @@ jobs:
           NODE_ENV: test
       - name: Install Chromium for the early mobile navigation gate
         if: inputs.full_browser_suite
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright install chromium
+          npx playwright install-deps chromium
       - name: Check mobile navigation before the full release validation
         if: inputs.full_browser_suite
         run: npx playwright test e2e/mobile-navigation-smoke.spec.ts --project=mobile-chrome --max-failures=1
@@ -109,7 +112,9 @@ jobs:
           test "$(docker image inspect rma-system-worker:ci --format '{{index .Config.Labels "org.opencontainers.image.licenses"}}')" = "MIT"
           docker run --rm --entrypoint sh rma-system-worker:ci -c 'test ! -e /app/.env && test ! -e /app/.env.local && test -z "$(find /app/data/storage -mindepth 1 -print -quit)"'
       - name: Install browsers for offline mobile checks
-        run: npx playwright install --with-deps chromium webkit
+        run: |
+          npx playwright install chromium webkit
+          npx playwright install-deps chromium webkit
       - name: Verify camera and customer intake on desktop and mobile
         if: ${{ !inputs.full_browser_suite }}
         run: npx playwright test e2e/camera-intake.spec.ts e2e/live-recognition.spec.ts e2e/frontend-sync.spec.ts e2e/mobile-navigation-smoke.spec.ts --project=chromium --project=mobile-chrome
