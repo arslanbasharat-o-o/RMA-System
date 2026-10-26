@@ -324,15 +324,15 @@ function visualCatalogEvidence(
     const selectedKey = [...modelKeys][0];
     const selectedItem = strongest.find(({ item }) => item.id === preferredCatalogId)?.item || strongest[0].item;
     const selectedPhrase = strongest[0].matchedPhrase;
-    const selectedModel = catalogDeviceModelName(selectedItem);
-    const selectedManufacturer = normalizeCatalogPhrase(selectedItem.manufacturer);
+    const selectedOccurrences = phraseOffsets(title, selectedPhrase);
     const hasUnrelatedModelMention = matches.some(({ item: other, matchedPhrase }) => {
       if (catalogModelKey(other) === selectedKey) return false;
-      const otherModel = catalogDeviceModelName(other);
-      if (normalizeCatalogPhrase(other.manufacturer) !== selectedManufacturer ||
-          !selectedModel.startsWith(`${otherModel} `)) return true;
-      const selectedOccurrences = phraseOffsets(title, selectedPhrase);
-      return !phraseOffsets(title, matchedPhrase).every((otherOccurrence) => selectedOccurrences.some((selectedOccurrence) =>
+      const otherOccurrences = phraseOffsets(title, matchedPhrase);
+      // A shorter model from another manufacturer can be a substring of the
+      // more specific model in the same listing (for example, "13 Pro" in
+      // "iPhone 13 Pro Max"). Treat it as unrelated only if its mention is
+      // separate from the strongest matched model phrase.
+      return !otherOccurrences.every((otherOccurrence) => selectedOccurrences.some((selectedOccurrence) =>
         otherOccurrence.start >= selectedOccurrence.start && otherOccurrence.end <= selectedOccurrence.end
       ));
     });
@@ -499,7 +499,8 @@ function candidatesForVerifiedComparison(
 export function visualCandidateCatalogIds(
   visualResult: VisualIdentificationResult,
   catalog: DisplayCatalogItem[],
-  preferredCatalogId?: string | null
+  preferredCatalogId?: string | null,
+  maximumCandidates = 8
 ): string[] {
   const decision = visualResult.cleanDecision;
   const evidence = visualCatalogEvidence({
@@ -547,9 +548,9 @@ export function visualCandidateCatalogIds(
       ))
       : undefined;
     if (suggestedCatalogItem) addModel(suggestedCatalogItem.id);
-    for (const vote of evidence.rankedVotes.slice(0, 8)) addModel(vote.catalogId);
-    for (const catalogId of evidence.candidateIds.slice(0, 8)) addModel(catalogId);
-    const comparisonCandidates = ids.slice(0, 8);
+    for (const vote of evidence.rankedVotes.slice(0, maximumCandidates)) addModel(vote.catalogId);
+    for (const catalogId of evidence.candidateIds.slice(0, maximumCandidates)) addModel(catalogId);
+    const comparisonCandidates = ids.slice(0, maximumCandidates);
     if (comparisonCandidates.length >= 2) return comparisonCandidates;
     return [preferredItem && catalogModelKey(preferredItem) === winner.key ? preferredItem.id : winner.catalogId];
   }
@@ -565,18 +566,67 @@ export function visualCandidateCatalogIds(
   if (preferredCatalogId) addModel(preferredCatalogId);
   for (const vote of evidence.rankedVotes) addModel(vote.catalogId);
   if (decisionMatch) addModel(decisionMatch.catalogId);
-  for (const catalogId of evidence.candidateIds.slice(0, 8)) addModel(catalogId);
-  const alternatives = ids.slice(0, 8);
+  for (const catalogId of evidence.candidateIds.slice(0, maximumCandidates)) addModel(catalogId);
+  const alternatives = ids.slice(0, maximumCandidates);
   return alternatives.length >= 2 ? alternatives : [];
+}
+
+/**
+ * Keep candidate order while choosing a catalog assembly that actually has a
+ * verified reference photo for that device model. Catalog assembly variants
+ * share one model key, so a reference on a sibling variant still qualifies.
+ */
+export function shortlistVerifiedVisualCatalogIds(
+  candidateCatalogIds: string[],
+  catalog: DisplayCatalogItem[],
+  verifiedCatalogIds: string[],
+  maximumCandidates = 8
+): string[] {
+  const verifiedIdByModel = new Map<string, string>();
+  for (const catalogId of verifiedCatalogIds) {
+    const item = catalog.find((entry) => entry.id === catalogId);
+    if (!item) continue;
+    const key = catalogModelKey(item);
+    if (!verifiedIdByModel.has(key)) verifiedIdByModel.set(key, catalogId);
+  }
+
+  const selected: string[] = [];
+  const seenModels = new Set<string>();
+  for (const catalogId of candidateCatalogIds) {
+    const item = catalog.find((entry) => entry.id === catalogId);
+    if (!item) continue;
+    const key = catalogModelKey(item);
+    const verifiedCatalogId = verifiedIdByModel.get(key);
+    if (!verifiedCatalogId || seenModels.has(key)) continue;
+    seenModels.add(key);
+    selected.push(verifiedCatalogId);
+    if (selected.length >= maximumCandidates) break;
+  }
+  return selected;
 }
 
 async function loadVerifiedVisualReferences(
   excludeItemId: string,
   excludedChecksums: string[],
   catalogIds: string[],
-  catalog: Array<{ id: string; manufacturer: string; modelName: string }>
+  catalog: DisplayCatalogItem[]
 ): Promise<VerifiedDisplayReference[]> {
-  const rows = await loadVerifiedVisualReferenceRows(excludeItemId, catalogIds);
+  const candidateModelKeys = new Set(catalogIds.flatMap((catalogId) => {
+    const item = catalog.find((entry) => entry.id === catalogId);
+    return item ? [catalogModelKey(item)] : [];
+  }));
+  const modelVariantIds = catalog
+    .filter((item) => candidateModelKeys.has(catalogModelKey(item)))
+    .map((item) => item.id);
+  const rows = await loadVerifiedVisualReferenceRows(excludeItemId, modelVariantIds);
+  const verifiedCatalogIds = [...new Set(rows.map((row) => row.catalogDisplayId).filter(
+    (catalogId): catalogId is string => Boolean(catalogId)
+  ))];
+  const selectedCatalogIds = shortlistVerifiedVisualCatalogIds(
+    catalogIds,
+    catalog,
+    verifiedCatalogIds
+  );
   const rowsByCatalog = new Map<string, Map<string, typeof rows>>();
   for (const row of rows) {
     if (!row.catalogDisplayId) continue;
@@ -596,7 +646,7 @@ async function loadVerifiedVisualReferences(
   // Never compare an upload against a copy of any of its own target photos,
   // even if that same photo was previously attached to another verified item.
   const usedChecksums = new Set<string>(excludedChecksums);
-  for (const catalogId of catalogIds) {
+  for (const catalogId of selectedCatalogIds) {
     const examples = rowsByCatalog.get(catalogId);
     if (!examples) continue;
     const catalogItem = catalog.find((entry) => entry.id === catalogId);
@@ -1068,7 +1118,7 @@ export async function processRmaItem(
   const comparisonCandidateIds = shouldRunVisual &&
     !verifiedPartNumberConflicts.length &&
     proposedDisplayMatch?.matchType !== "part_number"
-    ? visualCandidateCatalogIds(visualResult, allCatalog, proposedDisplayMatch?.catalogId)
+    ? visualCandidateCatalogIds(visualResult, allCatalog, proposedDisplayMatch?.catalogId, 30)
     : [];
   const needsVisualHelp = !proposedDisplayMatch ||
     proposedDisplayMatch.confidenceScore < 0.85 ||
@@ -1076,9 +1126,9 @@ export async function processRmaItem(
     (visualResult.cleanDecision?.confidence ?? 0) < 0.75 ||
     comparisonCandidateIds.length >= 2;
 
-  // If visual search surfaces competing catalog models, compare the upload
-  // with one human-verified reference for each of up to eight models. This is
-  // a bounded inference-time lookup, never a background weight update.
+  // Search the full bounded Lens pool, then spend the comparison budget only
+  // on models with angle-matched, operator-verified examples. This is a
+  // bounded inference-time lookup, never a background weight update.
   if (
     shouldRunVisual &&
     !verifiedPartNumberConflicts.length &&
@@ -1140,7 +1190,7 @@ export async function processRmaItem(
         if (selectedCatalogItem && shouldApplyVerifiedVisualComparison(
           verifiedComparison.selectedCatalogDisplayId,
           verifiedComparison.confidence,
-          candidateIds
+          references.map((reference) => reference.catalogDisplayId)
         )) {
           const selectedComparison = {
             ...visualResult,
