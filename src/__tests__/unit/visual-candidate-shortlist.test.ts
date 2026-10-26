@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   applyVisualCatalogConsensus,
+  hasIndependentVisualCatalogSupport,
+  selectVerifiedVisualReferenceItems,
   shortlistVerifiedVisualCatalogIds,
   visualCandidateCatalogIds,
 } from "@/lib/queue/processor";
@@ -99,6 +101,39 @@ const samsungVariantCatalog = [
   },
 ];
 
+const xrCatalog = [
+  {
+    id: "xr-am",
+    manufacturer: "Apple",
+    modelName: "iPhone XR",
+    normalizedModelIdentifier: "apple-iphone-xr-am",
+    aliases: ["iPhone XR"],
+    internalSku: "Liphone XR AM",
+    knownPartNumbers: [],
+    displayTechnology: "AMOLED",
+  },
+  {
+    id: "xr-cof",
+    manufacturer: "Apple",
+    modelName: "iPhone XR",
+    normalizedModelIdentifier: "apple-iphone-xr-cof",
+    aliases: ["iPhone XR"],
+    internalSku: "Liphone XR COF",
+    knownPartNumbers: [],
+    displayTechnology: "COF LCD",
+  },
+  {
+    id: "iphone-11",
+    manufacturer: "Apple",
+    modelName: "iPhone 11",
+    normalizedModelIdentifier: "apple-iphone-11",
+    aliases: ["iPhone 11"],
+    internalSku: "Liphone 11",
+    knownPartNumbers: [],
+    displayTechnology: "COF LCD",
+  },
+];
+
 function visualResult(overrides: Partial<VisualIdentificationResult> = {}): VisualIdentificationResult {
   return {
     provider: "test",
@@ -110,6 +145,54 @@ function visualResult(overrides: Partial<VisualIdentificationResult> = {}): Visu
 }
 
 describe("visual candidate catalog shortlist", () => {
+  it("requires a decisive vote from independent publishers to corroborate a reference", () => {
+    const result = visualResult({ candidates: [
+      { title: "Apple iPhone 13 OLED Display", rank: 1, sourceUrl: "https://one.example/display" },
+      { title: "Apple iPhone 13 OLED Display", rank: 2, sourceUrl: "https://two.example/display" },
+      { title: "Apple iPhone 13 OLED Display", rank: 3, sourceUrl: "https://three.example/display" },
+    ] });
+    expect(hasIndependentVisualCatalogSupport(result, catalog, "iphone-13")).toBe(true);
+    expect(hasIndependentVisualCatalogSupport(result, catalog, "iphone-14")).toBe(false);
+    result.candidates[2].sourceUrl = "https://shop.one.example/display";
+    expect(hasIndependentVisualCatalogSupport(result, catalog, "iphone-13")).toBe(false);
+  });
+  it("uses up to two distinct verified photo items per candidate model", () => {
+    const rows = [
+      { itemId: "x-newest", catalogDisplayId: "model-x", imageType: "back" },
+      { itemId: "x-newest", catalogDisplayId: "model-x", imageType: "front" },
+      { itemId: "x-older", catalogDisplayId: "model-x", imageType: "back" },
+      { itemId: "x-oldest", catalogDisplayId: "model-x", imageType: "back" },
+      { itemId: "y-newest", catalogDisplayId: "model-y", imageType: "back" },
+      { itemId: "not-selected", catalogDisplayId: "model-z", imageType: "back" },
+    ];
+
+    expect(selectVerifiedVisualReferenceItems(["model-y", "model-x"], rows)).toEqual([
+      { itemId: "y-newest", catalogDisplayId: "model-y" },
+      { itemId: "x-newest", catalogDisplayId: "model-x" },
+      { itemId: "x-older", catalogDisplayId: "model-x" },
+    ]);
+  });
+
+  it("groups sibling assemblies of one device model for reference corroboration", () => {
+    // Prefer the assembly the search proposed when it has its own verified
+    // reference; otherwise use a verified sibling of the same device model.
+    expect(shortlistVerifiedVisualCatalogIds(["xr-cof", "iphone-11"], xrCatalog, ["xr-am", "xr-cof"]))
+      .toEqual(["xr-cof"]);
+    expect(shortlistVerifiedVisualCatalogIds(["xr-am"], xrCatalog, ["xr-am", "xr-cof"]))
+      .toEqual(["xr-am"]);
+
+    const rows = [
+      { itemId: "xr-am-item", catalogDisplayId: "xr-am", imageType: "back" },
+      { itemId: "xr-cof-item", catalogDisplayId: "xr-cof", imageType: "back" },
+    ];
+    // Both references map to the representative XR SKU, so the comparator
+    // sees two independent iPhone XR examples and the policy can count them.
+    expect(selectVerifiedVisualReferenceItems(["xr-cof"], rows, 2, xrCatalog)).toEqual([
+      { itemId: "xr-am-item", catalogDisplayId: "xr-cof", sourceCatalogDisplayId: "xr-am" },
+      { itemId: "xr-cof-item", catalogDisplayId: "xr-cof", sourceCatalogDisplayId: "xr-cof" },
+    ]);
+  });
+
   it("returns only the catalog ID for a decisive voted model, ignoring lower-ranked conflicts", () => {
     const result = visualResult({
       cleanDecision: {

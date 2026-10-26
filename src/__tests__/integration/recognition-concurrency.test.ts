@@ -138,7 +138,7 @@ it("reuses unresolved visual evidence for identical image bytes without repeatin
   expect(providerCall).toHaveBeenCalledTimes(1);
   const [reused] = await db.select().from(rmaItems).where(eq(rmaItems.id, items[1].id));
   expect(reused.predictedModel).toBeNull();
-  expect(reused.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+  expect(reused.predictedDisplayAssembly).toBe("Unidentified Display");
   expect(reused.status).toBe("review_required");
   const runs = await db.select().from(recognitionRuns).where(eq(recognitionRuns.rmaItemId, items[1].id));
   expect(runs.find((run) => run.pipelineType === "visual")?.providerName).toBe("stable-visual-evidence");
@@ -257,11 +257,23 @@ it("serializes concurrent recognition of duplicate image bytes across five worke
     await new Promise((resolve) => setTimeout(resolve, 40));
     const result = await identifyDisplay.call(new MockLensProvider(), buffer, context);
     const model = resultIndex++ % 2 === 0 ? "iPhone 14 Plus" : "iPhone 15 Pro";
+    const candidates = result.candidates.map((candidate) => ({
+      ...candidate,
+      title: candidate.title.replaceAll("iPhone 13 Pro", model),
+      sourceUrl: candidate.sourceUrl?.replaceAll("iphone-13-pro", model.toLowerCase().replaceAll(" ", "-")),
+    }));
     const cleanDecision = result.cleanDecision
-      ? { ...result.cleanDecision, model, displayName: `Apple ${model} Display` }
+      ? {
+          ...result.cleanDecision,
+          model,
+          displayName: `Apple ${model} Display`,
+          cleanedCandidates: candidates.map((candidate) => candidate.title),
+          reasoning: `Independent listings consistently identify ${model}.`,
+        }
       : undefined;
     return {
       ...result,
+      candidates,
       normalizedModel: model,
       detectedDisplayAssembly: `Apple ${model} Display`,
       cleanDecision,
@@ -277,7 +289,6 @@ it("serializes concurrent recognition of duplicate image bytes across five worke
 
   const processed = await db.select().from(rmaItems).where(eq(rmaItems.rmaId, rmaId));
   expect(processed).toHaveLength(15);
-  expect(new Set(processed.map((item) => item.predictedModel)).size).toBe(1);
-  expect(processed.every((item) => item.predictedModel)).toBe(true);
+  expect(processed.every((item) => item.predictedModel === "iPhone 14 Plus")).toBe(true);
   expect(providerCall).toHaveBeenCalledTimes(1);
 });

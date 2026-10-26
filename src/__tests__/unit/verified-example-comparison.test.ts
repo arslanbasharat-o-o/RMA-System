@@ -87,6 +87,10 @@ describe("verified display visual comparison", () => {
     expect(visibleLabels).toContain("New display photo angle: front view.");
     expect(visibleLabels).toContain("Focused crop: front camera notch and top edge.");
     expect(visibleLabels).toContain("Focused crop: flex cable and printed code close-up.");
+    expect(visibleLabels).toContain("Focused crop: back-view top edge and sensor cutouts.");
+    for (const part of request.messages[1].content) {
+      if (part.type === "image_url") expect(part).toHaveProperty("image_url.detail", "high");
+    }
     expect(visibleLabels).toContain("Human-verified reference model-a: Apple iPhone 13. Compare its physical geometry to the new display.");
   });
 
@@ -112,5 +116,76 @@ describe("verified display visual comparison", () => {
 
     expect(result.selectedCatalogDisplayId).toBeNull();
     expect(result.error).toContain("Invalid verified-example comparison response");
+  });
+
+  it("reserves reasoning tokens for reference models and bounds retries", async () => {
+    const imageBuffer = await syntheticDisplayPhoto();
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
+      selected_catalog_display_id: "none", confidence: 0.2, matching_cues: [], conflicting_cues: [],
+    }) } }] });
+    await new OpenAiVisionOcrService("unit-test-key", "gpt-6.1-sol", 120000).compareToVerifiedExamples(
+      [{ imageBuffer, imageType: "back" }],
+      [
+        { itemId: "a", catalogDisplayId: "a", label: "A", images: [{ imageBuffer, imageType: "back" }] },
+        { itemId: "b", catalogDisplayId: "b", label: "B", images: [{ imageBuffer, imageType: "back" }] },
+      ]
+    );
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({ model: "gpt-6.1-sol", max_completion_tokens: 8000, reasoning_effort: "medium" });
+    expect(mockCreate.mock.calls[0][1]).toEqual({ timeout: 120000, maxRetries: 1 });
+  });
+
+  it("uses a compact low-effort shortlist for discovery and keeps final detail", async () => {
+    const imageBuffer = await syntheticDisplayPhoto();
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
+      selected_catalog_display_id: "a", confidence: 0.9,
+    }) } }] });
+    const readable = [
+      { itemId: "a", catalogDisplayId: "a", label: "A", images: [{ imageBuffer, imageType: "back" }] },
+      { itemId: "b", catalogDisplayId: "b", label: "B", images: [{ imageBuffer, imageType: "back" }] },
+    ];
+    const discovery = await new OpenAiVisionOcrService("unit-test-key", "gpt-6.1-sol", 120000)
+      .compareToVerifiedExamples([{ imageBuffer, imageType: "back" }], readable, [], { mode: "discovery" });
+    expect(discovery.selectedCatalogDisplayId).toBe("a");
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      max_completion_tokens: 3000, reasoning_effort: "low",
+      response_format: { json_schema: { name: "verified_display_shortlist" } },
+    });
+    const discoveryRequest = mockCreate.mock.calls[0][0] as {
+      messages: Array<{ content: Array<{ type: string; text?: string; image_url?: { detail?: string } }> }>;
+    };
+    const discoveryImages = discoveryRequest.messages[1].content
+      .filter((part) => part.type === "image_url");
+    expect(discoveryImages.some((part) => part.image_url?.detail === "low")).toBe(true);
+    expect(discoveryImages.some((part) => part.image_url?.detail === "high")).toBe(true);
+    expect(discoveryRequest.messages[1].content.some((part) => part.type === "text" &&
+      /Focused crop: lower flex cable/.test(part.text || ""))).toBe(false);
+
+    mockCreate.mockReset();
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
+      selected_catalog_display_id: "a", confidence: 0.9, matching_cues: [], conflicting_cues: [],
+    }) } }] });
+    await new OpenAiVisionOcrService("unit-test-key", "gpt-6.1-sol", 120000)
+      .compareToVerifiedExamples([{ imageBuffer, imageType: "back" }], readable);
+    expect(mockCreate.mock.calls[0][0]).toMatchObject({
+      max_completion_tokens: 8000, reasoning_effort: "medium",
+      response_format: { json_schema: { name: "verified_display_comparison" } },
+    });
+  });
+
+  it("includes unrepresented catalog alternatives and retains reported ambiguity", async () => {
+    const imageBuffer = await syntheticDisplayPhoto();
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: JSON.stringify({
+      selected_catalog_display_id: "a", confidence: 0.98, matching_cues: ["similar cutouts"], conflicting_cues: [],
+      unresolved_alternatives: ["unrepresented device"],
+    }) } }] });
+    const comparison = await new OpenAiVisionOcrService("unit-test-key", "gpt-4o").compareToVerifiedExamples(
+      [{ imageBuffer, imageType: "back" }],
+      [
+        { itemId: "a", catalogDisplayId: "a", label: "A", images: [{ imageBuffer, imageType: "back" }] },
+        { itemId: "b", catalogDisplayId: "b", label: "B", images: [{ imageBuffer, imageType: "back" }] },
+      ], ["A", "B", "unrepresented device"]
+    );
+    expect(comparison.unresolvedAlternatives).toEqual(["unrepresented device"]);
+    expect(JSON.stringify(mockCreate.mock.calls[0][0].messages)).toContain("unrepresented device");
   });
 });
