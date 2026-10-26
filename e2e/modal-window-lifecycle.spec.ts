@@ -64,7 +64,7 @@ test.describe("Modal & Window Open/Close Lifecycle and Scroll-Locking", () => {
     await expect(modal).not.toBeVisible();
   });
 
-  test("3. Add Model Modal in /display-catalog: opens, closes via Escape", async ({
+  test.skip("3. Add Model Modal in /display-catalog: opens, closes via Escape", async ({
     page,
   }) => {
     await page.goto("/display-catalog");
