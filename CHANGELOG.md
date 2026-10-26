@@ -4,6 +4,14 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.26] - 2026-10-26
+
+### Fixed
+- Compare the full visual-search candidate pool with angle-matched, operator-verified reference photos when search evidence contains competing catalog models, even when the first-pass decision reports high confidence.
+
+### Verification
+- PR #85 passed the required CI suite, including unit tests, typecheck, lint, production build, container build, and desktop/mobile browser checks.
+
 ## [0.3.25] - 2026-10-26
 
 ### Fixed
