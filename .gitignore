@@ -5,6 +5,7 @@
 
 # Local and generated data
 .local/
+.planning/
 .*-storage/
 data/catalog.xlsx
 data/storage/

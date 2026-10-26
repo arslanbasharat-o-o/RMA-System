@@ -16,6 +16,7 @@ import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
+import { compareVerifiedLibrary, type VerifiedLibraryComparison } from "@/lib/recognition/openai/verified-library";
 import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import { independentSource } from "@/lib/recognition/lens/model-evidence";
@@ -32,7 +33,10 @@ import { getManualModelOverride } from "@/lib/recognition/manual-model";
 import {
   addVerifiedPartNumbersToCatalog,
   findVerifiedPartNumberConflicts,
+  shouldWithholdUnconfirmedVisualSuggestion,
   shouldApplyVerifiedVisualComparison,
+  shouldShowUnconfirmedVerifiedSuggestion,
+  verifiedComparisonConflictsWithModel,
   type VerifiedDisplayExample,
 } from "@/lib/recognition/verified-feedback";
 import { VendorRuleMatcher } from "@/lib/recognition/rules/matcher";
@@ -217,7 +221,7 @@ async function loadVerifiedVisualReferenceRows(
   excludeItemId: string,
   catalogIds: string[]
 ) {
-  if (catalogIds.length < 2) return [];
+  if (!catalogIds.length) return [];
   return db
     .select({
       itemId: rmaItems.id,
@@ -236,8 +240,7 @@ async function loadVerifiedVisualReferenceRows(
       inArray(rmaItems.catalogDisplayId, catalogIds),
       ne(rmaItems.id, excludeItemId)
     ))
-    .orderBy(desc(rmaItems.verifiedAt), asc(itemImages.sortOrder))
-    .limit(200);
+    .orderBy(desc(rmaItems.verifiedAt), asc(itemImages.sortOrder));
 }
 
 type DisplayCatalogItem = Parameters<typeof matchDisplayToCatalog>[1][number];
@@ -386,6 +389,30 @@ function visualCatalogEvidence(
     : null;
 
   return { rankedVotes, candidateIds: [...candidateIdByModel.values()], decisiveWinner };
+}
+
+export function hasIndependentVisualCatalogSupport(
+  visualResult: VisualIdentificationResult,
+  catalog: DisplayCatalogItem[],
+  catalogId: string | null
+): boolean {
+  const selected = catalog.find((item) => item.id === catalogId);
+  const winner = visualCatalogEvidence({ ...visualResult,
+    candidates: candidatesForVerifiedComparison(visualResult) }, catalog).decisiveWinner;
+  return Boolean(selected && winner && catalogModelKey(selected) === winner.key);
+}
+
+export function unrepresentedVisualCandidateLabels(
+  candidateIds: string[], references: VerifiedDisplayReference[], catalog: DisplayCatalogItem[]
+): string[] {
+  const referenceModels = new Set(references.flatMap((reference) => {
+    const model = catalog.find((entry) => entry.id === reference.catalogDisplayId);
+    return model ? [catalogModelKey(model)] : [];
+  }));
+  return candidateIds.flatMap((id) => {
+    const model = catalog.find((entry) => entry.id === id);
+    return model && !referenceModels.has(catalogModelKey(model)) ? [`${model.manufacturer} ${model.modelName}`] : [];
+  });
 }
 
 function decisionMatchesCatalogModel(
@@ -583,9 +610,11 @@ export function shortlistVerifiedVisualCatalogIds(
   maximumCandidates = 8
 ): string[] {
   const verifiedIdByModel = new Map<string, string>();
+  const verifiedIdSet = new Set<string>();
   for (const catalogId of verifiedCatalogIds) {
     const item = catalog.find((entry) => entry.id === catalogId);
     if (!item) continue;
+    verifiedIdSet.add(catalogId);
     const key = catalogModelKey(item);
     if (!verifiedIdByModel.has(key)) verifiedIdByModel.set(key, catalogId);
   }
@@ -596,8 +625,14 @@ export function shortlistVerifiedVisualCatalogIds(
     const item = catalog.find((entry) => entry.id === catalogId);
     if (!item) continue;
     const key = catalogModelKey(item);
-    const verifiedCatalogId = verifiedIdByModel.get(key);
-    if (!verifiedCatalogId || seenModels.has(key)) continue;
+    if (seenModels.has(key)) continue;
+    // Prefer the exact assembly the search proposed when it has its own
+    // verified reference. Otherwise fall back to a verified sibling assembly
+    // of the same device model.
+    const verifiedCatalogId = verifiedIdSet.has(catalogId)
+      ? catalogId
+      : verifiedIdByModel.get(key);
+    if (!verifiedCatalogId) continue;
     seenModels.add(key);
     selected.push(verifiedCatalogId);
     if (selected.length >= maximumCandidates) break;
@@ -605,11 +640,69 @@ export function shortlistVerifiedVisualCatalogIds(
   return selected;
 }
 
-async function loadVerifiedVisualReferences(
+/**
+ * Preserve up to two distinct verified examples per device model, not per
+ * catalog SKU. A model can have several assemblies (for example iPhone XR AM
+ * and iPhone XR COF); they corroborate the same device identity even when only
+ * one assembly matches the upload's construction.
+ */
+export function selectVerifiedVisualReferenceItems<T extends {
+  itemId: string;
+  catalogDisplayId: string | null;
+}>(
+  catalogIds: string[],
+  rows: T[],
+  maximumExamplesPerModel = 2,
+  catalog?: DisplayCatalogItem[]
+): Array<{ itemId: string; catalogDisplayId: string; sourceCatalogDisplayId?: string }> {
+  const selected: Array<{ itemId: string; catalogDisplayId: string; sourceCatalogDisplayId?: string }> = [];
+  if (catalog) {
+    const modelKeyByCatalogId = new Map(catalog.map((item) => [item.id, catalogModelKey(item)]));
+    const representativeByModel = new Map<string, string>();
+    for (const catalogId of catalogIds) {
+      const key = modelKeyByCatalogId.get(catalogId);
+      if (key && !representativeByModel.has(key)) representativeByModel.set(key, catalogId);
+    }
+    for (const [modelKey, representativeCatalogId] of representativeByModel) {
+      const seenItemIds = new Set<string>();
+      let selectedForModel = 0;
+      for (const row of rows) {
+        if (!row.catalogDisplayId) continue;
+        if (modelKeyByCatalogId.get(row.catalogDisplayId) !== modelKey) continue;
+        if (seenItemIds.has(row.itemId)) continue;
+        seenItemIds.add(row.itemId);
+        selected.push({
+          itemId: row.itemId,
+          catalogDisplayId: representativeCatalogId,
+          sourceCatalogDisplayId: row.catalogDisplayId,
+        });
+        selectedForModel += 1;
+        if (selectedForModel >= maximumExamplesPerModel) break;
+      }
+    }
+    return selected;
+  }
+
+  for (const catalogDisplayId of catalogIds) {
+    const seenItemIds = new Set<string>();
+    let selectedForModel = 0;
+    for (const row of rows) {
+      if (row.catalogDisplayId !== catalogDisplayId || seenItemIds.has(row.itemId)) continue;
+      seenItemIds.add(row.itemId);
+      selected.push({ itemId: row.itemId, catalogDisplayId });
+      selectedForModel += 1;
+      if (selectedForModel >= maximumExamplesPerModel) break;
+    }
+  }
+  return selected;
+}
+
+export async function loadVerifiedVisualReferences(
   excludeItemId: string,
   excludedChecksums: string[],
   catalogIds: string[],
-  catalog: DisplayCatalogItem[]
+  catalog: DisplayCatalogItem[],
+  scope: "library" | "candidates" = "library"
 ): Promise<VerifiedDisplayReference[]> {
   const candidateModelKeys = new Set(catalogIds.flatMap((catalogId) => {
     const item = catalog.find((entry) => entry.id === catalogId);
@@ -618,14 +711,19 @@ async function loadVerifiedVisualReferences(
   const modelVariantIds = catalog
     .filter((item) => candidateModelKeys.has(catalogModelKey(item)))
     .map((item) => item.id);
-  const rows = await loadVerifiedVisualReferenceRows(excludeItemId, modelVariantIds);
+  const loadedRows = await loadVerifiedVisualReferenceRows(excludeItemId,
+    scope === "library" ? catalog.map((item) => item.id) : modelVariantIds);
+  const excludedItems = new Set(loadedRows
+    .filter((row) => excludedChecksums.includes(row.checksumSha256)).map((row) => row.itemId));
+  const rows = loadedRows.filter((row) => !excludedItems.has(row.itemId));
   const verifiedCatalogIds = [...new Set(rows.map((row) => row.catalogDisplayId).filter(
     (catalogId): catalogId is string => Boolean(catalogId)
   ))];
   const selectedCatalogIds = shortlistVerifiedVisualCatalogIds(
-    catalogIds,
+    scope === "library" ? [...catalogIds, ...verifiedCatalogIds] : catalogIds,
     catalog,
-    verifiedCatalogIds
+    verifiedCatalogIds,
+    scope === "library" ? catalog.length : 8
   );
   const rowsByCatalog = new Map<string, Map<string, typeof rows>>();
   for (const row of rows) {
@@ -646,34 +744,33 @@ async function loadVerifiedVisualReferences(
   // Never compare an upload against a copy of any of its own target photos,
   // even if that same photo was previously attached to another verified item.
   const usedChecksums = new Set<string>(excludedChecksums);
-  for (const catalogId of selectedCatalogIds) {
-    const examples = rowsByCatalog.get(catalogId);
-    if (!examples) continue;
-    const catalogItem = catalog.find((entry) => entry.id === catalogId);
+  const selectedExamples = selectVerifiedVisualReferenceItems(selectedCatalogIds, rows, 2, catalog);
+  for (const { catalogDisplayId, sourceCatalogDisplayId, itemId } of selectedExamples) {
+    const examples = rowsByCatalog.get(sourceCatalogDisplayId || catalogDisplayId);
+    const images = examples?.get(itemId);
+    if (!images) continue;
+    const catalogItem = catalog.find((entry) => entry.id === catalogDisplayId);
     if (!catalogItem) continue;
-    for (const [exampleItemId, images] of examples) {
-      const front = selectedRecognitionImage(images);
-      const detail = images.find((image) => image.imageType === "flex_cable") ||
-        images.find((image) => image.imageType === "back");
-      const availableImages = [front, detail]
-        .filter((image): image is NonNullable<typeof image> => image !== undefined);
-      const chosenImages = availableImages
-        .filter((image, index, list) => list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index)
-        .filter((image) => !usedChecksums.has(image.checksumSha256));
-      if (!chosenImages.length) continue;
-      for (const image of chosenImages) usedChecksums.add(image.checksumSha256);
-      selected.push({
-        itemId: exampleItemId,
-        catalogDisplayId: catalogId,
-        label: `${catalogItem.manufacturer} ${catalogItem.modelName}`,
-        images: chosenImages.map((image) => ({
-          storagePath: image.storagePath,
-          imageType: image.imageType,
-          checksumSha256: image.checksumSha256,
-        })),
-      });
-      break;
-    }
+    const front = selectedRecognitionImage(images);
+    const detail = images.find((image) => image.imageType === "flex_cable") ||
+      images.find((image) => image.imageType === "back");
+    const availableImages = [front, detail]
+      .filter((image): image is NonNullable<typeof image> => image !== undefined);
+    const chosenImages = availableImages
+      .filter((image, index, list) => list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index)
+      .filter((image) => !usedChecksums.has(image.checksumSha256));
+    if (!chosenImages.length) continue;
+    for (const image of chosenImages) usedChecksums.add(image.checksumSha256);
+    selected.push({
+      itemId,
+      catalogDisplayId,
+      label: `${catalogItem.manufacturer} ${catalogItem.modelName}`,
+      images: chosenImages.map((image) => ({
+        storagePath: image.storagePath,
+        imageType: image.imageType,
+        checksumSha256: image.checksumSha256,
+      })),
+    });
   }
 
   return Promise.all(selected.map(async (example) => ({
@@ -1114,7 +1211,10 @@ export async function processRmaItem(
     : visualResult;
 
   let verifiedComparisonDisagrees = false;
-  let verifiedComparison: Awaited<ReturnType<OpenAiVisionOcrService["compareToVerifiedExamples"]>> | null = null;
+  let verifiedComparisonApplied = false;
+  let verifiedSuggestionShown = false;
+  let visualSuggestionWithheld = false;
+  let verifiedComparison: VerifiedLibraryComparison | null = null;
   const comparisonCandidateIds = shouldRunVisual &&
     !verifiedPartNumberConflicts.length &&
     proposedDisplayMatch?.matchType !== "part_number"
@@ -1126,15 +1226,12 @@ export async function processRmaItem(
     (visualResult.cleanDecision?.confidence ?? 0) < 0.75 ||
     comparisonCandidateIds.length >= 2;
 
-  // Search the full bounded Lens pool, then spend the comparison budget only
-  // on models with angle-matched, operator-verified examples. This is a
-  // bounded inference-time lookup, never a background weight update.
+  // Verified models must be discoverable even when Lens omits them. Every
+  // newly verified item is eligible on the next upload, without a rebuild.
   if (
     shouldRunVisual &&
     !verifiedPartNumberConflicts.length &&
-    needsVisualHelp &&
-    proposedDisplayMatch?.matchType !== "part_number" &&
-    comparisonCandidateIds.length >= 2
+    proposedDisplayMatch?.matchType !== "part_number"
   ) {
     const candidateIds = comparisonCandidateIds;
     try {
@@ -1156,12 +1253,34 @@ export async function processRmaItem(
         allCatalog
       );
       if (references.length >= 2) {
-        const comparator = new OpenAiVisionOcrService(undefined, configuredOpenAiVisionModel);
+        const comparator = new OpenAiVisionOcrService(undefined,
+          process.env.OPENAI_REFERENCE_MODEL || configuredOpenAiVisionModel, 120000);
         const targetImages = await Promise.all(targetComparisonImages.map(async (image) => ({
           imageType: image.imageType,
           imageBuffer: await storage.getImageBuffer(image.storagePath),
         })));
-        verifiedComparison = await comparator.compareToVerifiedExamples(targetImages, references);
+        const unrepresentedSearchLabels = unrepresentedVisualCandidateLabels(candidateIds, references, allCatalog);
+        verifiedComparison = await compareVerifiedLibrary(comparator, targetImages, references, unrepresentedSearchLabels);
+
+        const selectedCatalogItem = verifiedComparison.selectedCatalogDisplayId
+          ? allCatalog.find((entry) => entry.id === verifiedComparison?.selectedCatalogDisplayId)
+          : undefined;
+        const initialCatalogItem = proposedDisplayMatch?.catalogId
+          ? allCatalog.find((entry) => entry.id === proposedDisplayMatch?.catalogId)
+          : undefined;
+        const selectedModelKey = selectedCatalogItem ? catalogModelKey(selectedCatalogItem) : null;
+        // Corroboration is a device-model property. Two verified XR assemblies
+        // (for example AM and COF) are independent evidence for "iPhone XR"
+        // even when the comparison only cites the assembly that matches the
+        // upload's construction.
+        const supportingModelReferenceCount = selectedModelKey
+          ? new Set(references.flatMap((reference) => {
+              const referenceItem = allCatalog.find((entry) => entry.id === reference.catalogDisplayId);
+              return referenceItem && catalogModelKey(referenceItem) === selectedModelKey
+                ? [reference.itemId]
+                : [];
+            })).size
+          : 0;
 
         await db.insert(recognitionRuns).values({
           rmaItemId: itemId,
@@ -1179,49 +1298,99 @@ export async function processRmaItem(
             confidence: verifiedComparison.confidence,
             matchingCues: verifiedComparison.matchingCues,
             conflictingCues: verifiedComparison.conflictingCues,
+            unresolvedAlternatives: verifiedComparison.unresolvedAlternatives,
+            supportingReferenceItemIds: verifiedComparison.supportingReferenceItemIds,
+            supportingModelReferenceCount,
+            searchedCatalogIds: verifiedComparison.searchedCatalogIds,
+            discoveryBatches: verifiedComparison.discoveryBatches,
+            timings: verifiedComparison.timings,
           },
           durationMs: verifiedComparison.durationMs,
           errorMessage: verifiedComparison.error || null,
         });
 
-        const selectedCatalogItem = verifiedComparison.selectedCatalogDisplayId
-          ? allCatalog.find((entry) => entry.id === verifiedComparison?.selectedCatalogDisplayId)
-          : undefined;
-        if (selectedCatalogItem && shouldApplyVerifiedVisualComparison(
-          verifiedComparison.selectedCatalogDisplayId,
-          verifiedComparison.confidence,
-          references.map((reference) => reference.catalogDisplayId)
-        )) {
-          const selectedComparison = {
-            ...visualResult,
-            normalizedManufacturer: selectedCatalogItem.manufacturer,
-            normalizedModel: selectedCatalogItem.modelName,
-            detectedDisplayAssembly: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
-            cleanDecision: {
-              manufacturer: selectedCatalogItem.manufacturer,
-              model: selectedCatalogItem.modelName,
-              displayName: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
-              confidence: verifiedComparison.confidence,
-              cleanedCandidates: visualResult.candidates.map((candidate) => candidate.title).slice(0, 5),
-              reasoning: `Compared the upload with ${references.length} operator-verified reference displays. ${verifiedComparison.matchingCues.join("; ")}`,
-            },
-          } satisfies VisualIdentificationResult;
-          const comparedMatch = matchDisplayToCatalog(
-            selectedComparison,
-            catalogWithVerifiedPartNumbers,
-            ocrStructured.part_numbers
-          );
-          if (comparedMatch?.catalogId === selectedCatalogItem.id) {
-            const previousBestCatalogId = proposedDisplayMatch?.catalogId || candidateIds[0];
-            verifiedComparisonDisagrees = previousBestCatalogId !== selectedCatalogItem.id;
-            synthesisVisualResult = selectedComparison;
-            displayMatch = comparedMatch;
-          }
+        verifiedComparisonDisagrees = verifiedComparisonConflictsWithModel(
+          initialCatalogItem ? catalogModelKey(initialCatalogItem) : null,
+          selectedCatalogItem ? catalogModelKey(selectedCatalogItem) : null
+        );
+        const selectedComparison = selectedCatalogItem ? {
+          ...visualResult,
+          normalizedManufacturer: selectedCatalogItem.manufacturer,
+          normalizedModel: selectedCatalogItem.modelName,
+          detectedDisplayAssembly: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
+          cleanDecision: {
+            manufacturer: selectedCatalogItem.manufacturer,
+            model: selectedCatalogItem.modelName,
+            displayName: `${selectedCatalogItem.manufacturer} ${selectedCatalogItem.modelName} Display`,
+            confidence: verifiedComparison.confidence,
+            cleanedCandidates: visualResult.candidates.map((candidate) => candidate.title).slice(0, 5),
+            reasoning: `Compared the upload with ${references.length} operator-verified reference displays. ${verifiedComparison.matchingCues.join("; ")}`,
+          },
+        } satisfies VisualIdentificationResult : null;
+        const comparedMatch = selectedComparison && selectedCatalogItem
+          ? matchDisplayToCatalog(
+              { ...selectedComparison, candidates: [] },
+              // The visual reviewer already selected this reference-backed ID.
+              // Re-ranking all assemblies with old Lens titles can undo that choice.
+              catalogWithVerifiedPartNumbers.filter((entry) => entry.id === selectedCatalogItem.id),
+              []
+            )
+          : null;
+        const comparedSelectionMatches = Boolean(
+          selectedCatalogItem && comparedMatch && comparedMatch.catalogId === selectedCatalogItem.id
+        );
+        if (comparedSelectionMatches && selectedCatalogItem && selectedComparison && comparedMatch &&
+          shouldApplyVerifiedVisualComparison(
+            verifiedComparison.selectedCatalogDisplayId,
+            verifiedComparison.confidence,
+            references.map((reference) => reference.catalogDisplayId),
+            { unresolvedAlternatives: verifiedComparison.unresolvedAlternatives,
+              supportingReferenceCount: supportingModelReferenceCount,
+              searchCorroborated: hasIndependentVisualCatalogSupport(visualResult, allCatalog, verifiedComparison.selectedCatalogDisplayId),
+              matchingCueCount: verifiedComparison.matchingCues.length }
+          )) {
+          verifiedComparisonApplied = true;
+          synthesisVisualResult = selectedComparison;
+          displayMatch = comparedMatch;
+        } else if (comparedSelectionMatches && selectedComparison && comparedMatch &&
+          shouldShowUnconfirmedVerifiedSuggestion(
+            verifiedComparison.selectedCatalogDisplayId,
+            verifiedComparison.confidence,
+            supportingModelReferenceCount,
+            verifiedComparison.matchingCues.length,
+            verifiedComparison.unresolvedAlternatives.length
+          )) {
+          // Keep the best reference-backed model visible in review instead of
+          // returning an empty "unidentified" result. This is not a verified
+          // decision; the item remains review_required.
+          verifiedSuggestionShown = true;
+          synthesisVisualResult = selectedComparison;
+          displayMatch = comparedMatch;
         }
       }
     } catch (error) {
       console.warn("[Processor] Verified-example comparison could not run:", error);
     }
+  }
+
+  const initialVisualConfidence = proposedDisplayMatch?.confidenceScore ?? visualResult.cleanDecision?.confidence ?? 0;
+  const unresolvedVisualAlternatives = Boolean(verifiedComparison?.unresolvedAlternatives.length);
+  const uncorroboratedVisualSuggestion = Boolean(verifiedComparison && !verifiedComparisonApplied &&
+    !hasIndependentVisualCatalogSupport(visualResult, allCatalog, proposedDisplayMatch?.catalogId || null));
+  if (!verifiedSuggestionShown && (needsVisualHelp || verifiedComparisonDisagrees || unresolvedVisualAlternatives || uncorroboratedVisualSuggestion) && shouldWithholdUnconfirmedVisualSuggestion(
+    initialVisualConfidence,
+    verifiedComparisonApplied,
+    verifiedComparisonDisagrees || unresolvedVisualAlternatives || uncorroboratedVisualSuggestion
+  )) {
+    visualSuggestionWithheld = true;
+    displayMatch = null;
+    synthesisVisualResult = {
+      ...visualResult,
+      normalizedManufacturer: undefined,
+      normalizedModel: undefined,
+      detectedDisplayAssembly: undefined,
+      cleanDecision: undefined,
+    };
   }
 
   const unified = synthesizeRecognition(
@@ -1236,6 +1405,11 @@ export async function processRmaItem(
       `Verified feedback matched part number ${displayMatch.matchedPartNumber} across ${displayMatch.verifiedExampleCount} independently verified displays.`
     );
   }
+  if (visualSuggestionWithheld) {
+    unified.evidenceNotes.push(
+      "No model suggestion was shown because visual evidence was uncertain and verified-example comparison did not confirm the initial candidate. Human confirmation is required."
+    );
+  }
   if (verifiedComparison?.selectedCatalogDisplayId && displayMatch?.catalogId === verifiedComparison.selectedCatalogDisplayId) {
     unified.evidenceNotes.push(
       `Compared available front and flex/back photos with operator-verified examples using ${verifiedComparison.model} (confidence ${verifiedComparison.confidence.toFixed(2)}). Matching cues: ${verifiedComparison.matchingCues.join("; ") || "none reported"}.`
@@ -1243,12 +1417,20 @@ export async function processRmaItem(
     if (verifiedComparison.conflictingCues.length) {
       unified.evidenceNotes.push(`Conflicting visual cues: ${verifiedComparison.conflictingCues.join("; ")}.`);
     }
+    if (verifiedSuggestionShown) {
+      unified.evidenceNotes.push(
+        "This is the best-supported model suggestion, but the comparison is not strong enough to confirm automatically. Human confirmation is required."
+      );
+    }
   } else if (verifiedComparison?.selectedCatalogDisplayId) {
     unified.evidenceNotes.push("Verified-example comparison did not reach the confidence threshold; the candidate remains unconfirmed.");
   } else if (verifiedComparison?.error) {
     unified.evidenceNotes.push(`Verified-example comparison unavailable: ${verifiedComparison.error}`);
   } else if (verifiedComparison && verifiedComparison.selectedCatalogDisplayId === null) {
     unified.evidenceNotes.push("Verified-example comparison abstained because the reference images did not clearly match one candidate.");
+  }
+  if (verifiedComparison?.unresolvedAlternatives.length) {
+    unified.evidenceNotes.push(`Visible features do not distinguish these catalog alternatives: ${verifiedComparison.unresolvedAlternatives.join(", ")}. Additional physical evidence is required.`);
   }
   for (const conflict of verifiedPartNumberConflicts) {
     unified.evidenceNotes.push(
@@ -1270,19 +1452,26 @@ export async function processRmaItem(
     : item.vendorOcrStatus;
 
   let finalItemStatus = unified.itemStatus;
-  if (
-    verifiedPartNumberConflicts.length ||
-    verifiedComparisonDisagrees ||
-    Boolean(verifiedComparison?.conflictingCues.length)
-  ) {
+  if (verifiedSuggestionShown) {
+    // Keep the synthesized possible/strong-candidate status so the operator
+    // can approve the reference-backed suggestion in one action. The item is
+    // still forced into review; this is not an automatic verification.
+    finalItemStatus = "review_required";
+  }
+  const ambiguousVerifiedEvidence =
+    verifiedPartNumberConflicts.length > 0 ||
+    Boolean(verifiedComparison?.conflictingCues.length) ||
+    (verifiedComparisonDisagrees && !verifiedSuggestionShown) ||
+    (Boolean(verifiedComparison?.unresolvedAlternatives.length) && !verifiedSuggestionShown);
+  if (ambiguousVerifiedEvidence) {
     finalItemStatus = "review_required";
     unified.overallMatchStatus = "ambiguous";
-    if (verifiedComparisonDisagrees) {
-      unified.evidenceNotes.push("Verified-example comparison selected a different model than the initial recognition result. Human confirmation is required.");
-    }
-    if (verifiedComparison?.conflictingCues.length) {
-      unified.evidenceNotes.push("Verified-example comparison found conflicting physical cues. Human confirmation is required.");
-    }
+  }
+  if (verifiedComparisonDisagrees) {
+    unified.evidenceNotes.push("Verified-example comparison selected a different model than the initial recognition result. Human confirmation is required.");
+  }
+  if (verifiedComparison?.conflictingCues.length) {
+    unified.evidenceNotes.push("Verified-example comparison found conflicting physical cues. Human confirmation is required.");
   }
   if (currentVisualStatus === "failed" && currentOcrStatus === "failed") {
     finalItemStatus = "failed";

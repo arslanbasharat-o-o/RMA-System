@@ -4,11 +4,119 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-26
+
+### Changed
+- Shortlist the verified library in one compact discovery call when it contains at most 32 device models. Larger libraries still use bounded batches, but all batches in a round now run concurrently with `OPENAI_CONCURRENCY` (default 2) instead of two at a time.
+- Make discovery cheaper: each reference contributes its focused sensor/notch view at high detail plus a low-detail context frame, discovery uses `reasoning_effort: low` and a minimal selection schema, and the final high-detail comparison remains unchanged.
+- Cache prepared frames and focused crops per image buffer so the final comparison does not reprocess discovery inputs.
+- Record discovery, final, and total comparison timings in `recognition_runs.raw_response.timings`.
+- Add `OPENAI_CONCURRENCY` and `VERIFIED_DISCOVERY_MAX_MODELS` to the documented environment.
+
+### Fixed
+- Reduce the redundant sequential comparison rounds that made a single upload take roughly 80–95 seconds. The frozen holdout now measures p50 39.1 s and p95 52.8 s (v0.4.0: p50 77.6 s, p95 93.4 s).
+
+### Verification
+- Frozen 12-model holdout: 12/12 exact model accuracy, 9/12 accepted coverage (75.0%), 100% accepted precision, 12/12 review-suggestion coverage (100%), 100% review-suggestion precision, 0 false confident matches, and 0 errors. p50 39.1 s, p95 52.8 s; comparison stage p50 28.0 s, p95 37.9 s.
+- Non-database unit tests 190/190 pass; TypeScript and ESLint pass. Seven database-backed tests require a local PostgreSQL and were not run in this workspace. The production build is validated during deployment.
+- Live queue replay on the deployed v0.4.1 returned Apple iPhone XR with `review_required` and no verification, at 0.98 confidence. Comparison took 19.4 s and end-to-end processing took 22 s, versus roughly 82–85 s for previous live unified runs.
+- Confidence thresholds, acceptance rules, the final high-detail comparison, and the human-review requirement are unchanged. The item is never auto-verified.
+
 ## [0.4.0] - 2026-10-26
 
 ### Changed
-- Align repository release metadata with the deployed RMA System v0.4.0.
-- Preserve the existing recognition engine and processing behavior.
+- Count verified visual references per device model instead of per catalog SKU. Two verified assemblies of one model (for example iPhone XR AM and COF) now corroborate the same model identity. The shortlist prefers the exact SKU proposed by search when it has a verified photo, and otherwise uses a verified sibling assembly.
+- Keep a reference-backed model visible as a review-only suggestion when the comparison does not meet the acceptance policy, instead of replacing it with an unidentified result. The item remains `review_required`; the suggestion is never auto-verified.
+- Allow the operator to approve a concrete reference-backed suggestion in one action even when the synthesized status is ambiguous. Items without a model and catalog ID remain blocked.
+- Record `supportingModelReferenceCount` in recognition runs and report review-suggestion coverage/precision in the read-only benchmark.
+- Retry a transient provider 5xx once during verified-example comparison, so a temporary outage does not unnecessarily force a correct upload into review.
+
+### Fixed
+- The supplied iPhone XR display no longer loses to a visually similar iPhone 11 search result. The verified XR assemblies corroborate one model, and a decisive single-reference comparison can set the review suggestion at 0.97+ with at least three cues and no unresolved alternative.
+- Correctly handle near-identical sibling models whose references live on different catalog SKUs.
+- Keep the 0.93 acceptance threshold, two-reference rule, and human-review requirement. The changes affect which model is suggested and counted; they do not auto-verify items.
+
+### Verification
+- Frozen 12-model holdout: 12/12 exact model accuracy, 7/12 accepted coverage (58.3%), 100% accepted precision, 10/12 review-suggestion coverage (83.3%), 100% review-suggestion precision, 0 false confident matches, and 0 errors. p50 latency 77.6 s, p95 93.4 s. The iPhone 15 Pro Max case hit a transient provider 500 in the main run and was rerun with the final retry-enabled build (0.96, two model-level references); the merged result records the retry explicitly.
+- Non-database unit tests 189/189 pass; TypeScript, ESLint, and production build pass.
+- Live production replay of the supplied iPhone XR returned Apple iPhone XR at 0.98 with two model-level verified references, no unresolved alternatives, and `review_required`. The item remains unverified for the operator. A one-click approval was exercised on a temporary copy and removed with the rest of the smoke-test data.
+- This release supersedes the v0.3.34 candidate, which was built but never deployed.
+
+## [0.3.34] - 2026-10-26
+
+### Fixed
+- Allow a decisive single-reference comparison to set the suggested model in review. This applies only when the comparison scores at least 0.97, cites at least three concrete matching cues, and leaves no unresolved alternative. Near-identical siblings such as iPhone XR and iPhone 11 can make generic image search rank the wrong model first; the operator-verified reference should still inform the operator.
+- Keep the base acceptance threshold at 0.93 and keep two references as the standard for accepting a match that still has unresolved alternatives. The exception changes which model is suggested; the item remains `review_required` and is never auto-verified.
+- Discard the earlier v0.3.34 candidate that let one reference veto a search-backed suggestion. It was built but never deployed, because it would have kept the wrong iPhone 11 suggestion over the operator-confirmed iPhone XR result.
+
+### Verification
+- On v0.3.33 the replay selected iPhone XR at 0.98 from one verified XR reference with zero unresolved alternatives and four matching cue groups. The policy withheld it, and search still ranked iPhone 11 first.
+- The operator confirmed iPhone XR is the correct display. Focused recognition tests, typecheck, and lint pass. The live replay after deployment must show iPhone XR in review before this release is considered verified.
+
+## [0.3.33] - 2026-10-26
+
+### Fixed
+- Stop the comparator from returning `none` merely because search found a lower-ranked model with no verified reference. It now selects the best-supported supplied candidate and records the unrepresented label as a caveat, while the acceptance policy decides whether two independent references are enough.
+- Keep the confidence threshold at 0.93. The prompt change prevents self-censorship; it does not auto-accept a weak score.
+
+### Verification
+- The iPhone 11 replay on v0.3.32 still returned no model: discovery selected iPhone 11 at 0.86, but the focused comparison abstained at 0.30 after listing iPhone XS Max as an unrepresented alternative.
+- With the revised prompt, the same five-reference focused comparison selected iPhone 11 in 3/3 attempts at 0.94, citing both independent iPhone 11 references. iPhone XS Max was no longer treated as a veto; the only residual caveat was the closer iPhone XR reference.
+- Focused recognition tests, typecheck, and lint pass.
+
+## [0.3.32] - 2026-10-26
+
+### Fixed
+- Fall back to a focused comparison of the three closest search-ranked models when every discovery batch abstains. Previously an all-abstain discovery round returned no model before the focused comparison could run, so a correct top candidate with two strong references could still be reported as unidentified.
+- Keep the same acceptance threshold, two-reference corroboration, and human-review rules for the fallback result.
+
+### Verification
+- On v0.3.31 the iPhone 11 replay again returned no model: all four discovery batches abstained even though the visual search ranked iPhone 11 at 0.97. The focused three-model probe for this photo selected iPhone 11 at 0.93-0.94 in 3/3 attempts.
+- Focused recognition tests, typecheck, and lint pass.
+
+## [0.3.31] - 2026-10-26
+
+### Fixed
+- Focus the final verified-photo comparison on the discovery winner plus at most two search-ranked alternatives instead of sending every model from the winning batch. The wider prompt could contain dozens of near-identical reference photos and made the same iPhone 11 upload return either the correct model or no match across runs.
+- Keep both independent examples for the winner and only the closest competing labels for the final check, so the comparison has enough evidence without losing track of which reference belongs to which model.
+
+### Verification
+- A focused production read-only probe with iPhone 11 plus iPhone XR and iPhone 16 Pro Max references selected iPhone 11 in 3/3 attempts at 0.93-0.94, citing both independent iPhone 11 references.
+- The previous 32-reference final prompt returned no selection for the same photo on v0.3.30 after 40 seconds, despite the discovery batch having selected iPhone 11 at 0.88.
+- Focused recognition tests, typecheck, and lint pass before the direct production deployment.
+
+## [0.3.30] - 2026-10-26
+
+### Fixed
+- Accept a verified-photo comparison supported by two independent references even when the comparison also reports a residual lookalike caveat, because the model-level comparison already weighed and rejected that alternative. A single reference still requires independent search agreement and no unresolved alternatives.
+- Keep the confidence threshold at 0.93 for every accepted comparison; the policy change only removes the blanket veto from a second corroborating reference.
+
+### Verification
+- Focused recognition tests, typecheck, and lint pass. Direct production deployment and a live replay of the unaffected iPhone 11 test photo are performed outside GitHub CI/CD at the user's request.
+
+## [0.3.29] - 2026-10-26
+
+### Fixed
+- Retrieve operator-verified models independently of Google search candidates, so a model omitted by Lens can still be recognized from verified photos.
+- Search the verified library in bounded batches, then compare finalists with up to two independent references per model. Newly verified displays become eligible on the next upload.
+- Compare full photos at high detail and include rear sensor cutouts; require distinguishing geometry rather than generic flex-cable resemblance.
+- Support a separately configured reference model with a reasoning token budget, bounded retries, and recorded discovery decisions. Preserve the existing OCR model and human confirmation rules.
+
+### Verification
+- Isolated, read-only server probe identified the supplied display as iPhone 13 Pro Max at 0.95 using two independent verified photos and GPT-6.1 Sol; the earlier GPT-4o probe selected an incorrect model below the acceptance threshold.
+- Frozen 12-photo holdout: 8/12 exact model, 2/12 accepted, 100% accepted precision, 0 confident false matches, median comparison latency about 70 seconds. The missing-reference check accepted no model on 4/4 photos.
+- Live authenticated production upload of the supplied photo returned iPhone 13 Pro Max at 0.94 against 32 verified references and correctly remained in review required instead of auto-verifying. The temporary test customer, RMA, item, images, and session were removed afterward.
+
+## [0.3.28] - 2026-10-26
+
+### Fixed
+- Compare up to two distinct operator-verified display items per shortlisted model, so repeated verified samples can expose model-level visual consistency without an unbounded image pool.
+- Withhold a weak model suggestion when verified-example comparison cannot confirm it, and treat a competing model result as a reason for human review rather than preserving a misleading first-pass guess.
+- Compare candidate identities by device model across assembly variants, so catalog variants do not create false model conflicts.
+
+### Verification
+- The production v0.3.27 rescan confirmed the lower-ranked iPhone 13 Pro Max candidate and ran verified-example comparison, but the comparator selected iPhone 12 Pro Max at 0.90 and the system kept the low-confidence iPhone X suggestion in review. This release addresses that observed mismatch by using more verified samples and abstaining on unconfirmed suggestions.
+- Focused unit tests, typecheck, and lint are run before the direct production deployment; this release is deployed outside the GitHub CI/CD workflow at the user's request.
 
 ## [0.3.27] - 2026-10-26
 

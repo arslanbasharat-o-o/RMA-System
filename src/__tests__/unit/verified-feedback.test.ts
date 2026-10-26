@@ -5,6 +5,9 @@ import {
   findVerifiedPartNumberConflicts,
   normalizePartNumber,
   shouldApplyVerifiedVisualComparison,
+  shouldShowUnconfirmedVerifiedSuggestion,
+  shouldWithholdUnconfirmedVisualSuggestion,
+  verifiedComparisonConflictsWithModel,
   type VerifiedDisplayExample,
 } from "@/lib/recognition/verified-feedback";
 import type { VisualIdentificationResult } from "@/lib/recognition/lens/types";
@@ -84,9 +87,54 @@ describe("verified display feedback", () => {
   });
 
   it("applies visual-example results only above the strict threshold and for supplied candidates", () => {
-    expect(shouldApplyVerifiedVisualComparison("iphone-13-pro", 0.93, ["iphone-13-pro", "iphone-13"])).toBe(true);
-    expect(shouldApplyVerifiedVisualComparison("iphone-13-pro", 0.92, ["iphone-13-pro", "iphone-13"])).toBe(false);
-    expect(shouldApplyVerifiedVisualComparison("unknown", 0.99, ["iphone-13-pro", "iphone-13"])).toBe(false);
-    expect(shouldApplyVerifiedVisualComparison(null, 0.99, ["iphone-13-pro", "iphone-13"])).toBe(false);
+    const evidence = { unresolvedAlternatives: [], supportingReferenceCount: 2, searchCorroborated: false, matchingCueCount: 1 };
+    expect(shouldApplyVerifiedVisualComparison("iphone-13-pro", 0.93, ["iphone-13-pro", "iphone-13"], evidence)).toBe(true);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13-pro", 0.92, ["iphone-13-pro", "iphone-13"], evidence)).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("unknown", 0.99, ["iphone-13-pro", "iphone-13"], evidence)).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison(null, 0.99, ["iphone-13-pro", "iphone-13"], evidence)).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, unresolvedAlternatives: ["unrepresented lookalike"] })).toBe(true);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.92, ["iphone-13"], { ...evidence, unresolvedAlternatives: ["unrepresented lookalike"] })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, supportingReferenceCount: 1 })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, supportingReferenceCount: 1, unresolvedAlternatives: ["unrepresented lookalike"] })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, supportingReferenceCount: 1, searchCorroborated: true })).toBe(true);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, supportingReferenceCount: 1, searchCorroborated: true, unresolvedAlternatives: ["unrepresented lookalike"] })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-13", 0.99, ["iphone-13"], { ...evidence, supportingReferenceCount: 0, searchCorroborated: true })).toBe(false);
+  });
+
+  it("shows a decisive single-reference comparison in review without weakening the standard rule", () => {
+    const decisive = {
+      unresolvedAlternatives: [],
+      supportingReferenceCount: 1,
+      searchCorroborated: false,
+      matchingCueCount: 4,
+    };
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.98, ["iphone-xr", "iphone-11"], decisive)).toBe(true);
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.96, ["iphone-xr", "iphone-11"], decisive)).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.98, ["iphone-xr", "iphone-11"], { ...decisive, matchingCueCount: 2 })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.98, ["iphone-xr", "iphone-11"], { ...decisive, unresolvedAlternatives: ["iPhone 11"] })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.98, ["iphone-xr", "iphone-11"], { ...decisive, supportingReferenceCount: 0 })).toBe(false);
+    expect(shouldApplyVerifiedVisualComparison("iphone-xr", 0.98, ["iphone-11"], decisive)).toBe(false);
+  });
+
+  it("shows an unconfirmed verified suggestion instead of leaving the display unidentified", () => {
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.98, 1, 4, 0)).toBe(true);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.86, 2, 2, 0)).toBe(true);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.84, 2, 4, 0)).toBe(true);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.79, 2, 4, 0)).toBe(false);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.98, 0, 4, 0)).toBe(false);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.98, 1, 1, 0)).toBe(false);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.89, 1, 4, 1)).toBe(false);
+    expect(shouldShowUnconfirmedVerifiedSuggestion("iphone-xr", 0.9, 1, 4, 1)).toBe(true);
+    expect(shouldShowUnconfirmedVerifiedSuggestion(null, 0.98, 2, 4, 0)).toBe(false);
+  });
+
+  it("withholds a weak or conflicting model suggestion when verified comparison cannot confirm it", () => {
+    expect(verifiedComparisonConflictsWithModel("apple\u0000iphone 12 pro max", "apple\u0000iphone 13 pro max")).toBe(true);
+    expect(verifiedComparisonConflictsWithModel("apple\u0000iphone 13 pro max", "apple\u0000iphone 13 pro max")).toBe(false);
+    expect(shouldWithholdUnconfirmedVisualSuggestion(0.45, false, true)).toBe(true);
+    expect(shouldWithholdUnconfirmedVisualSuggestion(0.45, false, false)).toBe(true);
+    expect(shouldWithholdUnconfirmedVisualSuggestion(0.95, false, true)).toBe(true);
+    expect(shouldWithholdUnconfirmedVisualSuggestion(0.45, true, true)).toBe(false);
+    expect(shouldWithholdUnconfirmedVisualSuggestion(0.95, false, false)).toBe(false);
   });
 });

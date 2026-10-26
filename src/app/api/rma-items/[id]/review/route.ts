@@ -49,10 +49,15 @@ export async function POST(
 
   const { action, catalogDisplayId, vendorId, vendorVariantId, notes } = parsed.data;
 
+  // An ambiguous status can still carry a concrete, reference-backed catalog
+  // suggestion. The operator is explicitly confirming it, so allow the
+  // one-click approval when both the model and catalog ID are present. Items
+  // with no concrete suggestion remain blocked.
+  const hasConcreteModelSuggestion = Boolean(item.catalogDisplayId && item.predictedModel);
   if (action === "accept_suggestion" &&
     (!(["suggested_match", "review_required"].includes(item.status)) ||
       !(item.predictedModel || item.identifiedVendorId) ||
-      ["unknown", "ambiguous"].includes(item.matchStatus))) {
+      (!hasConcreteModelSuggestion && ["unknown", "ambiguous"].includes(item.matchStatus)))) {
     return NextResponse.json({ error: "This item has no eligible suggestion to accept." }, { status: 409 });
   }
   if (action === "change_model" && !catalogDisplayId) {
