@@ -155,11 +155,6 @@ export function stableVisualDecision(
       : conflictSnapshot([...manual, ...(fresh ? [fresh] : [])]);
   }
 
-  // If a high-confidence fresh run (e.g. from OpenAI vision or corroborated fresh evidence) is available, use it!
-  if (fresh?.cleanDecision?.model && (fresh.cleanDecision.confidence || 0) >= 0.88) {
-    return fresh;
-  }
-
   if (previous.some((entry) => entry.conflict)) {
     return conflictSnapshot([...previous, ...(fresh ? [fresh] : [])]);
   }

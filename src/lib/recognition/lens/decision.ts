@@ -107,65 +107,28 @@ export function cleanVisualCandidatesHeuristic(
   }
 
   // Samsung detection
-  if (!model && /\b(?:samsung|galaxy|sm-[snaz]\d{3})\b/i.test(combinedText)) {
-    manufacturer = "Samsung";
-    const samsungVotes = new Map<string, number>();
-
-    for (const c of candidates.slice(0, 20)) {
-      const title = c.title;
-      // Note check
-      const noteMatch = title.match(/\b(?:galaxy\s*)?note\s*(\d{1,2})\s*(ultra\b|plus\b|\+)?/i);
-      if (noteMatch) {
-        let suffix = noteMatch[2] ? noteMatch[2].toUpperCase().replace("+", "Plus") : "";
-        if (suffix === "ULTRA") suffix = "Ultra";
-        if (suffix === "PLUS") suffix = "Plus";
-        const candidateModel = `Galaxy Note ${noteMatch[1]}${suffix ? ` ${suffix}` : ""}`;
-        samsungVotes.set(candidateModel, (samsungVotes.get(candidateModel) || 0) + 1);
-        continue;
-      }
-
-      // S check
-      const sMatch = title.match(/\b(?:galaxy\s*)?s(\d{1,2})\s*(ultra\b|plus\b|fe\b|\+)?/i);
+  if (!model) {
+    if (/\b(?:galaxy\s*s\d{1,2}|sm-s\d{3})\b/i.test(combinedText)) {
+      manufacturer = "Samsung";
+      const sMatch = combinedText.match(/\bgalaxy\s*s(\d{1,2})\s*(ultra\b|plus\b|fe\b|\+)?/i);
       if (sMatch) {
-        let suffix = sMatch[2] ? sMatch[2].toUpperCase().replace("+", "Plus") : "";
-        if (suffix === "ULTRA") suffix = "Ultra";
-        if (suffix === "PLUS") suffix = "Plus";
-        if (suffix === "FE") suffix = "FE";
-        const candidateModel = `Galaxy S${sMatch[1]}${suffix ? ` ${suffix}` : ""}`;
-        samsungVotes.set(candidateModel, (samsungVotes.get(candidateModel) || 0) + 1);
-        continue;
+        const suffix = (sMatch[2] || "").toUpperCase();
+        model = `Galaxy S${sMatch[1]}${suffix ? " " + suffix : ""}`;
+      } else {
+        model = "Galaxy S Series";
       }
-
-      // A check
-      const aMatch = title.match(/\b(?:galaxy\s*)?a(\d{1,3})\b/i);
-      if (aMatch) {
-        const candidateModel = `Galaxy A${aMatch[1]}`;
-        samsungVotes.set(candidateModel, (samsungVotes.get(candidateModel) || 0) + 1);
-        continue;
-      }
-
-      // Z check
-      const zMatch = title.match(/\b(?:galaxy\s*)?z\s*(fold|flip)\s*(\d*)/i);
-      if (zMatch) {
-        const form = zMatch[1].charAt(0).toUpperCase() + zMatch[1].slice(1).toLowerCase();
-        const candidateModel = `Galaxy Z ${form}${zMatch[2] ? ` ${zMatch[2]}` : ""}`.trim();
-        samsungVotes.set(candidateModel, (samsungVotes.get(candidateModel) || 0) + 1);
-        continue;
-      }
-    }
-
-    if (samsungVotes.size > 0) {
-      let bestModel: string | null = null;
-      let maxVotes = 0;
-      for (const [mName, count] of samsungVotes.entries()) {
-        if (count > maxVotes) {
-          maxVotes = count;
-          bestModel = mName;
-        }
-      }
-      model = bestModel;
-    } else {
-      model = "Galaxy Series";
+    } else if (/\b(?:galaxy\s*note\s*\d{1,2}|sm-n\d{3})\b/i.test(combinedText)) {
+      manufacturer = "Samsung";
+      const noteMatch = combinedText.match(/\bnote\s*(\d{1,2})\s*(ultra|plus|\+)?\b/i);
+      model = noteMatch ? `Galaxy Note ${noteMatch[1]}` : "Galaxy Note";
+    } else if (/\b(?:galaxy\s*a\d{1,2}|sm-a\d{3})\b/i.test(combinedText)) {
+      manufacturer = "Samsung";
+      const aMatch = combinedText.match(/\ba(\d{1,2})\b/i);
+      model = aMatch ? `Galaxy A${aMatch[1]}` : "Galaxy A Series";
+    } else if (/\b(?:galaxy\s*z\s*(?:fold|flip)\s*\d?)\b/i.test(combinedText)) {
+      manufacturer = "Samsung";
+      const zMatch = combinedText.match(/\bz\s*(fold|flip)\s*(\d*)/i);
+      model = zMatch ? `Galaxy Z ${zMatch[1]} ${zMatch[2]}`.trim() : "Galaxy Z Series";
     }
   }
 
@@ -337,14 +300,7 @@ export async function cleanVisualCandidatesWithOpenAi(
   if (!apiKey || offline || context?.isMock || apiKey.includes("must-not") || apiKey === "test" || !context?.imageBuffer) {
     return evidence;
   }
-
-  // Fast-path: clear-cut evidence with no ambiguity and high confidence (>= 0.95)
-  if (
-    evidence.model &&
-    evidence.confidence >= 0.95 &&
-    !evidence.reasoning.includes("disagree") &&
-    !evidence.reasoning.includes("multiple models")
-  ) {
+  if (!evidence.model || evidence.confidence < 0.85) {
     return evidence;
   }
 
@@ -407,46 +363,29 @@ Return JSON with:
 
     const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content || "null");
     const check = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-
-    if (typeof check.manufacturer === "string" && typeof check.model === "string" && check.model.trim()) {
-      let mfg = check.manufacturer.trim();
-      let mdl = check.model.trim();
-      if (mdl.toLowerCase().startsWith(mfg.toLowerCase())) {
-        mdl = mdl.slice(mfg.length).trim();
-      }
-      mdl = mdl.replace(/\s+(?:display(?:\s+assembly)?|screen|oled|lcd)\b/gi, "").trim();
-      mdl = mdl.replace(/\s*\(sm-[a-z0-9]+\s*(?:series)?\)/gi, "").trim();
-      mdl = mdl.replace(/\bNote20\b/gi, "Note 20");
-      mdl = mdl.replace(/\bS20\b/gi, "S20");
-      mdl = mdl.replace(/\bS22\b/gi, "S22");
-      mdl = mdl.replace(/\bS23\b/gi, "S23");
-
-      const aiConfidence =
-        typeof check.confidence === "number" && check.confidence > 0
-          ? Math.min(Math.max(check.confidence, 0.88), 0.98)
-          : 0.90;
-
-      const cleanDisplayName = `${mfg} ${mdl} Display`;
-      const aiReasoning =
-        typeof check.reasoning === "string"
-          ? check.reasoning
-          : `Identified as ${mfg} ${mdl} by visual inspection of physical assembly cues.`;
-
-      return {
-        manufacturer: mfg,
-        model: mdl,
-        suggestedModel: mdl,
-        displayName: cleanDisplayName,
-        confidence: aiConfidence,
-        cleanedCandidates: evidence.cleanedCandidates,
-        reasoning: aiReasoning,
-      };
+    if (
+      typeof check.manufacturer === "string" &&
+      typeof check.model === "string" &&
+      identityKey(check.manufacturer, check.model) === identityKey(evidence.manufacturer, evidence.model)
+    ) {
+      return evidence;
     }
-
-    return evidence;
-  } catch (error) {
-    console.warn("[Lens Decision] OpenAI visual corroboration fallback:", error);
-    return evidence;
+    return {
+      ...evidence,
+      model: null,
+      suggestedModel: evidence.suggestedModel || evidence.model,
+      confidence: 0.45,
+      reasoning: `The photograph did not corroborate the exact model suggested by source evidence. ${typeof check.reasoning === "string" ? check.reasoning.slice(0, 1000) : "Operator review is required."}`,
+    };
+  } catch {
+    // Corroboration failure must not silently certify an unchecked image.
+    return {
+      ...evidence,
+      model: null,
+      suggestedModel: evidence.suggestedModel || evidence.model,
+      confidence: 0.45,
+      reasoning: "Photo corroboration was unavailable. Source suggestions are retained for operator review.",
+    };
   }
 }
 
