@@ -89,11 +89,10 @@ test("review shortcuts ignore dropdown typing and submit once while pending", as
     await route.fulfill({ json: { success: true } });
   });
   await page.goto("/review-queue");
-  await page.getByRole("combobox", { name: "Select Different Model:" }).click();
-  const search = page.getByRole("combobox", { name: "Search options..." });
-  await search.fill("y");
+  const modelInput = page.getByPlaceholder("e.g. Galaxy Note 20 Ultra");
+  await modelInput.click();
+  await modelInput.fill("y");
   expect(writes).toBe(0);
-  await page.keyboard.press("Escape");
   await page.locator("h1").click();
   await page.keyboard.press("y");
   await page.keyboard.press("y");
