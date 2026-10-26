@@ -1255,7 +1255,7 @@ export async function processRmaItem(
     const verifiedPartMatch = await findVerifiedModelByPartNumbers(ocrStructured.part_numbers, itemId);
     if (verifiedPartMatch) {
       proposedDisplayMatch = {
-        catalogId: "verified_feedback",
+        catalogId: null as any,
         manufacturer: verifiedPartMatch.manufacturer,
         modelName: verifiedPartMatch.model,
         normalizedIdentifier: `${verifiedPartMatch.manufacturer} ${verifiedPartMatch.model}`.toLowerCase(),

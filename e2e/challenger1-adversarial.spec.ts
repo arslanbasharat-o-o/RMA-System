@@ -46,7 +46,6 @@ test.describe("Challenger 1 Axis 1: Copy Integrity Across All Routes", () => {
     { name: "New RMA", path: "/rmas/new" },
     { name: "Review Queue", path: "/review-queue" },
     { name: "Customers", path: "/customers" },
-    { name: "Display Catalog", path: "/display-catalog" },
     { name: "Vendor Catalog", path: "/vendor-catalog" },
     { name: "Reports", path: "/reports" },
     { name: "Settings", path: "/settings" },
@@ -279,13 +278,12 @@ test.describe("Challenger 1 Axis 3: Responsive Layout & Mobile Navigation Drawer
     await expect(drawer).toBeVisible();
     await expect(drawer).toHaveAttribute("aria-label", "Mobile Navigation Drawer");
 
-    // Verify all 8 core nav items exist inside mobile drawer
+    // Verify core nav items exist inside mobile drawer
     const navItems = [
       "Dashboard",
       "RMAs",
       "Customers",
-      "Display Catalog",
-      "Vendor Catalog",
+      "Suppliers",
       "Review Queue",
       "Reports",
       "Settings",

@@ -455,7 +455,7 @@ export function ItemReviewDrawer({
           {/* Verification & Manual Overrides */}
           <div className="space-y-3.5 pt-1">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Confirm or Correct Model
+              Verify or Correct Model
             </h4>
 
             {/* Model Inputs */}
