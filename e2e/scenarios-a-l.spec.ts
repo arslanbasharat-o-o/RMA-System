@@ -682,7 +682,7 @@ test.describe("Section 27: End-to-End Browser Test Suites (Scenarios A through L
 
     // Verify mobile drawer navigation opens
     await expect(page.locator("body")).toContainText("RMA Operations");
-    await expect(page.locator("body")).toContainText("Display Catalog");
+    await expect(page.locator("body")).toContainText("Suppliers");
 
     // Navigate to a capture screen
     const rmaNumber = await generateNextRmaNumber();
