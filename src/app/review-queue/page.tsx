@@ -29,32 +29,29 @@ export default function ReviewQueuePage() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-  const [catalogs, setCatalogs] = useState<any[]>([]);
   const [vendors, setVendors] = useState<any[]>([]);
 
   // Selection states
-  const [selectedCatalogId, setSelectedCatalogId] = useState("");
+  const [customManufacturer, setCustomManufacturer] = useState("");
+  const [customModel, setCustomModel] = useState("");
   const [selectedVendorId, setSelectedVendorId] = useState("");
   const actionPending = useRef(false);
 
   const fetchQueue = async () => {
     setLoading(true);
     try {
-      const [dashRes, catRes, venRes] = await Promise.all([
+      const [dashRes, venRes] = await Promise.all([
         fetch("/api/dashboard"),
-        fetch("/api/display-catalog"),
         fetch("/api/vendors"),
       ]);
-      if (dashRes.status === 401 || catRes.status === 401 || venRes.status === 401) {
+      if (dashRes.status === 401 || venRes.status === 401) {
         window.location.assign("/login");
         return;
       }
       const dashJson = await dashRes.json();
-      const catJson = await catRes.json();
       const venJson = await venRes.json();
 
       setQueue(dashJson.reviewItems || []);
-      setCatalogs(catJson.catalog || []);
       setVendors(venJson.vendors || []);
       setCurrentIndex(0);
     } catch (err) {
@@ -70,6 +67,14 @@ export default function ReviewQueuePage() {
 
   const currentItem = queue[currentIndex];
 
+  useEffect(() => {
+    if (currentItem) {
+      setCustomManufacturer(currentItem.predictedManufacturer || "");
+      setCustomModel(currentItem.predictedModel || "");
+      setSelectedVendorId(currentItem.identifiedVendorId || "");
+    }
+  }, [currentItem?.id]);
+
   const handleAction = useCallback(async (action: string) => {
     if (!currentItem || actionPending.current) return;
     actionPending.current = true;
@@ -81,8 +86,9 @@ export default function ReviewQueuePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action,
-          catalogDisplayId: selectedCatalogId || undefined,
-          vendorId: selectedVendorId || undefined,
+          predictedManufacturer: customManufacturer || currentItem.predictedManufacturer || null,
+          predictedModel: customModel || currentItem.predictedModel || null,
+          vendorId: selectedVendorId || null,
         }),
       });
 
@@ -98,7 +104,8 @@ export default function ReviewQueuePage() {
       if (currentIndex >= nextQueue.length && nextQueue.length > 0) {
         setCurrentIndex(nextQueue.length - 1);
       }
-      setSelectedCatalogId("");
+      setCustomManufacturer("");
+      setCustomModel("");
       setSelectedVendorId("");
     } catch (err: unknown) {
       toast.error(err instanceof Error ? err.message : "Failed to submit review decision");
@@ -106,7 +113,7 @@ export default function ReviewQueuePage() {
       actionPending.current = false;
       setActionLoading(false);
     }
-  }, [currentItem, queue, currentIndex, selectedCatalogId, selectedVendorId]);
+  }, [currentItem, queue, currentIndex, customManufacturer, customModel, selectedVendorId]);
 
   // Keyboard shortcut listener (Y to accept, U for unknown, S to skip, arrows to navigate)
   useEffect(() => {
@@ -321,23 +328,33 @@ export default function ReviewQueuePage() {
                     </div>
 
                     {/* Manual Model Override */}
-                    <div className="space-y-1.5">
-                      <label htmlFor="review-model" className="block text-xs font-semibold text-neutral-700 dark:text-neutral-300">
-                        Select Different Model:
-                      </label>
-                      <Select
-                        id="review-model"
-                        value={selectedCatalogId}
-                        onChange={(e) => setSelectedCatalogId(e.target.value)}
-                        className="text-xs h-9"
-                      >
-                        <option value="">-- Choose from Display Catalog --</option>
-                        {catalogs.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.manufacturer} {cat.modelName} ({cat.displayTechnology || "OLED"})
-                          </option>
-                        ))}
-                      </Select>
+                    <div className="space-y-2">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            Manufacturer:
+                          </label>
+                          <input
+                            type="text"
+                            value={customManufacturer}
+                            onChange={(e) => setCustomManufacturer(e.target.value)}
+                            placeholder="e.g. Samsung"
+                            className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
+                          />
+                        </div>
+                        <div className="col-span-2">
+                          <label className="block text-[11px] font-medium text-neutral-600 dark:text-neutral-400 mb-1">
+                            Verified Model:
+                          </label>
+                          <input
+                            type="text"
+                            value={customModel}
+                            onChange={(e) => setCustomModel(e.target.value)}
+                            placeholder="e.g. Galaxy Note 20 Ultra"
+                            className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-semibold"
+                          />
+                        </div>
+                      </div>
                     </div>
 
                     {/* Manual Vendor Override */}
@@ -368,7 +385,7 @@ export default function ReviewQueuePage() {
                     variant="primary"
                     size="sm"
                     loading={actionLoading}
-                    disabled={!selectedCatalogId && !selectedVendorId}
+                    disabled={!customManufacturer && !customModel && !selectedVendorId}
                     onClick={() => handleAction("manual_verify")}
                     className="w-full text-xs font-medium"
                   >
