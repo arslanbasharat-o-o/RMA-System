@@ -4,6 +4,16 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.3.27] - 2026-10-26
+
+### Fixed
+- Keep the bounded visual-search candidate pool available while selecting up to eight catalog models backed by angle-matched, operator-verified photos, including lower-ranked matches and verified photos on another assembly variant of the same model.
+- Avoid treating a shorter model name embedded inside a stronger longer model match as a cross-manufacturer contradiction; independent conflicting mentions still remain in review.
+
+### Verification
+- PR #87 passed required CI: database fixtures, typecheck, ESLint, Vitest, production build, camera intake, and Safari live-result checks.
+- Production replay on v0.3.26 showed the 13 Pro Max listing at Lens rank 13 was excluded before verified-reference comparison; the patched local replay retained it and selected the actual verified-photo catalog variant.
+
 ## [0.3.26] - 2026-10-26
 
 ### Fixed
