@@ -4,7 +4,21 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
-## [0.4.1] - 2026-10-26
+## [0.4.5] - 2026-10-26
+
+### Added
+- Interactive Google Search candidate cards in `ItemReviewDrawer` and `review-queue` with rank badges, clean extracted titles, and 1-click model selection.
+- Continuous operator feedback learning loop: confirmed display models, visual evidence, and extracted markings persist directly into ground truth.
+
+### Changed
+- Removed static display catalog requirement and replaced with dynamic Google Lens visual candidate matching.
+- Updated sidebar navigation: removed dead `/display-catalog` link and renamed vendor catalog to "Suppliers".
+- Optimized RMA detail polling to only trigger when displays are actively queued or processing.
+
+### Fixed
+- Fixed Next.js 16 Turbopack client reference manifest invariant error on dynamic `/rmas/[id]` routes by compiling via Webpack.
+- Restored complete 108 KB Tailwind v4 CSS asset pipeline in container by linking PostCSS configuration.
+
 
 ### Changed
 - Shortlist the verified library in one compact discovery call when it contains at most 32 device models. Larger libraries still use bounded batches, but all batches in a round now run concurrently with `OPENAI_CONCURRENCY` (default 2) instead of two at a time.
