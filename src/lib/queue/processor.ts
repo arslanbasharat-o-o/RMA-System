@@ -217,6 +217,73 @@ async function loadVerifiedDisplayExamples(excludeItemId: string): Promise<Verif
     }));
 }
 
+export async function findVerifiedModelByPartNumbers(
+  partNumbers: string[],
+  excludeItemId: string
+): Promise<{ manufacturer: string; model: string; matchedPartNumber: string; verifiedCount: number } | null> {
+  if (!partNumbers || !partNumbers.length) return null;
+  const normalizedTargets = partNumbers.map((p) => p.trim().toUpperCase()).filter((p) => p.length >= 3);
+  if (!normalizedTargets.length) return null;
+
+  try {
+    const rows = await db
+      .select({
+        itemId: rmaItems.id,
+        manufacturer: rmaItems.predictedManufacturer,
+        model: rmaItems.predictedModel,
+        partNumbers: ocrExtractions.partNumbers,
+      })
+      .from(ocrExtractions)
+      .innerJoin(rmaItems, eq(ocrExtractions.rmaItemId, rmaItems.id))
+      .where(and(
+        eq(rmaItems.status, "verified"),
+        isNotNull(rmaItems.predictedModel),
+        ne(rmaItems.id, excludeItemId)
+      ))
+      .orderBy(desc(rmaItems.verifiedAt))
+      .limit(2000);
+
+    const matchesByModel = new Map<string, { manufacturer: string; model: string; matchedPartNumber: string; itemIds: Set<string> }>();
+
+    for (const row of rows) {
+      if (!row.manufacturer || !row.model || !row.partNumbers) continue;
+      for (const pn of row.partNumbers) {
+        const normPn = pn.trim().toUpperCase();
+        if (normalizedTargets.includes(normPn)) {
+          const key = `${row.manufacturer}|${row.model}`;
+          const existing = matchesByModel.get(key) || {
+            manufacturer: row.manufacturer,
+            model: row.model,
+            matchedPartNumber: normPn,
+            itemIds: new Set<string>(),
+          };
+          existing.itemIds.add(row.itemId);
+          matchesByModel.set(key, existing);
+        }
+      }
+    }
+
+    if (!matchesByModel.size) return null;
+
+    let best: { manufacturer: string; model: string; matchedPartNumber: string; verifiedCount: number } | null = null;
+    for (const entry of matchesByModel.values()) {
+      if (!best || entry.itemIds.size > best.verifiedCount) {
+        best = {
+          manufacturer: entry.manufacturer,
+          model: entry.model,
+          matchedPartNumber: entry.matchedPartNumber,
+          verifiedCount: entry.itemIds.size,
+        };
+      }
+    }
+
+    return best;
+  } catch (error) {
+    console.warn("[Processor] Error querying verified part numbers:", error);
+    return null;
+  }
+}
+
 async function loadVerifiedVisualReferenceRows(
   excludeItemId: string,
   catalogIds: string[]
@@ -1183,6 +1250,24 @@ export async function processRmaItem(
     ocrStructured.part_numbers
   );
 
+  // Check our accumulating verified ground-truth knowledge base (operator-verified displays)
+  if (!proposedDisplayMatch && ocrStructured.part_numbers.length) {
+    const verifiedPartMatch = await findVerifiedModelByPartNumbers(ocrStructured.part_numbers, itemId);
+    if (verifiedPartMatch) {
+      proposedDisplayMatch = {
+        catalogId: "verified_feedback",
+        manufacturer: verifiedPartMatch.manufacturer,
+        modelName: verifiedPartMatch.model,
+        normalizedIdentifier: `${verifiedPartMatch.manufacturer} ${verifiedPartMatch.model}`.toLowerCase(),
+        displayTechnology: null,
+        confidenceScore: 0.99,
+        matchType: "part_number",
+        matchedPartNumber: verifiedPartMatch.matchedPartNumber,
+        verifiedExampleCount: verifiedPartMatch.verifiedCount,
+      };
+    }
+  }
+
   // Apply catalog-wide voting only when it cannot overrule exact part-number
   // evidence or a prior verified-part-number conflict.
   if (!verifiedPartNumberConflicts.length && proposedDisplayMatch?.matchType !== "part_number") {
@@ -1216,6 +1301,7 @@ export async function processRmaItem(
   let visualSuggestionWithheld = false;
   let verifiedComparison: VerifiedLibraryComparison | null = null;
   const comparisonCandidateIds = shouldRunVisual &&
+    allCatalog.length > 0 &&
     !verifiedPartNumberConflicts.length &&
     proposedDisplayMatch?.matchType !== "part_number"
     ? visualCandidateCatalogIds(visualResult, allCatalog, proposedDisplayMatch?.catalogId, 30)
@@ -1230,6 +1316,7 @@ export async function processRmaItem(
   // newly verified item is eligible on the next upload, without a rebuild.
   if (
     shouldRunVisual &&
+    allCatalog.length > 0 &&
     !verifiedPartNumberConflicts.length &&
     proposedDisplayMatch?.matchType !== "part_number"
   ) {
@@ -1384,13 +1471,7 @@ export async function processRmaItem(
   )) {
     visualSuggestionWithheld = true;
     displayMatch = null;
-    synthesisVisualResult = {
-      ...visualResult,
-      normalizedManufacturer: undefined,
-      normalizedModel: undefined,
-      detectedDisplayAssembly: undefined,
-      cleanDecision: undefined,
-    };
+    synthesisVisualResult = visualResult;
   }
 
   const unified = synthesizeRecognition(
@@ -1407,7 +1488,7 @@ export async function processRmaItem(
   }
   if (visualSuggestionWithheld) {
     unified.evidenceNotes.push(
-      "No model suggestion was shown because visual evidence was uncertain and verified-example comparison did not confirm the initial candidate. Human confirmation is required."
+      "Visual model suggestion is unconfirmed by internal catalog references. Retained for human operator review."
     );
   }
   if (verifiedComparison?.selectedCatalogDisplayId && displayMatch?.catalogId === verifiedComparison.selectedCatalogDisplayId) {

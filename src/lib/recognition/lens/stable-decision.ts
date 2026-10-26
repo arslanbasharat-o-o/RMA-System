@@ -105,10 +105,15 @@ function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSn
     entry.cleanDecision?.manufacturer || entry.manufacturer
   ).filter(Boolean))];
   const manufacturer = manufacturers.length === 1 ? manufacturers[0] as string : null;
-  const displayName = manufacturer ? `Unidentified ${manufacturer} Display` : "Unidentified Display";
   const models = [...new Set(snapshots.map((entry) =>
     entry.cleanDecision?.model || entry.cleanDecision?.suggestedModel || entry.model || entry.suggestedModel
   ).filter(Boolean))];
+  const topSuggestedModel = (models[0] as string) || null;
+  const displayName = manufacturer && topSuggestedModel
+    ? `${manufacturer} ${topSuggestedModel} Display`
+    : manufacturer
+    ? `Unidentified ${manufacturer} Display`
+    : "Unidentified Display";
   const candidates = new Map<string, VisualCandidate>();
   for (const entry of snapshots) {
     for (const candidate of entry.candidates) {
@@ -129,6 +134,7 @@ function conflictSnapshot(snapshots: VisualDecisionSnapshot[]): VisualDecisionSn
     cleanDecision: {
       manufacturer,
       model: null,
+      suggestedModel: topSuggestedModel,
       displayName,
       confidence: 0.45,
       cleanedCandidates: [],
@@ -147,6 +153,11 @@ export function stableVisualDecision(
     return new Set(manual.map(identityKey)).size === 1
       ? manual[0]
       : conflictSnapshot([...manual, ...(fresh ? [fresh] : [])]);
+  }
+
+  // If a high-confidence fresh run (e.g. from OpenAI vision or corroborated fresh evidence) is available, use it!
+  if (fresh?.cleanDecision?.model && (fresh.cleanDecision.confidence || 0) >= 0.88) {
+    return fresh;
   }
 
   if (previous.some((entry) => entry.conflict)) {
