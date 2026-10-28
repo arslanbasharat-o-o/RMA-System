@@ -437,12 +437,18 @@ Return JSON with:
       return evidence;
     }
 
-    // 2. Check if AI's suggested model has support in candidate listings or OCR
+    // 2. Check if AI's suggested model has support in candidate listings or OCR,
+    // OR if source evidence was inconclusive / low-confidence (< 0.85) so physical inspection takes precedence for suggestion.
     const isSupported = checkMfr && checkModel
       ? isModelSupportedByEvidence(checkMfr, checkModel, candidates, context)
       : false;
 
-    if (isSupported && checkMfr && checkModel) {
+    // Physical inspection guides the operator suggestion when:
+    // a) The model is corroborated by at least one candidate or OCR marking, OR
+    // b) Source evidence was uncertain/weak (evidence.confidence < 0.85 or no heuristic model), meaning web listings were noisy.
+    const canAdoptAiSuggestion = Boolean(checkMfr && checkModel && (isSupported || !evidence.model || evidence.confidence < 0.85));
+
+    if (canAdoptAiSuggestion && checkMfr && checkModel) {
       const displayModel = checkModel;
       const displayName = `${checkMfr} ${displayModel} Display`;
       const aiReasoning = typeof check.reasoning === "string" && check.reasoning.trim()

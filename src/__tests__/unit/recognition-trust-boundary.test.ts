@@ -191,4 +191,35 @@ describe("recognition evidence trust boundary", () => {
     expect(result.displayName).toBe("Samsung Galaxy Note 20 Ultra Display");
     expect(result.reasoning).toContain("Sharp 90-degree rectangle corners");
   });
+
+  it("adopts AI physical model as suggestedModel when source candidates were noisy or low-confidence without candidate support", async () => {
+    online();
+    create.mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            manufacturer: "Apple",
+            model: "iPhone 12",
+            confidence: 0.88,
+            reasoning: "Rear plate flex connector layout and display dimension match iPhone 12 OLED assembly.",
+          }),
+        },
+      }],
+    });
+    // Candidates are noisy and low-confidence (< 0.85), none mentioning iPhone 12
+    const noisyCandidates = [
+      { title: "LCD Assembly With Steel Plate Compatible For iPhone 7 Plus", sourceUrl: "https://shop1.test/item", rank: 1 },
+      { title: "Generic Screen Replacement Part", sourceUrl: "https://shop2.test/item", rank: 2 },
+    ];
+    const result = await cleanVisualCandidatesWithOpenAi(noisyCandidates, {
+      imageBuffer: Buffer.from("photo"),
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result.model).toBeNull(); // Still requires review
+    expect(result.confidence).toBeLessThan(0.5);
+    expect(result.suggestedModel).toBe("iPhone 12");
+    expect(result.displayName).toBe("Apple iPhone 12 Display");
+    expect(result.reasoning).toContain("Rear plate flex connector layout");
+  });
 });
