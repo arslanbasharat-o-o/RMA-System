@@ -20,11 +20,11 @@ This repository is **RMA System**, repair-return and display-photo identificatio
 
 ## Code map
 
-- `src/app/`: pages and layouts, `globals.css`; `api/` contains Next.js route handlers. Pages include dashboard, RMAs and mobile capture, review queue, customers, display and vendor catalogs, reports, login and settings.
+- `src/app/`: pages and layouts, `globals.css`; `api/` contains Next.js route handlers. Pages include dashboard, RMAs and mobile capture, review queue, customers, vendor catalog, reports, login and settings (legacy display catalog routes were removed as dead code).
 - `src/components/`: reusable UI, application shell, camera scanner, review drawer, settings, theme, motion and premium elements; `src/context/SidebarContext.tsx` holds sidebar state.
 - `src/db/schema.ts`: Drizzle schema; `src/db/migrate.ts`: transactional, idempotent SQL schema setup; `src/db/seed.ts`: initial data. `drizzle.config.ts` configures generation into `src/db/migrations`.
 - `src/lib/auth/`: signed session tokens, database session validation, roles, passwords and login limiting; `src/lib/storage/`: image storage and validation.
-- `src/lib/queue/`, `src/worker/`: transactional job enqueue and worker; `src/lib/recognition/`: Lens, OCR, vendor rules, verified-example comparisons and synthesis.
+- `src/lib/queue/`, `src/worker/`: transactional job enqueue and worker; `src/lib/recognition/`: Lens, OCR, vendor rules, verified-example comparisons, synthesis, and AI Vision gate (`src/lib/recognition/lens/decision.ts`) for photo inspection on ambiguous candidates.
 - `src/__tests__/`, `e2e/`, `scripts/`: Vitest unit/integration tests, Playwright scenarios, fixtures and operational/evaluation scripts. `.github/workflows/`: CI and release publication.
 - `docker-compose.yml`, `Dockerfile`, `Caddyfile`, `DEPLOYMENT.md`: runtime definition and deployment guidance. `docs/releases/` and `CHANGELOG.md` are historical release records, not current runtime status.
 

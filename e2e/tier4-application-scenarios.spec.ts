@@ -300,7 +300,7 @@ test.describe("Tier 4 - Real-World Application Scenarios", () => {
     const routesToVisit = [
       "/dashboard",
       "/customers",
-      "/display-catalog",
+      "/vendor-catalog",
       "/reports",
     ];
 
