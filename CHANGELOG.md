@@ -4,6 +4,14 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.6] - 2026-10-29
+
+### Fixed
+- **AI Vision Gate**: Enabled OpenAI Vision inspection when Google Lens web candidates are ambiguous, conflicting, or low-confidence (< 0.85). Distinguishes sibling models (e.g. iPhone 16 Pro vs 15 Pro) via physical screen bezels, Dynamic Island proportions, and flex cable markings, updating `suggestedModel` and `displayName` while preserving trust boundaries.
+
+### Removed
+- **Display Catalog Dead Code**: Removed obsolete `/display-catalog` pages, layouts, and `/api/display-catalog` endpoints. The system relies on dynamic Lens visual recognition and supplier/vendor rules.
+
 ## [0.4.5] - 2026-10-26
 
 ### Added
