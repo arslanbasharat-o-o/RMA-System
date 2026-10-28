@@ -4,6 +4,13 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-10-29
+
+### Fixed
+- **Catalog Foreign Key Constraint Crash**: Sanitized `catalogDisplayId` from historical `review_actions` against `allCatalog` before saving `rma_items`, preventing `rma_items_catalog_display_fk` violations when `display_catalog` is empty or lacks the reference.
+- **Worker Error Resilience**: Wrapped worker item execution in a fallback error handler that resets any item stuck in `status: "processing"` to `review_required` with diagnostic notes if an unhandled exception occurs, preventing indefinite UI processing spinners.
+- **AI Vision Model Guidance**: Enabled AI vision physical photo inspection to populate `suggestedModel` and `displayName` when source candidates are inconclusive or low-confidence (< 0.85), allowing operators to review and confirm physical display inspection suggestions even when Google Lens candidates are noisy.
+
 ## [0.4.6] - 2026-10-29
 
 ### Fixed
