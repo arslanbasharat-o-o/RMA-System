@@ -1,14 +1,13 @@
 # Production deployment and rollback
 
-Status below reflects the rollout verified on 2026-10-28. Recheck live state, GitHub checks, queue, backups and approval before future operations. Commands labeled **verified** were run during this rollout; commands labeled **unverified** are proposed and were not run. Secrets are in `/opt/rma-system/.env`; do not print them.
+Status below reflects the rollout verified on 2026-10-29. Recheck live state, GitHub checks, queue, backups and approval before future operations. Commands labeled **verified** were run during this rollout; commands labeled **unverified** are proposed and were not run. Secrets are in `/opt/rma-system/.env`; do not print them.
 
 ## Current runtime
 
-- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.5-e9381a1`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
-- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:0e32f32e8ac767ccf600a1de5e4418be94e9a3a0c8b3e6d7187553ff845a09d1`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:26b12d311854bb8c09492d4f2342da67e9a23ec9ddc954a6e79a35ee27f6358b`; both label version 0.4.5, revision `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63`. Main may contain newer documentation-only commits.
+- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.6-5a83ce2`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
+- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:41959a12901f4cfefddce269b56fb70e680fd246a376651712573f6ce5347e31`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:16ef96fed2a7f2c615afc304560f2a7c7252fe42425683bd842b754229ddf99f`; both label version 0.4.6, revision `5a83ce254a5ceae0c44a0635ec807ce02654dd7f`. Main may contain newer documentation-only commits.
 - Compose project `rma-system` runs app, worker and PostgreSQL. Its reviewed Compose file pins the images literally and mounts only the storage volume into the worker; no worker source bind mount. nginx is the host reverse proxy. The app listens on loopback port 23001.
-- Legacy release cleanup: After verifying 0.4.5 stability in production, the legacy `0.4.1` images (`ghcr.io/arslanbasharat-o-o/rma-system:0.4.1` and `:worker-0.4.1`) and the `/opt/rma-system/releases/v0.4.1` directory were cleanly removed under explicit owner authorization, freeing ~2.05 GB of server disk space.
-- Rollout backups cleanup: Following owner verification and instruction on 2026-10-28, the pre-cutover rollout backup files (`20261028T152407Z`) in `/var/backups/rma-system/` on the server and local staging copies were removed.
+- Previous releases: `/opt/rma-system/releases/v0.4.5-e9381a1` remains available on the server for instant rollback if required. Legacy `0.4.1` images and release directory were removed under prior owner authorization.
 
 ## Backups and restore evidence
 

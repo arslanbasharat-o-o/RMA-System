@@ -71,6 +71,6 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 ## Last verified
 
 - Date: 2026-10-29 (Asia/Karachi).
-- Application image source: `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63` (version `0.4.5`); GitHub main is `9d1337f` following PR #97 merge (enabling AI vision inspection on ambiguous candidates and removing dead display catalog). Use `git rev-parse HEAD` for current source.
-- Server app image digest: `sha256:0e32f32e8ac767ccf600a1de5e4418be94e9a3a0c8b3e6d7187553ff845a09d1`; worker image digest: `sha256:26b12d311854bb8c09492d4f2342da67e9a23ec9ddc954a6e79a35ee27f6358b`.
-- App/worker/database health and sampled anonymous routes verified healthy on 0.4.5. Legacy 0.4.1 images, release directory, and pre-cutover backup files were removed under owner authorization. Authenticated screens and end-to-end recognition are unverified.
+- Application image source: `5a83ce254a5ceae0c44a0635ec807ce02654dd7f` (version `0.4.6`); GitHub main is `5a83ce2`. Use `git rev-parse HEAD` for current source.
+- Server app image digest: `sha256:41959a12901f4cfefddce269b56fb70e680fd246a376651712573f6ce5347e31`; worker image digest: `sha256:16ef96fed2a7f2c615afc304560f2a7c7252fe42425683bd842b754229ddf99f`.
+- App/worker/database health and sampled routes verified healthy on 0.4.6. Release 0.4.5 remains available on server as `/opt/rma-system/releases/v0.4.5-e9381a1`. AI Vision Gate fix and display catalog removal deployed and verified live.
