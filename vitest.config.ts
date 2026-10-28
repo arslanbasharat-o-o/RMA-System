@@ -12,6 +12,7 @@ export default defineConfig({
     globals: true,
     environment: "node",
     testTimeout: 20000,
+    fileParallelism: false,
     include: ["src/__tests__/**/*.test.ts"],
     exclude: ["node_modules", "e2e/**"],
     env: {
