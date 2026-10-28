@@ -4,10 +4,11 @@ Status below reflects the rollout verified on 2026-10-28. Recheck live state, Gi
 
 ## Current runtime
 
-- Host `rma.txparts.io`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.5-e9381a1`. It is an extracted release, not a Git checkout.
+- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.5-e9381a1`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
 - App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:0e32f32e8ac767ccf600a1de5e4418be94e9a3a0c8b3e6d7187553ff845a09d1`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:26b12d311854bb8c09492d4f2342da67e9a23ec9ddc954a6e79a35ee27f6358b`; both label version 0.4.5, revision `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63`. Main may contain newer documentation-only commits.
 - Compose project `rma-system` runs app, worker and PostgreSQL. Its reviewed Compose file pins the images literally and mounts only the storage volume into the worker; no worker source bind mount. nginx is the host reverse proxy. The app listens on loopback port 23001.
-- The prior release `/opt/rma-system/releases/v0.4.1`, its Compose/source bind-mount arrangement, and both old images are retained for rollback. Their image IDs are app `sha256:c68656ca34bedeab3a699b820a2f2806982f8a7ccd1b490c0c6988b868eaa2c1` and worker `sha256:ea0af562bb9b45a01a9aa770c8e067488a27db147e57743acf8166b6a4829c18`. Preserve them until the owner explicitly authorizes cleanup.
+- Legacy release cleanup: After verifying 0.4.5 stability in production, the legacy `0.4.1` images (`ghcr.io/arslanbasharat-o-o/rma-system:0.4.1` and `:worker-0.4.1`) and the `/opt/rma-system/releases/v0.4.1` directory were cleanly removed under explicit owner authorization, freeing ~2.05 GB of server disk space.
+- Retained backups: The coordinated backups taken before cutover (`20261028T152407Z`) remain preserved in `/var/backups/rma-system/` on the server and in `~/rms-backups/20261028T145724Z/` locally, with validated SHA-256 checksum manifests.
 
 ## Backups and restore evidence
 
@@ -58,13 +59,11 @@ curl -fsS http://127.0.0.1:23001/api/version
 
 Verify image IDs and worker mounts, public and local login, authenticated RMA detail and capture if authorized credentials exist, queue and worker logs. A health response only checks database connectivity. Paid-provider tests require a numeric approved spend cap. The previous manifest errors concerned `/rmas/[id]` and `/rmas/[id]/capture`; verify the relevant runtime assets and authenticated behavior, not just HTTP status from an anonymous request.
 
-## Rollback — unverified, not executed
+## Rollback considerations
 
-If a rollback is authorized or a predefined trigger requires it, pause writes and ensure the queue is idle. The previous release directory and worker source mount are retained. These proposed commands switch the symlink and recreate the old app and worker using their locally preserved image IDs; they have **not** been rehearsed on this deployment:
+Following the verified rollout and owner-authorized removal of legacy 0.4.1 images and the `/opt/rma-system/releases/v0.4.1` directory, an instantaneous switch back to local 0.4.1 images is no longer applicable. If a rollback to 0.4.1 is required in the future:
+1. Re-extract the preserved release archive (`release-v0.4.1.tar.gz` from `~/rms-backups/20261028T145724Z/`) into `/opt/rma-system/releases/v0.4.1`.
+2. Repull or load the historical 0.4.1 images: `ghcr.io/arslanbasharat-o-o/rma-system:0.4.1` and `:worker-0.4.1`.
+3. Update symlink `ln -sfn /opt/rma-system/releases/v0.4.1 /opt/rma-system/app` and start services with `docker compose`.
 
-```sh
-ln -sfn /opt/rma-system/releases/v0.4.1 /opt/rma-system/app
-RMA_APP_IMAGE=sha256:c68656ca34bedeab3a699b820a2f2806982f8a7ccd1b490c0c6988b868eaa2c1 RMA_WORKER_IMAGE=sha256:ea0af562bb9b45a01a9aa770c8e067488a27db147e57743acf8166b6a4829c18 docker compose --env-file /opt/rma-system/.env -p rma-system -f /opt/rma-system/app/docker-compose.yml up -d --no-build --no-deps app worker
-```
-
-Then verify old image IDs, mounts, health, login and logs. Do not restore over production merely to roll back application images: later writes would be lost. Suspected data corruption requires an explicit decision and a separate reviewed restoration and reconciliation plan.
+Then verify image IDs, mounts, health, login and logs. Do not restore database backups over production merely to roll back application images: later writes would be lost. Suspected data corruption requires an explicit decision and a separate reviewed restoration and reconciliation plan.
