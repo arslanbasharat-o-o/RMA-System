@@ -53,15 +53,7 @@ remain suggestions; they never mark a new display as verified.
 
 For visual matching without an exact part-number match, the worker compares the
 upload with the active verified library independently of Lens. Search candidates
-prioritize the library order but cannot exclude verified models. Discovery uses
-one independent display per model in batches of up to eight, with at most two
-API requests in flight. Batch winners are compared again with up to two verified
-displays per model. A sole finalist is rechecked only against its two
-search-ranked alternatives, not every model from its batch, because a prompt
-full of near-identical reference photos makes the comparison unstable. If every
-discovery batch abstains, one focused comparison of the three closest
-search-ranked models runs before the system reports no model. A failed discovery
-batch still aborts the comparison.
+prioritize the library order but cannot exclude verified models. When there are at most eight catalog candidates, the implementation runs the final comparison directly. For larger libraries, it uses a compact discovery pass up to `VERIFIED_DISCOVERY_MAX_MODELS` (default 32), then bounded batches of up to eight with concurrency controlled by `OPENAI_CONCURRENCY` (default 2). A sole finalist is checked against nearby search-ranked alternatives. See `src/lib/recognition/openai/verified-library.ts` for the current behavior.
 Any failed discovery batch prevents acceptance of the library comparison.
 This full-library strategy suits the current small catalog; measured growth or
 unacceptable latency requires image-embedding retrieval before comparison.

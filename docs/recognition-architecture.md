@@ -1,5 +1,7 @@
 # Recognition architecture
 
+> Deployment-specific model settings, coverage, and benchmark figures below are historical observations, not verified current production state. Check current code and runtime before relying on them.
+
 ## Purpose
 
 The recognition pipeline turns uploaded display photos into an evidence-backed

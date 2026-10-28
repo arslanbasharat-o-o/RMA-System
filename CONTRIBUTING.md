@@ -55,7 +55,7 @@ The fixture loader refuses to run outside test mode. The CI workflow creates its
 - Include screenshots only when they contain synthetic or properly sanitized data.
 - Keep dependency updates focused; review upstream changes and run relevant checks before merging.
 - Do not add production credentials, customer records, display images, private catalog files, database dumps, or deployment keys.
-- Do not add a project license or publish a container image without an explicit licensing decision.
+- The repository is MIT licensed. Follow the release process before publishing container images.
 - Do not deploy production from a pull request. Production rollout remains a separate, reviewed process.
 
 The repository's branch protection requires the `validate` CI check on pull requests to `main`.
