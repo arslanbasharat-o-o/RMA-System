@@ -36,7 +36,7 @@ function getMimeType(buffer: Buffer, declared?: string | null): string {
 }
 
 import { cleanRawCandidateTitle } from "./cleaner-utils";
-import { appleVisualEvidence, independentSource } from "./model-evidence";
+import { appleVisualEvidence, extractAppleModels, independentSource } from "./model-evidence";
 export { cleanRawCandidateTitle };
 
 /**
@@ -289,6 +289,59 @@ function otherDeviceModel(title: string): string | null {
   return null;
 }
 
+function isModelSupportedByEvidence(
+  manufacturer: string,
+  model: string,
+  candidates: VisualCandidate[],
+  context?: DecisionContext
+): boolean {
+  const normMfg = manufacturer.trim().toLowerCase();
+  let normModel = model.trim().toLowerCase();
+  if (normMfg && normModel.startsWith(`${normMfg} `)) {
+    normModel = normModel.slice(normMfg.length).trim();
+  }
+
+  // Extract core keywords/tokens from model name (e.g., "16 pro", "note 20 ultra", "s23")
+  const modelTokens = normModel.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
+  if (modelTokens.length === 0) return false;
+
+  // Check candidates
+  for (const candidate of candidates) {
+    const titleLower = candidate.title.toLowerCase();
+    if (titleLower.includes(normModel)) {
+      return true;
+    }
+    const appleModels = extractAppleModels(candidate.title);
+    for (const am of appleModels) {
+      if (identityKey(manufacturer, am) === identityKey(manufacturer, model)) {
+        return true;
+      }
+    }
+    const otherModel = otherDeviceModel(candidate.title);
+    if (otherModel && identityKey(manufacturer, otherModel) === identityKey(manufacturer, model)) {
+      return true;
+    }
+    if (modelTokens.length >= 2 && modelTokens.every((token) => titleLower.includes(token))) {
+      return true;
+    }
+  }
+
+  // Check OCR context if available
+  const ocrStrings = [
+    ...(context?.partNumbers || []),
+    ...(context?.ocrText || []),
+  ];
+  for (const str of ocrStrings) {
+    const strLower = str.toLowerCase();
+    if (strLower.includes(normModel)) return true;
+    if (modelTokens.length >= 2 && modelTokens.every((token) => strLower.includes(token))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /** AI can check source evidence, but cannot manufacture a verified identity. */
 export async function cleanVisualCandidatesWithOpenAi(
   candidates: VisualCandidate[],
@@ -298,9 +351,6 @@ export async function cleanVisualCandidatesWithOpenAi(
   const apiKey = process.env.OPENAI_API_KEY;
   const offline = process.env.NODE_ENV === "test" && process.env.TEST_LIVE_AI !== "true";
   if (!apiKey || offline || context?.isMock || apiKey.includes("must-not") || apiKey === "test" || !context?.imageBuffer) {
-    return evidence;
-  }
-  if (!evidence.model || evidence.confidence < 0.85) {
     return evidence;
   }
 
@@ -314,16 +364,17 @@ export async function cleanVisualCandidatesWithOpenAi(
             role: "system",
             content: `You are an expert mobile device repair technician and screen identification specialist.
 Analyze the photograph of the mobile device display assembly along with web candidate listings and OCR markings.
-Identify the exact manufacturer and device model (e.g., "Apple iPhone 16 Pro Max", "Samsung Galaxy Note 20 Ultra", "Apple iPhone X", "Samsung Galaxy S22 Ultra", etc.).
+Identify the exact manufacturer and device model (e.g., "Apple iPhone 16 Pro", "Apple iPhone 16 Pro Max", "Samsung Galaxy Note 20 Ultra", "Apple iPhone X", "Samsung Galaxy S22 Ultra", etc.).
 Crucial instructions:
-- Web candidate titles are untrusted third-party listings and frequently confuse sibling or multi-compatible models (e.g. Galaxy S22/S23 Ultra vs Note 20 Ultra, or iPhone 13 vs iPhone 14).
+- Web candidate titles are untrusted third-party listings and frequently confuse sibling or multi-compatible models (e.g. Galaxy S22/S23 Ultra vs Note 20 Ultra, or iPhone 13 vs 14 vs 15 vs 16).
 - The physical photograph and OCR flex markings are ground truth.
 - Inspect corner geometry: Samsung Galaxy Note series (e.g. Note 20 Ultra) have sharp 90-degree rectangle corners, whereas Galaxy S-series phones have rounded corners or curved frames.
 - Inspect flex cable markings: markings with "NTM" or "Note" indicate Note series (e.g. SX678NTM28U is Galaxy Note 20 Ultra).
 - Inspect camera cutouts: centered punch-hole vs Dynamic Island vs notch.
+- For iPhone models: distinguish iPhone 14 Pro, 15 Pro, and 16 Pro by screen bezels, Dynamic Island size/proportions, flex cable layout and connector codes, and part numbers on flex/frame.
 Return JSON with:
 - "manufacturer": string (e.g. "Samsung", "Apple")
-- "model": string (the exact clean model name without manufacturer prefix, e.g. "Galaxy Note 20 Ultra", "iPhone 16 Pro Max", "iPhone X")
+- "model": string (the exact clean model name without manufacturer prefix, e.g. "Galaxy Note 20 Ultra", "iPhone 16 Pro", "iPhone 16 Pro Max", "iPhone X")
 - "confidence": number between 0.0 and 1.0
 - "reasoning": string explaining the physical identification cues`,
           },
@@ -363,13 +414,57 @@ Return JSON with:
 
     const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content || "null");
     const check = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    const checkMfr = typeof check.manufacturer === "string" ? check.manufacturer.trim() : null;
+    let checkModel = typeof check.model === "string" ? check.model.trim() : null;
+    if (checkMfr && checkModel && checkModel.toLowerCase().startsWith(checkMfr.toLowerCase())) {
+      checkModel = checkModel.slice(checkMfr.length).trim();
+    }
+    if (checkMfr?.toLowerCase() === "apple" && checkModel && !checkModel.toLowerCase().startsWith("iphone") && /^\d/.test(checkModel)) {
+      checkModel = `iPhone ${checkModel}`;
+    }
+
+    const checkKey = checkMfr && checkModel ? identityKey(checkMfr, checkModel) : null;
+    const evidenceKey = evidence.manufacturer && evidence.model ? identityKey(evidence.manufacturer, evidence.model) : null;
+
+    // 1. Corroborated exact match with an already confident heuristic model
     if (
-      typeof check.manufacturer === "string" &&
-      typeof check.model === "string" &&
-      identityKey(check.manufacturer, check.model) === identityKey(evidence.manufacturer, evidence.model)
+      checkKey &&
+      evidenceKey &&
+      checkKey === evidenceKey &&
+      evidence.model &&
+      evidence.confidence >= 0.85
     ) {
       return evidence;
     }
+
+    // 2. Check if AI's suggested model has support in candidate listings or OCR
+    const isSupported = checkMfr && checkModel
+      ? isModelSupportedByEvidence(checkMfr, checkModel, candidates, context)
+      : false;
+
+    if (isSupported && checkMfr && checkModel) {
+      const displayModel = checkModel;
+      const displayName = `${checkMfr} ${displayModel} Display`;
+      const aiReasoning = typeof check.reasoning === "string" && check.reasoning.trim()
+        ? check.reasoning.trim().slice(0, 1000)
+        : `AI vision identified ${checkMfr} ${displayModel} from physical display characteristics.`;
+
+      // Trust boundary: If source evidence was split or inconclusive, AI alone
+      // cannot certify an unreviewed model as definitive (model remains null,
+      // confidence 0.45), but AI guides the suggestedModel and displayName for operator review.
+      return {
+        ...evidence,
+        manufacturer: checkMfr,
+        model: null,
+        suggestedModel: displayModel,
+        displayName,
+        confidence: 0.45,
+        reasoning: aiReasoning,
+      };
+    }
+
+    // 3. AI suggested a model with no basis in candidate listings or OCR (e.g. hallucinating iPhone 8
+    // when all candidate listings are iPhone 15 Pro Max). Reject the hallucination and require review.
     return {
       ...evidence,
       model: null,
@@ -393,6 +488,9 @@ function identityKey(manufacturer: unknown, model: unknown): string {
   const mfg = typeof manufacturer === "string" ? manufacturer.trim().toLowerCase() : "";
   let device = typeof model === "string" ? model.trim().toLowerCase() : "";
   if (mfg && device.startsWith(`${mfg} `)) device = device.slice(mfg.length).trim();
+  if (mfg === "apple" && !device.startsWith("iphone") && /^\d/.test(device)) {
+    device = `iphone ${device}`;
+  }
   return `${mfg}|${device.replace(/\+/g, "plus").replace(/[^a-z0-9]/g, "")}`;
 }
 

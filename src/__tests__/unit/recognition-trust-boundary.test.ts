@@ -128,4 +128,67 @@ describe("recognition evidence trust boundary", () => {
     expect(result.model).toBeNull();
     expect(result.confidence).toBeLessThan(0.5);
   });
+
+  it("clarifies suggestedModel and displayName when AI vision inspects ambiguous 15 Pro vs 16 Pro listings", async () => {
+    online();
+    create.mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            manufacturer: "Apple",
+            model: "iPhone 16 Pro",
+            confidence: 0.95,
+            reasoning: "Dynamic Island proportions, ultra-slim bezel geometry, and flex markings match iPhone 16 Pro.",
+          }),
+        },
+      }],
+    });
+    const mixedCandidates = [
+      { title: "OEM Apple iPhone 15 Pro OLED Display Screen", sourceUrl: "https://shop1.test/display", rank: 1 },
+      { title: "Apple iPhone 15 Pro Max Screen Replacement", sourceUrl: "https://shop2.test/display", rank: 2 },
+      { title: "Apple iPhone 16 Pro OLED Assembly", sourceUrl: "https://shop3.test/display", rank: 3 },
+    ];
+    const result = await cleanVisualCandidatesWithOpenAi(mixedCandidates, {
+      imageBuffer: Buffer.from("photo"),
+      partNumbers: ["17399-TH29-6XR5"],
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result.model).toBeNull(); // Trust boundary: split candidates require review
+    expect(result.confidence).toBeLessThan(0.5);
+    expect(result.suggestedModel).toBe("iPhone 16 Pro");
+    expect(result.displayName).toBe("Apple iPhone 16 Pro Display");
+    expect(result.reasoning).toContain("Dynamic Island proportions");
+  });
+
+  it("clarifies suggestedModel for Samsung devices when candidate listings are low confidence", async () => {
+    online();
+    create.mockResolvedValue({
+      choices: [{
+        message: {
+          content: JSON.stringify({
+            manufacturer: "Samsung",
+            model: "Galaxy Note 20 Ultra",
+            confidence: 0.92,
+            reasoning: "Sharp 90-degree rectangle corners and NTM flex marking confirm Galaxy Note 20 Ultra.",
+          }),
+        },
+      }],
+    });
+    const samsungCandidates = [
+      { title: "Samsung Galaxy S22 Ultra OLED Screen Assembly", sourceUrl: "https://parts1.test/item", rank: 1 },
+      { title: "Samsung Galaxy Note 20 Ultra Display Replacement", sourceUrl: "https://parts2.test/item", rank: 2 },
+    ];
+    const result = await cleanVisualCandidatesWithOpenAi(samsungCandidates, {
+      imageBuffer: Buffer.from("photo"),
+      ocrText: ["SX678NTM28U"],
+    });
+
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(result.model).toBeNull();
+    expect(result.confidence).toBeLessThan(0.5);
+    expect(result.suggestedModel).toBe("Galaxy Note 20 Ultra");
+    expect(result.displayName).toBe("Samsung Galaxy Note 20 Ultra Display");
+    expect(result.reasoning).toContain("Sharp 90-degree rectangle corners");
+  });
 });
