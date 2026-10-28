@@ -16,7 +16,7 @@ Changes to the public source are recorded here.
 - Optimized RMA detail polling to only trigger when displays are actively queued or processing.
 
 ### Fixed
-- Fixed Next.js 16 Turbopack client reference manifest invariant error on dynamic `/rmas/[id]` routes by compiling via Webpack.
+- Addressed client reference manifest errors on dynamic `/rmas/[id]` routes; current source builds with `next build` (Turbopack by default). Production behavior requires separate verification.
 - Restored complete 108 KB Tailwind v4 CSS asset pipeline in container by linking PostCSS configuration.
 
 
@@ -331,7 +331,6 @@ Changes to the public source are recorded here.
 - Desktop Chrome and Pixel 7 browser checks passed for RMA result labels, camera intake, and dashboard layouts at 320, 768, 1024, and 1440 pixels.
 - Browser and provider tests use synthetic images and the mock Lens provider; no paid recognition API was called in local validation.
 
-## [Unreleased]
 
 ## [0.3.6] - 2026-10-18
 
@@ -549,5 +548,3 @@ Changes to the public source are recorded here.
 ### Security
 
 - Kept recognition providers mocked in CI and documented private-data boundaries for contributors.
-
-## [Unreleased]

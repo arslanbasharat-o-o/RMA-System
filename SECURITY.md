@@ -8,7 +8,7 @@ If private reporting is unavailable to you, contact the repository owner through
 
 ## Supported releases
 
-No versioned GitHub Release has been published yet. Security fixes are made on the default branch; review the release page for published versions and advisories.
+Security fixes are made on the default branch. Review the release page for published versions and advisories; support for individual releases is not specified.
 
 ## Handling data and credentials
 
