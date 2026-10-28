@@ -8,7 +8,7 @@ Status below reflects the rollout verified on 2026-10-28. Recheck live state, Gi
 - App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:0e32f32e8ac767ccf600a1de5e4418be94e9a3a0c8b3e6d7187553ff845a09d1`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:26b12d311854bb8c09492d4f2342da67e9a23ec9ddc954a6e79a35ee27f6358b`; both label version 0.4.5, revision `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63`. Main may contain newer documentation-only commits.
 - Compose project `rma-system` runs app, worker and PostgreSQL. Its reviewed Compose file pins the images literally and mounts only the storage volume into the worker; no worker source bind mount. nginx is the host reverse proxy. The app listens on loopback port 23001.
 - Legacy release cleanup: After verifying 0.4.5 stability in production, the legacy `0.4.1` images (`ghcr.io/arslanbasharat-o-o/rma-system:0.4.1` and `:worker-0.4.1`) and the `/opt/rma-system/releases/v0.4.1` directory were cleanly removed under explicit owner authorization, freeing ~2.05 GB of server disk space.
-- Retained backups: The coordinated backups taken before cutover (`20261028T152407Z`) remain preserved in `/var/backups/rma-system/` on the server and in `~/rms-backups/20261028T145724Z/` locally, with validated SHA-256 checksum manifests.
+- Rollout backups cleanup: Following owner verification and instruction on 2026-10-28, the pre-cutover rollout backup files (`20261028T152407Z`) in `/var/backups/rma-system/` on the server and local staging copies were removed.
 
 ## Backups and restore evidence
 
