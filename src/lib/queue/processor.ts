@@ -1566,6 +1566,11 @@ export async function processRmaItem(
     .where(eq(reviewActions.rmaItemId, itemId)).orderBy(desc(reviewActions.createdAt));
   const manualModel = getManualModelOverride(modelReviews);
   if (manualModel) {
+    // Validate catalogDisplayId against allCatalog so we never attempt to insert an orphaned foreign key
+    if (manualModel.catalogDisplayId && !allCatalog.some((c) => c.id === manualModel.catalogDisplayId)) {
+      manualModel.catalogDisplayId = null;
+    }
+
     unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}. Automated suggestion: ${unified.predictedModel || "unresolved"}.`);
     const normalize = (value: string | null) => (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const modelConflict = normalize(manualModel.predictedModel) !== normalize(unified.predictedModel) ||
@@ -1575,7 +1580,7 @@ export async function processRmaItem(
       finalItemStatus = "review_required";
       unified.overallMatchStatus = "ambiguous";
       unified.evidenceNotes.push("Automated recognition conflicts with the retained operator correction. Review the new evidence before accepting it.");
-    } else if (!manualModel.catalogDisplayId) {
+    } else if (allCatalog.length > 0 && !manualModel.catalogDisplayId) {
       finalItemStatus = "review_required";
     }
   }

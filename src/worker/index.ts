@@ -6,6 +6,9 @@ try {
 
 import { getBoss, QUEUE_PROCESS_ITEM } from "../lib/queue";
 import { processRmaItem } from "../lib/queue/processor";
+import { db } from "../db";
+import { rmaItems } from "../db/schema";
+import { and, eq } from "drizzle-orm";
 
 async function runWorker() {
   console.log("=================================================");
@@ -39,6 +42,19 @@ async function runWorker() {
             console.log(`[Worker] Completed job ${job.id}`);
           } catch (err) {
             console.error(`[Worker] Error processing job ${job.id}:`, err);
+            try {
+              const errorMessage = err instanceof Error ? err.message : String(err);
+              await db
+                .update(rmaItems)
+                .set({
+                  status: "review_required",
+                  reviewNotes: `Processing interrupted: ${errorMessage.slice(0, 250)}. Human review required.`,
+                  updatedAt: new Date(),
+                })
+                .where(and(eq(rmaItems.id, itemId), eq(rmaItems.status, "processing")));
+            } catch (fallbackErr) {
+              console.error(`[Worker] Failed to set fallback review_required status for item ${itemId}:`, fallbackErr);
+            }
             throw err;
           }
         })

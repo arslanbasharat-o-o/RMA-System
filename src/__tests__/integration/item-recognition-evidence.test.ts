@@ -69,4 +69,26 @@ describe("Current item inspection evidence", () => {
     expect((await response.json()).item.modelSource).toBe("manual");
   });
 
+  it("safely handles orphaned catalogDisplayId in historical review actions without FK violation", async () => {
+    const orphanCatalogId = "00000000-0000-4000-8000-000000000099";
+    await db.insert(reviewActions).values({
+      rmaItemId: itemId,
+      userId,
+      actionType: "manual_verify",
+      previousState: {},
+      newState: {
+        predicted_model: "iPhone 16 Pro Max",
+        predicted_manufacturer: "Apple",
+        predicted_display_assembly: "Apple iPhone 16 Pro Max Display",
+        catalog_display_id: orphanCatalogId,
+      },
+      notes: "Historical operator verification with deprecated catalog id",
+    });
+    // This should complete cleanly without throwing rma_items_catalog_display_fk violation
+    await processRmaItem(itemId, { force: true });
+    const [result] = await db.select().from(rmaItems).where(eq(rmaItems.id, itemId));
+    expect(result.predictedModel).toBe("iPhone 16 Pro Max");
+    expect(result.catalogDisplayId).toBeNull();
+  });
+
 });
