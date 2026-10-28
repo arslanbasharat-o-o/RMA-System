@@ -71,6 +71,6 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 ## Last verified
 
 - Date: 2026-10-28 (Asia/Karachi).
-- Application image source: `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63` (version `0.4.5`); GitHub main at rollout was `55ac17b` and differed by documentation only. Use `git rev-parse HEAD` for current source.
+- Application image source: `e9381a1f79d94117410bad0bdfe15b3dfe0ecb63` (version `0.4.5`); GitHub main is `860dbc9` following PR #94 merge and differs by documentation only. Use `git rev-parse HEAD` for current source.
 - Server app image digest: `sha256:0e32f32e8ac767ccf600a1de5e4418be94e9a3a0c8b3e6d7187553ff845a09d1`; worker image digest: `sha256:26b12d311854bb8c09492d4f2342da67e9a23ec9ddc954a6e79a35ee27f6358b`.
-- App/worker/database health and sampled anonymous routes passed ten-minute monitoring. Authenticated screens and end-to-end recognition are unverified.
+- App/worker/database health and sampled anonymous routes verified healthy on 0.4.5. Legacy 0.4.1 images and release directory were removed under owner authorization, freeing ~2.05 GB. Coordinated backups (`20261028T152407Z`) remain preserved. Authenticated screens and end-to-end recognition are unverified.
