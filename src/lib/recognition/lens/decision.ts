@@ -390,6 +390,7 @@ Return JSON with:
                     title: c.title,
                     source: c.sourceUrl || c.sourceName,
                   })),
+                  googleLensAiOverview: context?.aiOverview,
                   ocrHints: context?.partNumbers || context?.ocrText || [],
                 }),
               },

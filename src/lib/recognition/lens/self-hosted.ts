@@ -90,9 +90,12 @@ function getPrice(value: unknown): string | undefined {
   return undefined;
 }
 
+export const DEFAULT_DISPLAY_INSPECTION_PROMPT =
+  "Identify exact phone display screen model. Inspect notch vs Dynamic Island cutout, length and width dimensions, aftermarket IC chip markings (e.g. SQ9, JK, RJ), flex cable layout, connector pin count, and laser etched QR/text codes to distinguish Pro vs Pro Max and standard vs Plus models.";
+
 function getAiOverview(payload: JsonObject): string | undefined {
   for (const candidate of [payload, ...getNestedObjects(payload)]) {
-    for (const key of ["ai_overview", "aiOverview"]) {
+    for (const key of ["ai_mode", "aiMode", "ai_overview", "aiOverview"]) {
       const value = candidate[key];
       const text = typeof value === "string"
         ? value
@@ -100,7 +103,31 @@ function getAiOverview(payload: JsonObject): string | undefined {
           ? value.text
           : undefined;
       const normalized = text?.trim();
-      if (normalized && normalized.length <= 1600) return normalized;
+      if (normalized && normalized.length <= 10000) return normalized;
+    }
+  }
+  return undefined;
+}
+
+function getAiMode(payload: JsonObject): { text: string; sources?: Array<{ title?: string; link: string }> } | undefined {
+  for (const candidate of [payload, ...getNestedObjects(payload)]) {
+    for (const key of ["ai_mode", "aiMode"]) {
+      const value = candidate[key];
+      if (isJsonObject(value) && typeof value.text === "string" && value.text.trim()) {
+        const sources = Array.isArray(value.sources)
+          ? value.sources
+              .filter(isJsonObject)
+              .map((s) => ({
+                title: typeof s.title === "string" ? s.title : undefined,
+                link: String(s.link || s.url || ""),
+              }))
+              .filter((s) => Boolean(s.link))
+          : undefined;
+        return {
+          text: value.text.trim(),
+          sources,
+        };
+      }
     }
   }
   return undefined;
@@ -244,6 +271,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       const uploadMime = optimized.mime;
       // Original names are private metadata, not visual recognition evidence.
       const filename = `display${optimized.ext}`;
+      const prompt = context?.prompt ?? process.env.LENS_SEARCH_PROMPT;
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
@@ -252,7 +280,8 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           uploadBuffer,
           uploadMime,
           filename,
-          controller.signal
+          controller.signal,
+          prompt
         );
         payload = await this.waitForResult(payload, controller.signal, rememberPendingJob);
       } else {
@@ -278,7 +307,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
           }
 
           stage = "visual search";
-          payload = await this.requestSearch(imageId, controller.signal, context?.noCache);
+          payload = await this.requestSearch(imageId, controller.signal, context?.noCache, prompt);
           payload = await this.waitForResult(payload, controller.signal, rememberPendingJob);
         }
       }
@@ -338,9 +367,14 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     imageBuffer: Buffer,
     mimeType: string,
     filename: string,
-    signal: AbortSignal
+    signal: AbortSignal,
+    prompt?: string
   ): Promise<JsonObject> {
     const formData = this.createFormData(imageBuffer, mimeType, filename);
+    if (prompt) {
+      formData.append("prompt", prompt);
+      formData.append("q", prompt);
+    }
 
     const response = await fetch(this.baseUrl, {
       method: "POST",
@@ -371,7 +405,8 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
   private async requestSearch(
     imageId: string,
     signal: AbortSignal,
-    noCache?: boolean
+    noCache?: boolean,
+    prompt?: string
   ): Promise<JsonObject> {
     const searchUrl = new URL(joinServicePath(this.baseUrl, "search"));
     searchUrl.searchParams.set("image_id", imageId);
@@ -380,6 +415,10 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     searchUrl.searchParams.set("async", "true");
     if (noCache) {
       searchUrl.searchParams.set("no_cache", "true");
+    }
+    if (prompt) {
+      searchUrl.searchParams.set("prompt", prompt);
+      searchUrl.searchParams.set("q", prompt);
     }
 
     const response = await fetch(searchUrl.toString(), {
@@ -486,6 +525,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
     const aiOverview = getAiOverview(payload);
+    const aiMode = getAiMode(payload);
     const candidates: VisualCandidate[] = matches
       .filter(isJsonObject)
       .slice(0, 30)
@@ -515,6 +555,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       provider: this.name,
       candidates,
       aiOverview,
+      aiMode,
       cleanDecision,
       normalizedManufacturer,
       normalizedModel,

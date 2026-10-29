@@ -14,7 +14,11 @@ import {
 } from "@/db/schema";
 import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { storage } from "@/lib/storage";
-import { getVisualRecognitionProvider, VisualIdentificationResult } from "@/lib/recognition/lens";
+import {
+  DEFAULT_DISPLAY_INSPECTION_PROMPT,
+  getVisualRecognitionProvider,
+  VisualIdentificationResult,
+} from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
 import { compareVerifiedLibrary, type VerifiedLibraryComparison } from "@/lib/recognition/openai/verified-library";
 import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
@@ -956,6 +960,7 @@ export async function processRmaItem(
               filename: primaryImage.originalFilename,
               mimeType: primaryImage.mimeType,
               noCache: options?.force,
+              prompt: DEFAULT_DISPLAY_INSPECTION_PROMPT,
             });
             const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
             visualResult = reconciled?.manual

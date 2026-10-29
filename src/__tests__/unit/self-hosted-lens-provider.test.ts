@@ -331,4 +331,40 @@ describe("SelfHostedLensProvider", () => {
     expect(optimized).toHaveProperty("ext");
     expect(optimized.buffer.length).toBeGreaterThan(0);
   });
+
+  it("passes prompt parameter and maps ai_mode alongside visual_matches", async () => {
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: url.toString(), init });
+      return url.toString().endsWith("/upload")
+        ? jsonResponse({ image_id: "prompt-img-1" })
+        : jsonResponse({
+            visual_matches: [{ title: "iPhone 14 Pro Max Screen Replacement", link: "https://example.com/item" }],
+            ai_mode: {
+              text: "The display has a Dynamic Island cutout and SQ9-S aftermarket IC chip, identifying it as an iPhone 14 Pro Max.",
+              sources: [{ title: "Phone Display Guide", link: "https://example.com/guide" }],
+            },
+          });
+    }));
+
+    const provider = new SelfHostedLensProvider({
+      apiKey: "self-hosted-test-key",
+      baseUrl: "http://lens.internal/api",
+    });
+
+    const result = await provider.identifyDisplay(Buffer.from("image-bytes"), {
+      prompt: "Identify exact phone display screen model. Inspect notch vs Dynamic Island",
+    });
+
+    expect(calls).toHaveLength(2);
+    const searchUrl = new URL(calls[1].url);
+    expect(searchUrl.searchParams.get("prompt")).toBe("Identify exact phone display screen model. Inspect notch vs Dynamic Island");
+    expect(searchUrl.searchParams.get("q")).toBe("Identify exact phone display screen model. Inspect notch vs Dynamic Island");
+
+    expect(result.candidates).toHaveLength(1);
+    expect(result.aiMode).toBeDefined();
+    expect(result.aiMode?.text).toContain("Dynamic Island");
+    expect(result.aiMode?.sources?.[0]?.link).toBe("https://example.com/guide");
+    expect(result.aiOverview).toContain("Dynamic Island");
+  });
 });

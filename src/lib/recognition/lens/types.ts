@@ -13,6 +13,10 @@ export interface VisualIdentificationResult {
   candidates: VisualCandidate[];
   /** Optional visible Google AI Overview text; never treated as verified by itself. */
   aiOverview?: string;
+  aiMode?: {
+    text: string;
+    sources?: Array<{ title?: string; link: string }>;
+  };
   normalizedModel?: string;
   normalizedManufacturer?: string;
   detectedDisplayAssembly?: string;
@@ -26,6 +30,7 @@ export interface DisplayVisualRecognitionContext {
   mimeType?: string;
   filename?: string;
   noCache?: boolean;
+  prompt?: string;
 }
 
 export interface DisplayVisualRecognitionProvider {
