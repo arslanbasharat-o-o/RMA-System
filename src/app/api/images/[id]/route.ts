@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { itemImages } from "@/db/schema";
+import { itemImages, seededDisplayReferences } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { eq } from "drizzle-orm";
@@ -31,6 +31,24 @@ export async function GET(
       .where(eq(itemImages.rmaItemId, id))
       .orderBy(asc(itemImages.sortOrder))
       .limit(1);
+  }
+
+  // If still not found, check seededDisplayReferences
+  if (!imageRecord) {
+    const [seededRef] = await db
+      .select()
+      .from(seededDisplayReferences)
+      .where(eq(seededDisplayReferences.id, id));
+
+    if (seededRef) {
+      imageRecord = {
+        id: seededRef.id,
+        storagePath: seededRef.storagePath,
+        mimeType: "image/jpeg",
+        thumbnailPath: null,
+        previewPath: null,
+      } as any;
+    }
   }
 
   if (!imageRecord) {
