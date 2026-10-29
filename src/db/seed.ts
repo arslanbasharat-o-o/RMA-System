@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
 import { db } from "./index";
-import { appSettings, displayCatalog, returnReasons, users } from "./schema";
+import { appSettings, returnReasons, users } from "./schema";
 import { hashPassword } from "../lib/auth/password";
 import { eq } from "drizzle-orm";
 
@@ -15,8 +13,7 @@ export async function seedDatabase() {
     throw new Error("Set LENS_PROVIDER before production seeding.");
   }
 
-  const catalogPath = path.resolve("data/catalog.xlsx");
-  console.log("Seeding configured administrator, standard return reasons, catalog, and settings...");
+  console.log("Seeding configured administrator, standard return reasons, and settings...");
 
   const [existingAdmin] = await db
     .select({ id: users.id })
@@ -64,23 +61,6 @@ export async function seedDatabase() {
       .from(returnReasons)
       .where(eq(returnReasons.code, reason.code));
     if (!existing) await db.insert(returnReasons).values(reason);
-  }
-
-  if (fs.existsSync(catalogPath)) {
-    const { parseCatalogWorkbook } = await import("../lib/catalog/excelParser");
-    const items = await parseCatalogWorkbook(catalogPath);
-    const existingRows = await db
-      .select({ normalizedModelIdentifier: displayCatalog.normalizedModelIdentifier })
-      .from(displayCatalog);
-    const existingIdentifiers = new Set(existingRows.map((row) => row.normalizedModelIdentifier));
-    const missingItems = items.filter((item) => !existingIdentifiers.has(item.normalizedModelIdentifier));
-
-    for (let offset = 0; offset < missingItems.length; offset += 100) {
-      await db.insert(displayCatalog).values(missingItems.slice(offset, offset + 100));
-    }
-    console.log(`Catalog workbook verified (${items.length} products).`);
-  } else {
-    console.log("No private catalog workbook supplied; import a catalog from the admin interface when ready.");
   }
 
   const defaultSettings = [

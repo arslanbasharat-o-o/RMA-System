@@ -370,6 +370,40 @@ export function ItemReviewDrawer({
                   : "Unidentified Model")}
             </div>
 
+            {item?.seededProduct && (
+              <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-sky-950 dark:text-sky-100">Seeded inventory match</span>
+                  <Badge variant="outline">{item?.status === "verified" ? "Confirmed" : "Needs confirmation"}</Badge>
+                </div>
+                <p className="mt-1 text-sky-900 dark:text-sky-200">
+                  {item.seededProduct.modelName} · {item.seededProduct.variantName}
+                </p>
+                <p className="mt-1 text-[11px] text-sky-800 dark:text-sky-300">
+                  Printed box title: <span className="font-medium">{item.seededProduct.printedTitle}</span>
+                </p>
+                <div className="mt-2 grid grid-cols-1 gap-1 border-t border-sky-200 pt-2 text-[11px] dark:border-sky-900 sm:grid-cols-2">
+                  <span>Catalog UPC/EAN: <strong className="font-mono">{item.seededProduct.barcodeValue || "Not present in seed"}</strong></span>
+                  <span>Catalog SKU: <strong className="font-mono">{item.seededProduct.supplierSku || "Not present in seed"}</strong></span>
+                </div>
+                {item.seededProduct.barcodeValue && (
+                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
+                    {item.seededProduct.barcodeFormat || "Barcode"}{item.seededProduct.barcodeSymbology ? ` · ${item.seededProduct.barcodeSymbology}` : ""} — loaded from the seed record, not read from this display photo.
+                  </p>
+                )}
+                {Array.isArray(item.seededProduct.otherCodes) && item.seededProduct.otherCodes.length > 0 && (
+                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
+                    Other box codes: {item.seededProduct.otherCodes.map((code: any) => code.value).join(", ")}
+                  </p>
+                )}
+                {typeof item.inventoryMatchConfidence === "number" && (
+                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
+                    Visual comparison confidence: {Math.round(item.inventoryMatchConfidence * 100)}%
+                  </p>
+                )}
+              </div>
+            )}
+
             {item?.status === "review_required" && !item?.predictedModel && (
               <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
                 Search evidence did not identify one model. Compare the candidates and choose the exact catalog model before confirming.

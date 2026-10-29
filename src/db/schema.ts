@@ -144,6 +144,52 @@ export const rmas = pgTable(
   ]
 );
 
+// Exact seeded product variants are separate from the phone-model catalog.
+export const seededDisplayProducts = pgTable(
+  "seeded_display_products",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    sourceKey: text("source_key").notNull().unique(),
+    manufacturer: text("manufacturer").notNull(),
+    modelName: text("model_name").notNull(),
+    variantName: text("variant_name").notNull(),
+    printedTitle: text("printed_title").notNull(),
+    barcodeValue: text("barcode_value"),
+    barcodeFormat: text("barcode_format"),
+    barcodeSymbology: text("barcode_symbology"),
+    supplierSku: text("supplier_sku"),
+    otherCodes: jsonb("other_codes").$type<Array<{ value: string; source: string; category: string }>>().default([]).notNull(),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("seeded_display_products_model_idx").on(table.manufacturer, table.modelName),
+    index("seeded_display_products_barcode_idx").on(table.barcodeValue),
+    index("seeded_display_products_active_idx").on(table.isActive),
+  ]
+);
+
+export const seededDisplayReferences = pgTable(
+  "seeded_display_references",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    productId: uuid("product_id").notNull().references(() => seededDisplayProducts.id, { onDelete: "cascade" }),
+    sourceDisplayId: text("source_display_id").notNull().unique(),
+    sourceImageId: text("source_image_id").notNull(),
+    storagePath: text("storage_path").notNull(),
+    checksumSha256: text("checksum_sha256").notNull(),
+    cropMetadata: jsonb("crop_metadata").$type<Record<string, string | number>>().default({}).notNull(),
+    readableMarkings: jsonb("readable_markings").$type<Array<{ text: string; type: string; location: string; confidence: string }>>().default([]).notNull(),
+    isMatchable: boolean("is_matchable").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("seeded_display_references_product_idx").on(table.productId),
+    index("seeded_display_references_checksum_idx").on(table.checksumSha256),
+  ]
+);
+
 export const rmaItems = pgTable(
   "rma_items",
   {
@@ -171,6 +217,13 @@ export const rmaItems = pgTable(
     predictedModel: text("predicted_model"),
     predictedDisplayAssembly: text("predicted_display_assembly"),
     catalogDisplayId: uuid("catalog_display_id"),
+    seededDisplayProductId: uuid("seeded_display_product_id").references(() => seededDisplayProducts.id, { onDelete: "set null" }),
+    inventoryMatchConfidence: real("inventory_match_confidence"),
+    inventoryMatchEvidence: jsonb("inventory_match_evidence").$type<{
+      matchingCues: string[];
+      conflictingCues: string[];
+      unresolvedAlternatives: string[];
+    } | null>(),
     // Identified Vendor (Task B)
     identifiedVendorId: uuid("identified_vendor_id"),
     identifiedVendorVariantId: uuid("identified_vendor_variant_id"),
@@ -221,6 +274,7 @@ export const rmaItems = pgTable(
     index("rma_items_status_idx").on(table.status),
     index("rma_items_match_status_idx").on(table.matchStatus),
     index("rma_items_catalog_display_idx").on(table.catalogDisplayId),
+    index("rma_items_seeded_display_product_idx").on(table.seededDisplayProductId),
     index("rma_items_vendor_idx").on(table.identifiedVendorId),
   ]
 );
@@ -393,7 +447,7 @@ export const recognitionRuns = pgTable(
       .notNull()
       .references(() => rmaItems.id, { onDelete: "cascade" }),
     pipelineType: text("pipeline_type", {
-      enum: ["visual", "vendor_ocr", "unified"],
+      enum: ["visual", "vendor_ocr", "unified", "inventory_catalog"],
     }).notNull(),
     providerName: text("provider_name").notNull(),
     status: text("status", { enum: ["started", "completed", "failed"] }).notNull(),

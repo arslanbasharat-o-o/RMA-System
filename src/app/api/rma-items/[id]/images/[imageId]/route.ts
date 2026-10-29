@@ -48,6 +48,8 @@ export async function DELETE(
       `UPDATE rma_items SET recognition_revision = recognition_revision + 1,
        status = $2, predicted_manufacturer = NULL, predicted_model = NULL,
        predicted_display_assembly = NULL, catalog_display_id = NULL,
+       seeded_display_product_id = NULL, inventory_match_confidence = NULL,
+       inventory_match_evidence = NULL,
        identified_vendor_id = NULL, identified_vendor_variant_id = NULL,
        model_confidence_score = NULL, vendor_confidence_score = NULL,
        match_status = 'unknown', visual_status = $3, visual_error = NULL,

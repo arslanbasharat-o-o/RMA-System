@@ -47,16 +47,20 @@ export async function enqueueRmaItem(
 ): Promise<void> {
   const boss = await getBoss();
   const client = await pool.connect();
+  const invalidateSeededProduct = options?.pipeline !== "vendor_ocr";
   try {
     await client.query("BEGIN");
     const result = await client.query<{ recognition_revision: number }>(
       `UPDATE rma_items
        SET status = 'queued',
            recognition_revision = recognition_revision + 1,
+           seeded_display_product_id = CASE WHEN $2 THEN NULL ELSE seeded_display_product_id END,
+           inventory_match_confidence = CASE WHEN $2 THEN NULL ELSE inventory_match_confidence END,
+           inventory_match_evidence = CASE WHEN $2 THEN NULL ELSE inventory_match_evidence END,
            updated_at = NOW()
        WHERE id = $1
        RETURNING recognition_revision`,
-      [itemId]
+      [itemId, invalidateSeededProduct]
     );
     const item = result.rows[0];
     if (!item) throw new Error(`RMA item ${itemId} was not found while queueing.`);

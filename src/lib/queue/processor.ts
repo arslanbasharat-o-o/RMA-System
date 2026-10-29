@@ -11,6 +11,8 @@ import {
   vendorRecognitionRules,
   appSettings,
   reviewActions,
+  seededDisplayProducts,
+  seededDisplayReferences,
 } from "@/db/schema";
 import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import { storage } from "@/lib/storage";
@@ -21,6 +23,11 @@ import {
 } from "@/lib/recognition/lens";
 import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
 import { compareVerifiedLibrary, type VerifiedLibraryComparison } from "@/lib/recognition/openai/verified-library";
+import {
+  matchSeededInventoryProduct,
+  type SeededInventoryMatch,
+  type SeededInventoryReference,
+} from "@/lib/recognition/seeded-inventory";
 import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import { independentSource } from "@/lib/recognition/lens/model-evidence";
@@ -53,6 +60,109 @@ export interface ProcessItemOptions {
   pipeline?: "all" | "visual" | "vendor_ocr";
   force?: boolean;
   revision?: number;
+}
+
+async function matchSeededInventory(
+  itemId: string,
+  revision: number,
+  images: Array<typeof itemImages.$inferSelect>
+): Promise<SeededInventoryMatch | null> {
+  const primaryBack = images.find((image) => image.imageType === "back") ||
+    images.find((image) => image.imageType === "primary");
+  if (!primaryBack) return null;
+
+  const targetImageRows = [
+    primaryBack,
+    ...images.filter((image) => ["back", "flex_cable", "stamp_closeup", "sticker_closeup"].includes(image.imageType)),
+  ].filter((image, index, list) =>
+    list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index
+  ).slice(0, 3);
+
+  const rows = await db
+    .select({
+      productId: seededDisplayProducts.id,
+      manufacturer: seededDisplayProducts.manufacturer,
+      modelName: seededDisplayProducts.modelName,
+      variantName: seededDisplayProducts.variantName,
+      printedTitle: seededDisplayProducts.printedTitle,
+      barcodeValue: seededDisplayProducts.barcodeValue,
+      barcodeFormat: seededDisplayProducts.barcodeFormat,
+      barcodeSymbology: seededDisplayProducts.barcodeSymbology,
+      supplierSku: seededDisplayProducts.supplierSku,
+      sourceDisplayId: seededDisplayReferences.sourceDisplayId,
+      sourceImageId: seededDisplayReferences.sourceImageId,
+      storagePath: seededDisplayReferences.storagePath,
+    })
+    .from(seededDisplayReferences)
+    .innerJoin(seededDisplayProducts, eq(seededDisplayReferences.productId, seededDisplayProducts.id))
+    .where(and(eq(seededDisplayProducts.isActive, true), eq(seededDisplayReferences.isMatchable, true)))
+    .orderBy(asc(seededDisplayProducts.modelName), asc(seededDisplayProducts.variantName), asc(seededDisplayReferences.sourceDisplayId));
+
+  if (rows.length < 2) return { status: "miss", product: null, confidence: 0, matchingCues: [], conflictingCues: [], unresolvedAlternatives: [], supportingReferenceIds: [] };
+
+  let configuredModel = process.env.OPENAI_REFERENCE_MODEL || process.env.OPENAI_VISION_MODEL;
+  if (!configuredModel) {
+    try {
+      const [setting] = await db.select().from(appSettings).where(eq(appSettings.key, "OPENAI_VISION_MODEL"));
+      if (typeof setting?.value === "string") configuredModel = setting.value;
+    } catch {
+      // Use the provider default when the optional setting is absent.
+    }
+  }
+
+  const references: SeededInventoryReference[] = await Promise.all(rows.map(async (row) => ({
+    product: {
+      id: row.productId,
+      manufacturer: row.manufacturer,
+      modelName: row.modelName,
+      variantName: row.variantName,
+      printedTitle: row.printedTitle,
+      barcodeValue: row.barcodeValue,
+      barcodeFormat: row.barcodeFormat,
+      barcodeSymbology: row.barcodeSymbology,
+      supplierSku: row.supplierSku,
+    },
+    displayId: row.sourceDisplayId,
+    imageBuffer: await storage.getImageBuffer(row.storagePath),
+    imageType: "back",
+  })));
+  const targetImages = await Promise.all(targetImageRows.map(async (image) => ({
+    // Legacy photographs labeled "primary" represent the primary back view in this workflow
+    imageType: (image.imageType === "primary" ? "back" : image.imageType) as "back" | "flex_cable" | "stamp_closeup" | "sticker_closeup",
+    imageBuffer: await storage.getImageBuffer(image.storagePath),
+  })));
+
+  const startedAt = Date.now();
+  const comparison = await matchSeededInventoryProduct(
+    new OpenAiVisionOcrService(undefined, configuredModel, 120000),
+    targetImages,
+    references
+  );
+  await db.insert(recognitionRuns).values({
+    rmaItemId: itemId,
+    recognitionRevision: revision,
+    pipelineType: "inventory_catalog",
+    providerName: "openai-seeded-inventory-comparison",
+    status: comparison.status === "error" ? "failed" : "completed",
+    rawRequest: {
+      targetChecksumSha256s: targetImageRows.map((image) => image.checksumSha256),
+      sourceDisplayIds: rows.map((row) => row.sourceDisplayId),
+      productIds: [...new Set(rows.map((row) => row.productId))],
+      decisionPolicy: "exact-product-variant-v1",
+    },
+    rawResponse: {
+      status: comparison.status,
+      selectedProductId: comparison.product?.id || null,
+      confidence: comparison.confidence,
+      matchingCues: comparison.matchingCues,
+      conflictingCues: comparison.conflictingCues,
+      unresolvedAlternatives: comparison.unresolvedAlternatives,
+      supportingReferenceIds: comparison.supportingReferenceIds,
+    },
+    durationMs: Date.now() - startedAt,
+    errorMessage: comparison.error || null,
+  });
+  return comparison;
 }
 
 async function updateItemForRevision(
@@ -909,8 +1019,25 @@ export async function processRmaItem(
       status: "processing",
       visualStatus: shouldRunVisual ? "pending" : item.visualStatus,
       vendorOcrStatus: shouldRunOcr ? "pending" : item.vendorOcrStatus,
+      seededDisplayProductId: shouldRunVisual ? null : item.seededDisplayProductId,
+      inventoryMatchConfidence: shouldRunVisual ? null : item.inventoryMatchConfidence,
+      inventoryMatchEvidence: shouldRunVisual ? null : item.inventoryMatchEvidence,
       updatedAt: new Date(),
     });
+
+  const inventoryMatchPromise: Promise<SeededInventoryMatch | null> = shouldRunVisual
+    ? matchSeededInventory(itemId, revision, images).catch((error: unknown) => ({
+        status: "error" as const,
+        product: null,
+        confidence: 0,
+        matchingCues: [],
+        conflictingCues: [],
+        unresolvedAlternatives: [],
+        supportingReferenceIds: [],
+        error: error instanceof Error ? error.message : String(error),
+      }))
+    : Promise.resolve(null);
+  const inventoryMatchState: { current: SeededInventoryMatch | null } = { current: null };
 
   // -------------------------------------------------------------------------
   // Task A: Visual Recognition (Google Lens Adapter)
@@ -929,6 +1056,65 @@ export async function processRmaItem(
   const visualTask = (async () => {
     if (shouldRunVisual) {
       try {
+        const inventoryMatch = await inventoryMatchPromise;
+        inventoryMatchState.current = inventoryMatch;
+        if (inventoryMatch?.status === "accepted" && inventoryMatch.product) {
+          const product = inventoryMatch.product;
+          const inventoryVisualResult: VisualIdentificationResult = {
+            provider: "seeded-inventory-catalog",
+            candidates: [],
+            normalizedManufacturer: product.manufacturer,
+            normalizedModel: product.modelName,
+            detectedDisplayAssembly: `${product.modelName} ${product.variantName} Display`,
+            cleanDecision: {
+              manufacturer: product.manufacturer,
+              model: product.modelName,
+              displayName: `${product.modelName} ${product.variantName} Display`,
+              confidence: inventoryMatch.confidence,
+              cleanedCandidates: [],
+              reasoning: `Compared the uploaded back with seeded reference displays. ${inventoryMatch.matchingCues.join("; ")}`,
+            },
+            rawResponse: {
+              source: "seeded-inventory-catalog",
+              productId: product.id,
+              confidence: inventoryMatch.confidence,
+              matchingCues: inventoryMatch.matchingCues,
+              supportingReferenceIds: inventoryMatch.supportingReferenceIds,
+            },
+            durationMs: 0,
+          };
+          try {
+            await db.insert(recognitionRuns).values({
+              rmaItemId: itemId,
+              recognitionRevision: revision,
+              pipelineType: "visual",
+              providerName: inventoryVisualResult.provider,
+              status: "completed",
+              rawRequest: {
+                source: "seeded-inventory-catalog",
+                targetChecksumSha256: primaryImage.checksumSha256,
+              },
+              rawResponse: inventoryVisualResult.rawResponse,
+              durationMs: inventoryVisualResult.durationMs,
+            });
+            visualResult = inventoryVisualResult;
+            await updateItemForRevision(itemId, revision, {
+              visualStatus: "success",
+              visualError: null,
+              updatedAt: new Date(),
+            });
+            return;
+          } catch (error: unknown) {
+            console.warn("[Processor] Could not save the seeded catalog visual run; continuing with Lens:", error instanceof Error ? error.message : String(error));
+            inventoryMatchState.current = {
+              ...inventoryMatch,
+              status: "error",
+              product: null,
+              error: "Could not persist the seeded inventory comparison.",
+            };
+          }
+        }
+
         let configuredLensProvider: string | undefined = process.env.LENS_PROVIDER;
         try {
           if (!configuredLensProvider && process.env.NODE_ENV !== "test") {
@@ -1218,6 +1404,7 @@ export async function processRmaItem(
   for (const result of pipelineResults) {
     if (result.status === "rejected") throw result.reason;
   }
+  const inventoryMatch = inventoryMatchState.current;
 
   // -------------------------------------------------------------------------
   // Synthesis: Vendor Matching & Catalog Resolution
@@ -1249,6 +1436,7 @@ export async function processRmaItem(
   ];
 
   const vendorMatch = vendorMatcher.matchTokens(ocrTokens);
+  const seededCatalogAccepted = inventoryMatch?.status === "accepted" && Boolean(inventoryMatch.product);
   let proposedDisplayMatch = matchDisplayToCatalog(
     visualResult,
     catalogWithVerifiedPartNumbers,
@@ -1275,7 +1463,7 @@ export async function processRmaItem(
 
   // Apply catalog-wide voting only when it cannot overrule exact part-number
   // evidence or a prior verified-part-number conflict.
-  if (!verifiedPartNumberConflicts.length && proposedDisplayMatch?.matchType !== "part_number") {
+  if (!seededCatalogAccepted && !verifiedPartNumberConflicts.length && proposedDisplayMatch?.matchType !== "part_number") {
     const catalogConsensus = applyVisualCatalogConsensus(visualResult, catalogWithVerifiedPartNumbers);
     if (catalogConsensus !== visualResult) {
       visualResult = catalogConsensus;
@@ -1302,7 +1490,7 @@ export async function processRmaItem(
 
   let verifiedComparisonDisagrees = false;
   let verifiedComparisonApplied = false;
-  let verifiedSuggestionShown = false;
+  let verifiedSuggestionShown = seededCatalogAccepted;
   let visualSuggestionWithheld = false;
   let verifiedComparison: VerifiedLibraryComparison | null = null;
   const comparisonCandidateIds = shouldRunVisual &&
@@ -1321,6 +1509,7 @@ export async function processRmaItem(
   // newly verified item is eligible on the next upload, without a rebuild.
   if (
     shouldRunVisual &&
+    !seededCatalogAccepted &&
     allCatalog.length > 0 &&
     !verifiedPartNumberConflicts.length &&
     proposedDisplayMatch?.matchType !== "part_number"
@@ -1486,6 +1675,48 @@ export async function processRmaItem(
     synthesisVisualResult
   );
 
+  const normalizeIdentifier = (val: string | null | undefined) =>
+    (val || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+  const exactOcrPartNumberMatch = proposedDisplayMatch?.matchType === "part_number" ? proposedDisplayMatch : null;
+  const ocrContradictsSeededProduct = Boolean(
+    exactOcrPartNumberMatch &&
+    inventoryMatch?.product &&
+    (normalizeIdentifier(exactOcrPartNumberMatch.manufacturer) !== normalizeIdentifier(inventoryMatch.product.manufacturer) ||
+     normalizeIdentifier(exactOcrPartNumberMatch.modelName) !== normalizeIdentifier(inventoryMatch.product.modelName))
+  );
+
+  if (seededCatalogAccepted && inventoryMatch?.product && !verifiedPartNumberConflicts.length && !ocrContradictsSeededProduct) {
+    const product = inventoryMatch.product;
+    const modelCatalogItem = allCatalog.find((entry) =>
+      entry.manufacturer.toLowerCase() === product.manufacturer.toLowerCase() &&
+      entry.modelName.toLowerCase().replace(/[^a-z0-9]/g, "") === product.modelName.toLowerCase().replace(/[^a-z0-9]/g, "")
+    );
+    unified.predictedManufacturer = product.manufacturer;
+    unified.predictedModel = product.modelName;
+    unified.predictedDisplayAssembly = `${product.modelName} ${product.variantName} Display`;
+    unified.catalogDisplayId = modelCatalogItem?.id || null;
+    unified.modelConfidenceScore = inventoryMatch.confidence;
+    unified.overallMatchStatus = vendorMatch.matchStatus === "ambiguous" ? "ambiguous" : "strong_candidate";
+    unified.itemStatus = "review_required";
+    unified.evidenceNotes.push(
+      `Seeded inventory comparison matched ${product.printedTitle} using visible display cues: ${inventoryMatch.matchingCues.join("; ")}. The UPC/EAN and supplier SKU below come from the seeded box record; they were not read from this uploaded photo. Operator confirmation is required.`
+    );
+  } else if (seededCatalogAccepted && inventoryMatch?.product && ocrContradictsSeededProduct) {
+    unified.overallMatchStatus = "ambiguous";
+    unified.itemStatus = "review_required";
+    unified.evidenceNotes.push(
+      `Seeded inventory comparison matched ${inventoryMatch.product.printedTitle}, but extracted part number ${exactOcrPartNumberMatch?.matchedPartNumber} indicates ${exactOcrPartNumberMatch?.manufacturer} ${exactOcrPartNumberMatch?.modelName}. Seeded catalog UPC/EAN and SKU were withheld due to contradictory OCR model evidence.`
+    );
+  } else if (inventoryMatch && inventoryMatch.status !== "accepted") {
+    const reason = inventoryMatch.status === "error"
+      ? "The seeded catalog comparison was unavailable"
+      : inventoryMatch.status === "ambiguous"
+        ? "The seeded catalog could not distinguish the exact product variant"
+        : "No seeded catalog product matched the uploaded back photo";
+    unified.evidenceNotes.push(`${reason}; the existing model-identification flow was used and no seeded UPC/EAN or SKU was attached.`);
+  }
+
   if (displayMatch?.verifiedExampleCount && displayMatch.matchedPartNumber) {
     unified.evidenceNotes.push(
       `Verified feedback matched part number ${displayMatch.matchedPartNumber} across ${displayMatch.verifiedExampleCount} independently verified displays.`
@@ -1570,6 +1801,73 @@ export async function processRmaItem(
   const modelReviews = await db.select().from(reviewActions)
     .where(eq(reviewActions.rmaItemId, itemId)).orderBy(desc(reviewActions.createdAt));
   const manualModel = getManualModelOverride(modelReviews);
+
+  let seededDisplayProductId = shouldRunVisual ? null : item.seededDisplayProductId;
+  let inventoryMatchConfidence: number | null = shouldRunVisual ? null : item.inventoryMatchConfidence;
+  let inventoryMatchEvidence = shouldRunVisual ? null : item.inventoryMatchEvidence;
+
+  if (shouldRunVisual && seededCatalogAccepted && inventoryMatch?.product && !verifiedPartNumberConflicts.length && !ocrContradictsSeededProduct) {
+    seededDisplayProductId = inventoryMatch.product.id;
+    inventoryMatchConfidence = inventoryMatch.confidence;
+    inventoryMatchEvidence = {
+      matchingCues: inventoryMatch.matchingCues,
+      conflictingCues: inventoryMatch.conflictingCues,
+      unresolvedAlternatives: inventoryMatch.unresolvedAlternatives,
+    };
+  }
+
+  // Look up the active seeded product record if we have an attached or retained ID
+  let activeSeededProduct: { id: string; manufacturer: string; modelName: string; printedTitle: string } | null = null;
+  if (inventoryMatch?.product && seededDisplayProductId === inventoryMatch.product.id) {
+    activeSeededProduct = inventoryMatch.product;
+  } else if (seededDisplayProductId) {
+    const [row] = await db.select({
+      id: seededDisplayProducts.id,
+      manufacturer: seededDisplayProducts.manufacturer,
+      modelName: seededDisplayProducts.modelName,
+      printedTitle: seededDisplayProducts.printedTitle,
+    }).from(seededDisplayProducts).where(eq(seededDisplayProducts.id, seededDisplayProductId));
+    if (row) activeSeededProduct = row;
+  }
+
+  // Validate retained/attached seeded product on every pipeline (including vendor_ocr retries)
+  if (seededDisplayProductId && activeSeededProduct) {
+    let clearReason: string | null = null;
+
+    if (verifiedPartNumberConflicts.length > 0) {
+      clearReason = "verified part-number conflict";
+    } else if (
+      exactOcrPartNumberMatch &&
+      (normalizeIdentifier(exactOcrPartNumberMatch.manufacturer) !== normalizeIdentifier(activeSeededProduct.manufacturer) ||
+       normalizeIdentifier(exactOcrPartNumberMatch.modelName) !== normalizeIdentifier(activeSeededProduct.modelName))
+    ) {
+      clearReason = `extracted part number ${exactOcrPartNumberMatch.matchedPartNumber} indicates ${exactOcrPartNumberMatch.manufacturer} ${exactOcrPartNumberMatch.modelName}`;
+    } else if (
+      manualModel &&
+      (normalizeIdentifier(manualModel.predictedManufacturer) !== normalizeIdentifier(activeSeededProduct.manufacturer) ||
+       normalizeIdentifier(manualModel.predictedModel) !== normalizeIdentifier(activeSeededProduct.modelName))
+    ) {
+      clearReason = "retained operator model correction";
+    } else if (
+      unified.predictedModel &&
+      (normalizeIdentifier(unified.predictedManufacturer) !== normalizeIdentifier(activeSeededProduct.manufacturer) ||
+       normalizeIdentifier(unified.predictedModel) !== normalizeIdentifier(activeSeededProduct.modelName))
+    ) {
+      clearReason = `model changed to ${unified.predictedManufacturer} ${unified.predictedModel}`;
+    }
+
+    if (clearReason) {
+      seededDisplayProductId = null;
+      inventoryMatchConfidence = null;
+      inventoryMatchEvidence = null;
+      unified.evidenceNotes.push(`The seeded product link and catalog UPC/SKU were cleared because of a contradiction: ${clearReason}.`);
+    }
+  } else if (seededDisplayProductId && !activeSeededProduct) {
+    seededDisplayProductId = null;
+    inventoryMatchConfidence = null;
+    inventoryMatchEvidence = null;
+  }
+
   if (manualModel) {
     // Validate catalogDisplayId against allCatalog so we never attempt to insert an orphaned foreign key
     if (manualModel.catalogDisplayId && !allCatalog.some((c) => c.id === manualModel.catalogDisplayId)) {
@@ -1577,9 +1875,8 @@ export async function processRmaItem(
     }
 
     unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}. Automated suggestion: ${unified.predictedModel || "unresolved"}.`);
-    const normalize = (value: string | null) => (value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const modelConflict = normalize(manualModel.predictedModel) !== normalize(unified.predictedModel) ||
-      normalize(manualModel.predictedManufacturer) !== normalize(unified.predictedManufacturer) ||
+    const modelConflict = normalizeIdentifier(manualModel.predictedModel) !== normalizeIdentifier(unified.predictedModel) ||
+      normalizeIdentifier(manualModel.predictedManufacturer) !== normalizeIdentifier(unified.predictedManufacturer) ||
       (manualModel.catalogDisplayId && manualModel.catalogDisplayId !== unified.catalogDisplayId);
     if (modelConflict) {
       finalItemStatus = "review_required";
@@ -1603,6 +1900,9 @@ export async function processRmaItem(
       extractedTextSummary: unified.extractedTextSummary,
       matchedCodesSummary: unified.matchedCodesSummary,
       reviewNotes: unified.evidenceNotes.join(" | "),
+      seededDisplayProductId,
+      inventoryMatchConfidence,
+      inventoryMatchEvidence,
       updatedAt: new Date(),
       ...manualModel,
     });
