@@ -679,21 +679,33 @@ export default function DisplayCatalogPage() {
                       </div>
                     )}
 
-                    {selectedRef.readableMarkings && selectedRef.readableMarkings.length > 0 && (
+                    {selectedRef.readableMarkings && (
                       <div>
                         <span className="text-neutral-400 block text-[10px] uppercase font-semibold">
                           Readable Markings
                         </span>
                         <div className="space-y-1 mt-1">
-                          {selectedRef.readableMarkings.map((m: any, idx: number) => (
-                            <div
-                              key={idx}
-                              className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
-                            >
-                              <strong className="font-mono text-indigo-600 dark:text-indigo-400">{m.text}</strong>{" "}
-                              <span className="text-neutral-500">({m.location})</span>
+                          {Array.isArray(selectedRef.readableMarkings) ? (
+                            selectedRef.readableMarkings.map((m: any, idx: number) => {
+                              const text = typeof m === "string" ? m : m?.text || JSON.stringify(m);
+                              const loc = typeof m === "object" && m?.location ? ` (${m.location})` : "";
+                              return (
+                                <div
+                                  key={idx}
+                                  className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
+                                >
+                                  <strong className="font-mono text-indigo-600 dark:text-indigo-400">{text}</strong>
+                                  {loc && <span className="text-neutral-500">{loc}</span>}
+                                </div>
+                              );
+                            })
+                          ) : typeof selectedRef.readableMarkings === "string" ? (
+                            <div className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
+                              <strong className="font-mono text-indigo-600 dark:text-indigo-400">
+                                {selectedRef.readableMarkings}
+                              </strong>
                             </div>
-                          ))}
+                          ) : null}
                         </div>
                       </div>
                     )}
