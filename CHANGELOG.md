@@ -4,6 +4,21 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-10-30
+
+### Added
+- **Display Inventory Management Interface (`/display-catalog`)**: Complete administrative UI providing active display product overview, model/variant details, printed box titles, box UPC/EAN barcodes, supplier SKUs, and interactive high-resolution reference photo inspection.
+- **Display Inventory API Endpoints (`/api/display-inventory`)**: Role-protected (`admin`, `operator`) endpoints for toggling product and reference matchability, previewing dry-run sync diffs from the seed package, and performing safe test record cleanup.
+- **Seeded Reference Image Streaming (`/api/images/[id]`)**: Streaming support for seeded display inventory references with full authentication and access control.
+- **GSD (Get Shit Done) Configuration**: Integrated `.planning/` workspace, configuration, project architecture map, and roadmap tracking.
+
+### Fixed
+- **Seeded Inventory Matching Precision**: Filtered conflicting cues so observations explaining why unselected alternatives did not match do not block acceptance of the selected reference candidate.
+- **Vision Comparison System Prompt**: Instructed the multi-candidate variant reviewer to keep `conflicting_cues` strictly empty (`[]`) when the selected variant matches cleanly without physical contradiction.
+- **Turbopack Build Optimization**: Eliminated dynamic filesystem access warnings in `seed-display-inventory.ts` using `/*turbopackIgnore: true*/`.
+- **UI/UX Cleanup**: Removed dead component `blur-in-demo.tsx`, sanitized operator alert texts, and streamlined table card designs across all pages.
+- **Test Safety Guard**: Established explicit `confirm: true` parameter and `isDisposableTestRecord` predicate to protect legitimate production customer and RMA records during test data cleanup.
+
 ## [0.4.10] - 2026-10-30
 
 ### Fixed

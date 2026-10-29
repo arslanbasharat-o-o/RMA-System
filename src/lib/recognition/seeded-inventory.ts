@@ -136,11 +136,42 @@ export async function matchSeededInventoryProduct(
     return result(ambiguous ? "ambiguous" : "miss", finalComparison);
   }
 
+  // Filter out any conflicting cues that explicitly describe why other rejected
+  // candidates did not match (e.g. "DSP-005 has a different flex layout..."), which
+  // are observations ruling out alternatives rather than contradictions on the selected product.
+  const selectedRefIds = new Set(
+    references
+      .filter((r) => r.product.id === selectedProduct.id)
+      .map((r) => r.displayId.toLowerCase())
+  );
+  const otherRefIds = references
+    .filter((r) => r.product.id !== selectedProduct.id)
+    .map((r) => r.displayId.toLowerCase());
+
+  const contradictoryCues = finalComparison.conflictingCues.filter((cue) => {
+    const lower = cue.toLowerCase();
+    const mentionsSelected = [...selectedRefIds].some((id) => lower.includes(id));
+    if (mentionsSelected) return true;
+
+    const matchingOtherIds = otherRefIds.filter((id) => lower.includes(id));
+    if (matchingOtherIds.length > 0) {
+      // Unambiguously check if the cue exclusively explains why the alternative reference was ruled out
+      // (e.g. "DSP-005 has a large black backing patch... unlike the uploaded display")
+      const otherPattern = new RegExp(`\\b(${matchingOtherIds.join("|")})\\b`, "i");
+      const isExclusivelyAboutAlternative = otherPattern.test(lower) &&
+        /\b(has|shows|features|exhibits|contains|differs|lacks|unlike|instead of)\b/i.test(lower) &&
+        !/\b(target|uploaded|item)\s+(has|shows|contains|differs|lacks)\b/i.test(lower);
+
+      if (isExclusivelyAboutAlternative) return false;
+    }
+    return true;
+  });
+
   // This only attaches a suggestion. The existing RMS review step still needs
   // an operator to confirm it before the item becomes verified.
   const accepted = finalComparison.confidence >= 0.9 &&
     finalComparison.matchingCues.length >= 2 &&
-    finalComparison.conflictingCues.length === 0 &&
+    contradictoryCues.length === 0 &&
     finalComparison.unresolvedAlternatives.length === 0 &&
     finalComparison.supportingReferenceItemIds.length > 0;
 

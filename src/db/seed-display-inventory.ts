@@ -41,7 +41,7 @@ function parseArguments(args: string[]) {
   return {
     apply: args.includes("--apply"),
     allowRemote: args.includes("--allow-remote"),
-    seedDir: path.resolve(process.env.DISPLAY_INVENTORY_SEED_DIR || ".local/display-inventory-seed"),
+    seedDir: path.resolve(/*turbopackIgnore: true*/ process.env.DISPLAY_INVENTORY_SEED_DIR || ".local/display-inventory-seed"),
   };
 }
 
@@ -111,7 +111,7 @@ export async function seedDisplayInventory(args = process.argv.slice(2)) {
     for (const reference of product.references) {
       if (displayIds.has(reference.displayId)) throw new Error(`Duplicate sample ID: ${reference.displayId}`);
       displayIds.add(reference.displayId);
-      const buffer = await fs.readFile(resolveSeedFile(options.seedDir, reference.imagePath));
+      const buffer = await fs.readFile(/*turbopackIgnore: true*/ resolveSeedFile(options.seedDir, reference.imagePath));
       checksums.set(reference.displayId, createHash("sha256").update(buffer).digest("hex"));
     }
   }
@@ -186,7 +186,7 @@ export async function seedDisplayInventory(args = process.argv.slice(2)) {
           const checksumSha256 = checksums.get(reference.displayId)!;
           let imagePath = prior?.storagePath;
           if (!prior || prior.checksumSha256 !== checksumSha256) {
-            const source = await fs.readFile(resolveSeedFile(options.seedDir, reference.imagePath));
+            const source = await fs.readFile(/*turbopackIgnore: true*/ resolveSeedFile(options.seedDir, reference.imagePath));
             const stored = await storage.saveImage(source, path.basename(reference.imagePath), "image/jpeg", "seeded-display-catalog");
             imagePath = stored.storagePath;
             newlyStoredPaths.push(stored.storagePath);
