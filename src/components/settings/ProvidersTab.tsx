@@ -11,6 +11,7 @@ interface ProviderStatus {
   selfHostedConfigured?: boolean;
   providerManagedByEnvironment?: boolean;
   openaiConfigured?: boolean;
+  lensSearchPrompt?: string | null;
 }
 
 interface TestResult {
@@ -81,6 +82,14 @@ export function ProvidersTab({
                   {activeProvider}
                 </span>
               </div>
+              {status.lensSearchPrompt && (
+                <div className="pt-1.5 mt-1 border-t border-neutral-100 dark:border-zinc-800">
+                  <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mb-1">Inspection Prompt:</span>
+                  <p className="text-[10px] text-neutral-700 dark:text-neutral-300 font-mono line-clamp-2 bg-neutral-50 dark:bg-zinc-900/60 p-1.5 rounded border border-neutral-200/50 dark:border-zinc-800/50">
+                    {status.lensSearchPrompt}
+                  </p>
+                </div>
+              )}
             </div>
 
             {lensTestResult && (

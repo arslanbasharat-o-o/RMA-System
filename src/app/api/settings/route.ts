@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     activeOpenAiModel: formatted.OPENAI_VISION_MODEL || process.env.OPENAI_VISION_MODEL || "gpt-5.6-terra",
     storageDriver: formatted.STORAGE_DRIVER || process.env.STORAGE_DRIVER || "local",
     timezone: formatted.BUSINESS_TIMEZONE || process.env.BUSINESS_TIMEZONE || "UTC",
+    lensSearchPrompt: process.env.LENS_SEARCH_PROMPT || formatted.LENS_SEARCH_PROMPT || null,
   };
 
   return NextResponse.json({ settings: formatted, providerStatus });
