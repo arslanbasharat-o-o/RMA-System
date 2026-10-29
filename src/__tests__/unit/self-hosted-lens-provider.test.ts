@@ -367,4 +367,27 @@ describe("SelfHostedLensProvider", () => {
     expect(result.aiMode?.sources?.[0]?.link).toBe("https://example.com/guide");
     expect(result.aiOverview).toContain("Dynamic Island");
   });
+
+  it("uses process.env.LENS_SEARCH_PROMPT when configured in environment", async () => {
+    vi.stubEnv("LENS_SEARCH_PROMPT", "Custom prompt from env");
+    const calls: Array<{ url: string; init?: RequestInit }> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string | URL, init?: RequestInit) => {
+      calls.push({ url: url.toString(), init });
+      return url.toString().endsWith("/upload")
+        ? jsonResponse({ image_id: "prompt-img-env" })
+        : jsonResponse({ visual_matches: [] });
+    }));
+
+    const provider = new SelfHostedLensProvider({
+      apiKey: "self-hosted-test-key",
+      baseUrl: "http://lens.internal/api",
+    });
+
+    await provider.identifyDisplay(Buffer.from("image-bytes"));
+
+    expect(calls).toHaveLength(2);
+    const searchUrl = new URL(calls[1].url);
+    expect(searchUrl.searchParams.get("prompt")).toBe("Custom prompt from env");
+    expect(searchUrl.searchParams.get("q")).toBe("Custom prompt from env");
+  });
 });

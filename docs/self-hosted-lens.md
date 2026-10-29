@@ -18,8 +18,9 @@ LENS_API_BASE_URL=http://lens-api:3000
 LENS_API_KEY=<private Lens service key>
 LENS_API_MODE=upload_search
 LENS_API_POLL_INTERVAL_MS=250
-LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.13
-LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.13
+LENS_SEARCH_PROMPT="Identify exact phone display screen model. Inspect notch vs Dynamic Island cutout, length and width dimensions, aftermarket IC chip markings (e.g. SQ9, JK, RJ), flex cable layout, connector pin count, and laser etched QR/text codes to distinguish Pro vs Pro Max and standard vs Plus models."
+LENS_API_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.22
+LENS_WORKER_IMAGE=ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.22
 RMA_DOCKER_NETWORK=rma-system_rma_network
 ```
 

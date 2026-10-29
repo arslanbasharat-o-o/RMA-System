@@ -271,7 +271,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       const uploadMime = optimized.mime;
       // Original names are private metadata, not visual recognition evidence.
       const filename = `display${optimized.ext}`;
-      const prompt = context?.prompt ?? process.env.LENS_SEARCH_PROMPT;
+      const prompt = process.env.LENS_SEARCH_PROMPT || context?.prompt;
       let payload: JsonObject;
 
       if (this.useDirectEndpoint()) {
