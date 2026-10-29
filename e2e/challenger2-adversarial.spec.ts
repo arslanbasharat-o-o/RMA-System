@@ -35,7 +35,7 @@ test.describe("Challenger 2: Settings Tabs Navigation & Rapid Interaction", () =
       pageErrors.push(err.message);
     });
 
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
 
     const generalTab = page.locator('[role="tab"]:has-text("General")');
     const providersTab = page.locator('[role="tab"]:has-text("Recognition")');
@@ -66,7 +66,7 @@ test.describe("Challenger 2: Settings Tabs Navigation & Rapid Interaction", () =
   test("C2.2: Unsaved form input state is preserved in General tab across tab switches", async ({
     page,
   }) => {
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
 
     const tzInput = page.locator('input[placeholder*="UTC"]').first();
     await expect(tzInput).toBeVisible({ timeout: 10000 });
@@ -93,7 +93,7 @@ test.describe("Challenger 2: Settings Tabs Navigation & Rapid Interaction", () =
   test("C2.3: Quick presets in General tab instantly update timezone input without reloads", async ({
     page,
   }) => {
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
     const tzInput = page.locator('input[placeholder*="UTC"]').first();
     await expect(tzInput).toBeVisible();
 
@@ -365,7 +365,7 @@ test.describe("Challenger 2: Loading State Visual Verification", () => {
     page,
   }) => {
     await page.goto("/settings");
-    await expect(page.locator("h1")).toBeVisible();
+    await expect(page.locator("h1").first()).toBeVisible();
 
     // Slow down PUT /api/settings
     await page.route("**/api/settings", async (route) => {
