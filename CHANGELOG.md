@@ -4,6 +4,15 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-10-30
+
+### Fixed
+- **Clean Operator Review Alerts**: Replaced raw, pipe-delimited internal debug log dumps in the Review Queue UI with sanitized, human-readable bulleted review reasons.
+- **Internal Matcher Telemetry Leakage**: Removed rule evaluation counters (`Evaluated X tokens against Y active rules with no match`) and stale catalog references from persisted operator evidence notes.
+- **OLED vs Legacy LCD Differentiation**: Added physical technology checks so displays bearing `HARD`, `SOFT`, `OLED`, or `AMOLED` physical markings disqualify legacy LCD models (e.g. iPhone 6/7/8 series) from visual candidate selection.
+- **Multimodal AI Vision Screen Inspection**: Enriched visual decision prompts to evaluate modern 19.5:9 all-screen aspect ratios, Dynamic Island cutouts, and rear silver heat-shield plates common on aftermarket assemblies, preventing false iPhone 7 Plus classifications on iPhone 16 Pro Max displays.
+
+
 ## [0.4.9] - 2026-10-29
 
 ### Added
