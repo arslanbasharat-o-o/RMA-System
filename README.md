@@ -10,18 +10,18 @@ Repair operations software for return tracking, mobile display-photo intake, and
 
 - Tracks RMAs, return reasons, suppliers, warranties, and shipments.
 - Captures display assembly photos from desktop and mobile workflows.
-- Combines visual-search candidates and OCR evidence for model review.
+- Combines visual-search candidates, OCR markings, and AI vision inspection for model review.
 - Processes image jobs through a PostgreSQL-backed queue with a separate worker.
-- Keeps ambiguous matches available for technician review.
+- Keeps ambiguous matches available for 1-click technician review and ground-truth feedback.
 
 ## Stack
 
 | Layer | Technology |
 | :--- | :--- |
-| Web application | Next.js 16, React, TypeScript |
-| Data and jobs | PostgreSQL, Drizzle ORM, pg-boss |
-| Recognition | Self-hosted Google Lens API and OCR providers |
-| Delivery | Docker Compose and GitHub Actions |
+| Web application | Next.js 16, React 19, TypeScript, Tailwind CSS |
+| Data and jobs | PostgreSQL 16, Drizzle ORM, pg-boss |
+| Recognition | Self-hosted Google Lens API (v1.0.22 multisearch), AI vision inspection, and OCR |
+| Delivery | Docker Compose and GitHub Actions (GHCR) |
 
 ## Run locally
 
@@ -69,15 +69,17 @@ npm run build
 
 ## Releases and deployment
 
-The source version is defined in [`package.json`](package.json). Use the [latest published release](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest) and its matching image tags when deploying. Application and worker images must use the same release version; see [the release process](docs/release-process.md).
+The source version is defined in [`package.json`](package.json). Use the [latest published release](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest) (currently v0.4.8) and its matching image tags when deploying. Application and worker images must use the same release version; see [the release process](docs/release-process.md).
 
-Deployment, migrations, volumes, and backups are documented in [DEPLOYMENT.md](DEPLOYMENT.md). A passing local test does not establish live provider availability or deployment status.
+Deployment, migrations, volumes, and backups are documented in [DEPLOYMENT.md](DEPLOYMENT.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). A passing local test does not establish live provider availability or deployment status.
 
 ## Documentation
 
 - [System architecture](ARCHITECTURE.md)
+- [Production deployment and rollback](docs/DEPLOYMENT.md)
 - [Self-hosted Lens integration](docs/self-hosted-lens.md)
 - [Recognition evaluation](docs/recognition-evaluation.md)
+- [Release process](docs/release-process.md)
 - [Contribution guide](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)
 
