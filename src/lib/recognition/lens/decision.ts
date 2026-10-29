@@ -59,7 +59,8 @@ export function cleanVisualCandidatesHeuristic(
   }
 
   const cleanedTitles = candidates.map((candidate) => cleanRawCandidateTitle(candidate.title));
-  const appleEvidence = appleVisualEvidence(candidates, context?.aiOverview);
+  const allOcrHints = [...(context?.partNumbers || []), ...(context?.ocrText || [])];
+  const appleEvidence = appleVisualEvidence(candidates, context?.aiOverview, allOcrHints);
 
   // Combine top candidate texts for device identification
   const combinedText = candidates
@@ -368,6 +369,11 @@ Identify the exact manufacturer and device model (e.g., "Apple iPhone 16 Pro", "
 Crucial instructions:
 - Web candidate titles are untrusted third-party listings and frequently confuse sibling or multi-compatible models (e.g. Galaxy S22/S23 Ultra vs Note 20 Ultra, or iPhone 13 vs 14 vs 15 vs 16).
 - The physical photograph and OCR flex markings are ground truth.
+- CRITICAL DISPLAY FORM FACTOR:
+  - Distinguish modern all-screen iPhones (iPhone X through 16 series with tall 19.5:9 aspect ratio, narrow uniform bezels, notch or Dynamic Island) from legacy iPhones (iPhone 6, 7, 8 series with 16:9 fat aspect ratio, thick top/bottom bezels, and circular Touch ID Home button).
+  - REAR / BACK VIEW: Notice if the photograph shows the REAR (back) metal backing or heat shield plate. Modern aftermarket replacement displays (iPhone 11 through 16 series) commonly have silver metal backing plates and flex cables. A silver metal backing plate does NOT make it an old iPhone 7 or 8! Inspect the tall 19.5:9 form factor, flex layout, and top cutout.
+  - Never identify a tall 19.5:9 display or a display marked "HARD" or "OLED" as a legacy LCD iPhone (iPhone 6/7/8).
+  - Inspect markings and stickers: e.g. "HARD" indicates Hard OLED; stickers like "AL16" indicate aftermarket LCD/OLED for iPhone 16 / 16 Pro Max; check part numbers and flex codes.
 - Inspect corner geometry: Samsung Galaxy Note series (e.g. Note 20 Ultra) have sharp 90-degree rectangle corners, whereas Galaxy S-series phones have rounded corners or curved frames.
 - Inspect flex cable markings: markings with "NTM" or "Note" indicate Note series (e.g. SX678NTM28U is Galaxy Note 20 Ultra).
 - Inspect camera cutouts: centered punch-hole vs Dynamic Island vs notch.
@@ -385,7 +391,14 @@ Return JSON with:
                 type: "text",
                 text: JSON.stringify({
                   suggestedManufacturer: evidence.manufacturer,
-                  suggestedModel: evidence.model || evidence.suggestedModel,
+                  suggestedModel: (() => {
+                    const ocrHintsList = context?.partNumbers || context?.ocrText || [];
+                    const isLegacy = (m?: string | null) => m && /^iPhone\s*(?:[5678]|SE)\b/i.test(m);
+                    const hasModernOrOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
+                    return isLegacy(evidence.model || evidence.suggestedModel) && hasModernOrOled
+                      ? null
+                      : (evidence.model || evidence.suggestedModel);
+                  })(),
                   googleLensCandidates: candidates.slice(0, 20).map((c) => ({
                     title: c.title,
                     source: c.sourceUrl || c.sourceName,
@@ -477,7 +490,9 @@ Return JSON with:
       model: null,
       suggestedModel: evidence.suggestedModel || evidence.model,
       confidence: 0.45,
-      reasoning: `The photograph did not corroborate the exact model suggested by source evidence. ${typeof check.reasoning === "string" ? check.reasoning.slice(0, 1000) : "Operator review is required."}`,
+      reasoning: typeof check.reasoning === "string" && check.reasoning.trim()
+        ? check.reasoning.trim().slice(0, 1000)
+        : "Visual candidates were inconclusive; operator review is required.",
     };
   } catch {
     // Corroboration failure must not silently certify an unchecked image.

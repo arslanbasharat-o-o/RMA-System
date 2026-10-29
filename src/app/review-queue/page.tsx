@@ -24,6 +24,64 @@ import {
   CopyBadge,
 } from "@/components/premium";
 
+function parseReviewNotes(rawNotes?: string | null): string[] {
+  if (!rawNotes || !rawNotes.trim()) return [];
+  const parts = rawNotes.split(/\s*\|\s*|\n+/).map((p) => p.trim()).filter(Boolean);
+  const result: string[] = [];
+  const seen = new Set<string>();
+
+  for (const part of parts) {
+    // Filter internal debug logs and developer noise
+    if (/Evaluated \d+ tokens against \d+ active rules/i.test(part)) continue;
+    if (/internal catalog references/i.test(part)) continue;
+    if (/Display model could not be verified in internal catalog/i.test(part)) continue;
+    if (/No OCR text tokens provided for matching/i.test(part)) continue;
+    if (/Top matched rule pointed to missing vendor/i.test(part)) continue;
+    if (/Automated recognition conflicts with the retained operator correction/i.test(part)) continue;
+
+    let cleaned = part;
+
+    // Operator retention pattern
+    const mOp = part.match(/Model retained from operator correction:\s*([^.]+?)(?:\s*\((?:Automated suggestion|automated suggestion):\s*([^)]+)\)|\.\s*Automated suggestion:\s*([^.]+))/i);
+    if (mOp) {
+      const retainedModel = mOp[1].trim();
+      const autoSuggestion = (mOp[2] || mOp[3] || "unresolved").trim();
+      cleaned = `Operator confirmed ${retainedModel} (differs from automated suggestion: ${autoSuggestion})`;
+    }
+
+    // Visual decision pattern
+    const mVis = part.match(/Visual identification decision:\s*([^(\n]+)(?:\(([^)]+)\))?/i);
+    if (mVis) {
+      const model = mVis[1].trim();
+      let reasoning = (mVis[2] || "").trim();
+      reasoning = reasoning
+        .replace(/Operator review is required\.?/gi, "")
+        .replace(/The photograph did not corroborate the exact model suggested by source evidence\.?/gi, "")
+        .trim();
+      cleaned = reasoning ? `Visual suggestion: ${model} — ${reasoning}` : `Visual suggestion: ${model}`;
+    }
+
+    // Visual conflict pattern
+    if (/Visual matches conflict/i.test(part)) {
+      cleaned = "Visual search candidates conflict across multiple models.";
+    }
+
+    // Strip repetitive tailing boilerplate
+    cleaned = cleaned
+      .replace(/Retained for (?:human )?operator review\.?/gi, "")
+      .replace(/Operator review is required\.?/gi, "")
+      .replace(/Review the new evidence before accepting it\.?/gi, "")
+      .trim();
+
+    if (cleaned && !seen.has(cleaned)) {
+      seen.add(cleaned);
+      result.push(cleaned);
+    }
+  }
+
+  return result;
+}
+
 export default function ReviewQueuePage() {
   const [queue, setQueue] = useState<any[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -226,19 +284,34 @@ export default function ReviewQueuePage() {
                     </div>
 
                     {/* Review Reason Alert */}
-                    {currentItem.reviewNotes && (
-                      <div className="p-3 rounded-lg border border-amber-300/80 dark:border-amber-700/60 bg-amber-50/70 dark:bg-amber-950/30 flex items-start gap-2.5">
-                        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <span className="font-semibold block text-[10px] uppercase tracking-wider text-amber-900 dark:text-amber-300">
-                            Reason For Review:
-                          </span>
-                          <span className="text-xs text-amber-950 dark:text-amber-200 leading-relaxed">
-                            {currentItem.reviewNotes}
-                          </span>
+                    {currentItem.reviewNotes && (() => {
+                      const notes = parseReviewNotes(currentItem.reviewNotes);
+                      if (!notes.length) return null;
+                      return (
+                        <div className="p-3.5 rounded-xl border border-amber-300/80 dark:border-amber-700/60 bg-amber-50/80 dark:bg-amber-950/30 flex items-start gap-3">
+                          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                          <div className="min-w-0 flex-1">
+                            <span className="font-semibold block text-[10px] uppercase tracking-wider text-amber-900 dark:text-amber-300 mb-1">
+                              Reason For Review
+                            </span>
+                            {notes.length === 1 ? (
+                              <p className="text-xs text-amber-950 dark:text-amber-200 leading-relaxed font-medium">
+                                {notes[0]}
+                              </p>
+                            ) : (
+                              <ul className="space-y-1.5 text-xs text-amber-950 dark:text-amber-200">
+                                {notes.map((note, idx) => (
+                                  <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                                    <span className="text-amber-500 font-bold leading-none mt-1">•</span>
+                                    <span>{note}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    )}
+                      );
+                    })()}
 
                     {/* Matched Codes */}
                     {currentItem.matchedCodesSummary && (

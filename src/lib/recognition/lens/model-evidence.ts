@@ -60,8 +60,15 @@ export interface AppleVisualEvidenceResult {
   reasoning: string;
 }
 
-export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: string): AppleVisualEvidenceResult | null {
+export function appleVisualEvidence(
+  candidates: VisualCandidate[],
+  aiOverview?: string,
+  ocrHints?: string[]
+): AppleVisualEvidenceResult | null {
   const overviewEvidence = aiOverviewModelEvidence(aiOverview);
+  const ocrTextCombined = (ocrHints || []).join(" ").toUpperCase();
+  const isOledTechnology = /\b(?:HARD|SOFT|OLED|AMOLED)\b/.test(ocrTextCombined);
+  const isLegacyLcdModel = (name: string) => /^iPhone\s*(?:[5678]|SE)\b/i.test(name);
   const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i;
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
   const accessory = /\b(?:case|cover|screen\s*protector|protector|tempered\s*glass|camera\s*lens|lens\s*protector|charger|cable|battery|adhesive|glue|tools?|repair\s*kit)\b/i;
@@ -98,6 +105,12 @@ export function appleVisualEvidence(candidates: VisualCandidate[], aiOverview?: 
       continue;
     }
     if (!displayListing.test(candidate.title)) {
+      irrelevantListings += 1;
+      continue;
+    }
+    // If physical markings confirm OLED technology (e.g. HARD or SOFT OLED),
+    // legacy LCD-only models (iPhone 6/7/8) cannot be the matching display assembly.
+    if (isOledTechnology && isLegacyLcdModel(models[0])) {
       irrelevantListings += 1;
       continue;
     }

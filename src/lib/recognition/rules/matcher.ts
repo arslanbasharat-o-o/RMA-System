@@ -37,7 +37,7 @@ export class VendorRuleMatcher {
         matchedPattern: null,
         confidenceScore: 0,
         matchStatus: "unknown",
-        evidenceNotes: ["No OCR text tokens provided for matching."],
+        evidenceNotes: [],
         candidateAlternatives: [],
       };
     }
@@ -110,9 +110,7 @@ export class VendorRuleMatcher {
         matchedPattern: null,
         confidenceScore: 0,
         matchStatus: "unknown",
-        evidenceNotes: [
-          `Evaluated ${normalizedTokens.length} tokens against ${this.rules.length} active rules with no match.`,
-        ],
+        evidenceNotes: [],
         candidateAlternatives: [],
       };
     }

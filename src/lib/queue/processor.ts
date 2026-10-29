@@ -1874,18 +1874,36 @@ export async function processRmaItem(
       manualModel.catalogDisplayId = null;
     }
 
-    unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}. Automated suggestion: ${unified.predictedModel || "unresolved"}.`);
     const modelConflict = normalizeIdentifier(manualModel.predictedModel) !== normalizeIdentifier(unified.predictedModel) ||
       normalizeIdentifier(manualModel.predictedManufacturer) !== normalizeIdentifier(unified.predictedManufacturer) ||
       (manualModel.catalogDisplayId && manualModel.catalogDisplayId !== unified.catalogDisplayId);
     if (modelConflict) {
       finalItemStatus = "review_required";
       unified.overallMatchStatus = "ambiguous";
-      unified.evidenceNotes.push("Automated recognition conflicts with the retained operator correction. Review the new evidence before accepting it.");
-    } else if (allCatalog.length > 0 && !manualModel.catalogDisplayId) {
-      finalItemStatus = "review_required";
+      unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel} (Automated suggestion: ${unified.predictedModel || "unresolved"}).`);
+    } else {
+      unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}.`);
+      if (allCatalog.length > 0 && !manualModel.catalogDisplayId) {
+        finalItemStatus = "review_required";
+      }
     }
   }
+
+  // Filter internal debug telemetry, normalize, and deduplicate review notes
+  const seenNotes = new Set<string>();
+  const cleanReviewNotesList = unified.evidenceNotes
+    .map((n) => n.trim())
+    .filter((n) => {
+      if (!n || seenNotes.has(n)) return false;
+      if (/Evaluated \d+ tokens against \d+ active rules/i.test(n)) return false;
+      if (/internal catalog references/i.test(n)) return false;
+      if (/Display model could not be verified in internal catalog/i.test(n)) return false;
+      if (/No OCR text tokens provided for matching/i.test(n)) return false;
+      if (/Top matched rule pointed to missing vendor/i.test(n)) return false;
+      seenNotes.add(n);
+      return true;
+    });
+
   await updateItemForRevision(itemId, revision, {
       predictedManufacturer: unified.predictedManufacturer,
       predictedModel: unified.predictedModel,
@@ -1899,7 +1917,7 @@ export async function processRmaItem(
       status: finalItemStatus,
       extractedTextSummary: unified.extractedTextSummary,
       matchedCodesSummary: unified.matchedCodesSummary,
-      reviewNotes: unified.evidenceNotes.join(" | "),
+      reviewNotes: cleanReviewNotesList.join(" | "),
       seededDisplayProductId,
       inventoryMatchConfidence,
       inventoryMatchEvidence,
