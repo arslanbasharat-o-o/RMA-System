@@ -17,13 +17,19 @@ sequenceDiagram
   participant App
   participant DB as PostgreSQL / pg-boss
   participant Worker
-  participant Providers as private Google Lens and OpenAI
+  participant Inventory as seeded display catalog
+  participant Providers as Google Lens and OpenAI Vision
   participant Review as Staff review queue
   Staff->>App: Create RMA and upload display images
   App->>DB: Store metadata and enqueue work
   Worker->>DB: Claim durable job
-  Worker->>Providers: Request visual candidates and OCR when configured
-  Providers-->>Worker: Candidate models and transcribed markings
+  Worker->>Inventory: Compare back photo with seeded product references
+  alt Exact seeded product match
+    Inventory-->>Worker: Product variant and stored UPC/SKU
+  else No safe product match
+    Worker->>Providers: Run existing Lens model search and markings OCR
+    Providers-->>Worker: Candidate model and transcribed markings
+  end
   Worker->>DB: Store evidence and calculated match state
   Staff->>Review: Review uncertain result and record correction
   Review->>DB: Save decision and audit trail
@@ -31,11 +37,11 @@ sequenceDiagram
 
 ## Data boundaries
 
-- Upload bytes and catalog workbooks are operational data and stay outside the public source repository.
+- Upload bytes, seed manifests and display-reference images are operational data and stay outside the public source repository. The local seed package belongs in `.local/display-inventory-seed/` (ignored by Git).
 - Provider keys, session secrets, and database credentials are runtime secrets. Do not prefix them with `NEXT_PUBLIC_`.
 - Mock adapters are restricted to development and test environments by runtime guards.
 - Production and CI use separate databases, storage, credentials, and worker instances.
-- A fresh installation has no customer or RMA fixtures. Import organization-specific catalog data privately after deployment.
+- The legacy generic Excel catalog importer has been removed. Seeded product variants use a dedicated, dry-run-first command; import its private manifest and cropped back references only after checking the database target.
 
 ## Persistence
 

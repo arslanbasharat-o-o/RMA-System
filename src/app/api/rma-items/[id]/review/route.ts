@@ -77,6 +77,7 @@ export async function POST(
     matchStatus: item.matchStatus,
     predictedModel: item.predictedModel,
     predictedManufacturer: item.predictedManufacturer,
+    seededDisplayProductId: item.seededDisplayProductId,
     identifiedVendorId: item.identifiedVendorId,
     identifiedVendorVariantId: item.identifiedVendorVariantId,
   };
@@ -111,6 +112,9 @@ export async function POST(
 
       if (!cat) return NextResponse.json({ error: "The selected display model is missing or inactive." }, { status: 400 });
       updatePayload.catalogDisplayId = cat.id;
+      updatePayload.seededDisplayProductId = null;
+      updatePayload.inventoryMatchConfidence = null;
+      updatePayload.inventoryMatchEvidence = null;
       updatePayload.predictedManufacturer = cat.manufacturer;
       const cleanCatModel =
         cat.manufacturer !== "OnePlus" &&
@@ -129,6 +133,9 @@ export async function POST(
       updatePayload.predictedModel = cleanModel;
       updatePayload.predictedDisplayAssembly = `${manufacturer} ${cleanModel} Display`;
       updatePayload.catalogDisplayId = null;
+      updatePayload.seededDisplayProductId = null;
+      updatePayload.inventoryMatchConfidence = null;
+      updatePayload.inventoryMatchEvidence = null;
     }
 
     // Apply vendor override if provided
@@ -159,6 +166,9 @@ export async function POST(
     updatePayload.predictedManufacturer = null;
     updatePayload.predictedDisplayAssembly = null;
     updatePayload.catalogDisplayId = null;
+    updatePayload.seededDisplayProductId = null;
+    updatePayload.inventoryMatchConfidence = null;
+    updatePayload.inventoryMatchEvidence = null;
     updatePayload.modelConfidenceScore = null;
     updatePayload.vendorConfidenceScore = null;
     updatePayload.identifiedVendorId = null;

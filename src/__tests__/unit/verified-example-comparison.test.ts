@@ -188,4 +188,37 @@ describe("verified display visual comparison", () => {
     expect(comparison.unresolvedAlternatives).toEqual(["unrepresented device"]);
     expect(JSON.stringify(mockCreate.mock.calls[0][0].messages)).toContain("unrepresented device");
   });
+
+  it("P2: Uses product-variant reviewer prompt and instructions when identityLevel is product_variant", async () => {
+    const imageBuffer = await syntheticDisplayPhoto();
+    mockCreate.mockResolvedValue({
+      choices: [{ message: { content: JSON.stringify({
+        selected_catalog_display_id: "variant-1",
+        confidence: 0.95,
+        matching_cues: ["same flex layout"],
+        conflicting_cues: [],
+      }) } }],
+    });
+
+    const readable = [
+      { itemId: "seed-ref-1", catalogDisplayId: "variant-1", label: "iPhone 16 COF", images: [{ imageBuffer, imageType: "back" as const }] },
+      { itemId: "seed-ref-2", catalogDisplayId: "variant-2", label: "iPhone 16 Soft", images: [{ imageBuffer, imageType: "back" as const }] },
+    ];
+
+    await new OpenAiVisionOcrService("unit-test-key", "gpt-4o-mini").compareToVerifiedExamples(
+      [{ imageBuffer, imageType: "back" as const }],
+      readable,
+      [],
+      { identityLevel: "product_variant" }
+    );
+
+    const callPayload = mockCreate.mock.calls[0][0];
+    const systemContent = callPayload.messages[0].content as string;
+    expect(systemContent).toContain("seeded-inventory product-variant reviewer");
+
+    const userParts = callPayload.messages[1].content as Array<{ type: string; text?: string }>;
+    const userTextCombined = userParts.filter((p) => p.type === "text").map((p) => p.text).join(" ");
+    expect(userTextCombined).toContain("visible construction and markings support the selected seeded product variant");
+    expect(userTextCombined).not.toContain("Construction differences alone do not establish device identity");
+  });
 });

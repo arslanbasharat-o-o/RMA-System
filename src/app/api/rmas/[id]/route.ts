@@ -9,6 +9,7 @@ import {
   vendors,
   vendorVariants,
   displayCatalog,
+  seededDisplayProducts,
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { eq, asc, inArray } from "drizzle-orm";
@@ -77,6 +78,18 @@ export async function GET(
       predictedModel: rmaItems.predictedModel,
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
       catalogDisplayId: rmaItems.catalogDisplayId,
+      seededDisplayProductId: rmaItems.seededDisplayProductId,
+      inventoryMatchConfidence: rmaItems.inventoryMatchConfidence,
+      inventoryMatchEvidence: rmaItems.inventoryMatchEvidence,
+      inventoryProductManufacturer: seededDisplayProducts.manufacturer,
+      inventoryProductModelName: seededDisplayProducts.modelName,
+      inventoryProductVariantName: seededDisplayProducts.variantName,
+      inventoryProductPrintedTitle: seededDisplayProducts.printedTitle,
+      inventoryProductBarcodeValue: seededDisplayProducts.barcodeValue,
+      inventoryProductBarcodeFormat: seededDisplayProducts.barcodeFormat,
+      inventoryProductBarcodeSymbology: seededDisplayProducts.barcodeSymbology,
+      inventoryProductSupplierSku: seededDisplayProducts.supplierSku,
+      inventoryProductOtherCodes: seededDisplayProducts.otherCodes,
       internalSku: displayCatalog.internalSku,
       catalogModelName: displayCatalog.modelName,
       displayTechnology: displayCatalog.displayTechnology,
@@ -99,6 +112,7 @@ export async function GET(
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
     .leftJoin(vendorVariants, eq(rmaItems.identifiedVendorVariantId, vendorVariants.id))
     .leftJoin(displayCatalog, eq(rmaItems.catalogDisplayId, displayCatalog.id))
+    .leftJoin(seededDisplayProducts, eq(rmaItems.seededDisplayProductId, seededDisplayProducts.id))
     .where(eq(rmaItems.rmaId, id))
     .orderBy(asc(rmaItems.itemNumber));
 
@@ -123,6 +137,18 @@ export async function GET(
     const images = imagesByItemId.get(item.id) || [];
     return {
       ...item,
+      seededProduct: item.seededDisplayProductId ? {
+        id: item.seededDisplayProductId,
+        manufacturer: item.inventoryProductManufacturer,
+        modelName: item.inventoryProductModelName,
+        variantName: item.inventoryProductVariantName,
+        printedTitle: item.inventoryProductPrintedTitle,
+        barcodeValue: item.inventoryProductBarcodeValue,
+        barcodeFormat: item.inventoryProductBarcodeFormat,
+        barcodeSymbology: item.inventoryProductBarcodeSymbology,
+        supplierSku: item.inventoryProductSupplierSku,
+        otherCodes: item.inventoryProductOtherCodes,
+      } : null,
       images,
       primaryThumbnail: images[0]?.thumbnailPath || null,
     };

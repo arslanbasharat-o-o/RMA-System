@@ -167,6 +167,46 @@ export async function runMigrations() {
       CREATE INDEX IF NOT EXISTS display_catalog_norm_idx ON display_catalog (normalized_model_identifier);
       CREATE INDEX IF NOT EXISTS display_catalog_model_name_idx ON display_catalog (model_name);
 
+      CREATE TABLE IF NOT EXISTS seeded_display_products (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        source_key TEXT NOT NULL UNIQUE,
+        manufacturer TEXT NOT NULL,
+        model_name TEXT NOT NULL,
+        variant_name TEXT NOT NULL,
+        printed_title TEXT NOT NULL,
+        barcode_value TEXT,
+        barcode_format TEXT,
+        barcode_symbology TEXT,
+        supplier_sku TEXT,
+        other_codes JSONB NOT NULL DEFAULT '[]'::jsonb,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS seeded_display_products_model_idx ON seeded_display_products (manufacturer, model_name);
+      CREATE INDEX IF NOT EXISTS seeded_display_products_barcode_idx ON seeded_display_products (barcode_value);
+      CREATE INDEX IF NOT EXISTS seeded_display_products_active_idx ON seeded_display_products (is_active);
+
+      CREATE TABLE IF NOT EXISTS seeded_display_references (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        product_id UUID NOT NULL REFERENCES seeded_display_products (id) ON DELETE CASCADE,
+        source_display_id TEXT NOT NULL UNIQUE,
+        source_image_id TEXT NOT NULL,
+        storage_path TEXT NOT NULL,
+        checksum_sha256 TEXT NOT NULL,
+        crop_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+        readable_markings JSONB NOT NULL DEFAULT '[]'::jsonb,
+        is_matchable BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS seeded_display_references_product_idx ON seeded_display_references (product_id);
+      CREATE INDEX IF NOT EXISTS seeded_display_references_checksum_idx ON seeded_display_references (checksum_sha256);
+
+      ALTER TABLE rma_items ADD COLUMN IF NOT EXISTS seeded_display_product_id UUID;
+      ALTER TABLE rma_items ADD COLUMN IF NOT EXISTS inventory_match_confidence REAL;
+      ALTER TABLE rma_items ADD COLUMN IF NOT EXISTS inventory_match_evidence JSONB;
+      CREATE INDEX IF NOT EXISTS rma_items_seeded_display_product_idx ON rma_items (seeded_display_product_id);
+
       CREATE TABLE IF NOT EXISTS vendors (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name TEXT NOT NULL UNIQUE,
@@ -307,6 +347,13 @@ export async function runMigrations() {
         ) THEN
           ALTER TABLE rma_items ADD CONSTRAINT rma_items_catalog_display_fk
             FOREIGN KEY (catalog_display_id) REFERENCES display_catalog (id) ON DELETE SET NULL;
+        END IF;
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'rma_items_seeded_display_product_fk'
+        ) THEN
+          ALTER TABLE rma_items ADD CONSTRAINT rma_items_seeded_display_product_fk
+            FOREIGN KEY (seeded_display_product_id) REFERENCES seeded_display_products (id) ON DELETE SET NULL;
         END IF;
 
         IF NOT EXISTS (

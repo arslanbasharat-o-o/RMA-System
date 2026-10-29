@@ -462,6 +462,12 @@ export default function RmaDetailPage({
                         Search evidence did not identify one model. Review the candidates before confirming.
                       </p>
                     )}
+                    {item.seededProduct && (
+                      <p className="text-[10px] leading-snug text-sky-800 dark:text-sky-300">
+                        Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
+                        {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
                       Vendor:{" "}
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -630,6 +636,12 @@ export default function RmaDetailPage({
                         {item.status === "review_required" && !item.predictedModel && (
                           <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                             Search evidence did not identify one model. Review the candidates before confirming.
+                          </p>
+                        )}
+                        {item.seededProduct && (
+                          <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
+                            Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
+                            {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
                           </p>
                         )}
                       </td>
