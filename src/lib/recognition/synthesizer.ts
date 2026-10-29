@@ -392,11 +392,12 @@ export function synthesizeRecognition(
       `Display identified as ${predictedManufacturer} ${predictedModel} via ${acceptedDisplayMatch.matchType} matching.`
     );
   } else if (visualResult?.cleanDecision?.displayName) {
-    evidenceNotes.push(
-      `Visual identification decision: ${predictedDisplayAssembly} (${visualResult.cleanDecision.reasoning})`
-    );
-  } else {
-    evidenceNotes.push("Display model could not be verified in internal catalog.");
+    const rawReason = visualResult.cleanDecision.reasoning;
+    if (rawReason && !rawReason.toLowerCase().includes("internal catalog")) {
+      evidenceNotes.push(`Visual suggestion: ${predictedDisplayAssembly}. ${rawReason}`);
+    } else {
+      evidenceNotes.push(`Visual suggestion: ${predictedDisplayAssembly}.`);
+    }
   }
   if (acceptedDisplayMatch && visualResult?.cleanDecision?.reasoning) {
     evidenceNotes.push(visualResult.cleanDecision.reasoning);
@@ -415,7 +416,7 @@ export function synthesizeRecognition(
   let hasContradiction = false;
   if (visualResult?.cleanDecision && visualResult.cleanDecision.confidence < 0.5 && acceptedDisplayMatch?.matchType !== "part_number") {
     hasContradiction = true;
-    evidenceNotes.push("Visual matches conflict; the device model requires human review.");
+    evidenceNotes.push("Visual search candidates conflict across multiple models.");
   }
   if (visualResult?.error) {
     hasContradiction = true;
