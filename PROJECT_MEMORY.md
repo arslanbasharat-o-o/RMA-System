@@ -74,10 +74,11 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 
 ## Last verified
 
-- Date: 2026-10-29 (Asia/Karachi).
-- Application image source: `f4c603fc6522c073daee7db6539bfb594b465b16` (version `0.4.8`); GitHub main is `f4c603f`. Current working branch `codex/seeded-display-catalog`.
-- Seeded display catalog integration verified: accepted seed matches bypass Google Lens and attach box UPC/EAN and supplier SKU with review notes; misses, provider errors, and ambiguous results fall back to Google Lens; contradictory OCR part numbers withhold seeded UPC/SKU; OCR retries and manual model edits validate and clear conflicting seed links, confidence, and evidence. Legacy/default primary photos are mapped explicitly to display back for the matcher. Seed manifest exclusions deactivate references transactionally. All 30 test files (232 tests) and production build pass cleanly.
-- Server app image digest: `sha256:46cca85d1f1375015a882fc93fea9c00c9f18dfa09f9e8ce6ee05e2f7626775c`; worker image digest: `sha256:d7477b2b12f9a5bc78aaa10b7616215043c00130c5da3446923e3003038d4434`.
-- App/worker/database health verified healthy on 0.4.8 (`/api/health` returns HTTP 200). Backup release 0.4.7 (`/opt/rma-system/releases/v0.4.7-fa93d6e`) remains available on server for rollback.
+- Date: 2026-10-30 (Asia/Karachi).
+- Application image source: `dfd51f3885ebd9036fe18f04bf84e625da961e68` (version `0.4.10`); GitHub main is `dfd51f3`.
+- Review queue & recognition precision fixes verified: sanitized review reason telemetry display (clean bulleted list of operator-relevant reasons, no raw matcher token logs or empty OCR strings), OLED vs legacy LCD gating to eliminate false iPhone 6/7/8/SE misidentifications on modern displays with aftermarket steel heat-shields, and physical display aspect ratio heuristics in vision decision prompt.
+- Server app image digest: `sha256:c6b0119b5ac241174fb15d5ff081d971ce29fbf2faa48db8b0b55263c619865d`; worker image digest: `sha256:9d44680f49d8a1b9044f8fc5941227fa16238b2ce54b5d97706bca22d316a445`.
+- Production deployment active at `/opt/rma-system/releases/v0.4.10-dfd51f3`; symlink `/opt/rma-system/app` verified pointing to `v0.4.10-dfd51f3`. Backup release `v0.4.9` (`/opt/rma-system/releases/v0.4.9-231c24e`) remains available on server for rollback.
+- App/worker/database health verified healthy on 0.4.10 (`/api/health` returns HTTP 200 `{"status":"ok","database":"healthy","version":"0.4.10"}`).
 - Self-hosted Google Lens upgraded to `v1.0.22` with Scrapling worker `v1.0.22`, AnyIP preemptive proxy tunnel forwarder (1.17s latency), and `LENS_SEARCH_PROMPT` multisearch inspection prompt configured across `.env`, `docker-compose.yml`, app, and worker.
-- Cleanup executed: Obsolete GitHub releases (`v0.4.1`, `v0.4.5`, `v0.4.6`) and remote tags removed, retaining only active backup `v0.4.7` and latest `v0.4.8`. Server cleaned of duplicate/unwanted containers (`cool_ride`, `vps-chrome`), unused images (`lscr.io/linuxserver/chromium:latest`, `google-lens-api:latest`, `rma-system:0.4.1`), test artifacts, and obsolete release directories (leaving only `v0.4.8-f4c603f` and `v0.4.7-fa93d6e`).
+- Cleanup executed: Obsolete GitHub releases (`v0.4.7`, `v0.4.8`) and remote tags removed, retaining strictly active backup `v0.4.9` and latest `v0.4.10`. Remote branches cleaned, retaining only `main`. Server cleaned of obsolete release directories (`v0.4.7-fa93d6e`, `v0.4.8-f4c603f`) and unused docker images (`0.4.7`, `0.4.8`), maintaining strictly 1 backup version and the latest active version.
