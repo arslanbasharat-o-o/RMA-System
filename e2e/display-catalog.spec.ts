@@ -2,6 +2,51 @@ import { test, expect } from "@playwright/test";
 import { E2E_TEST_PASSWORD } from "./credentials";
 
 test.describe("Display Inventory Catalog Management", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/display-inventory**", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          json: {
+            stats: {
+              totalProducts: 1,
+              activeProducts: 1,
+              totalReferences: 1,
+              matchableReferences: 1,
+              excludedSamples: 0,
+            },
+            products: [
+              {
+                id: "prod-e2e-1",
+                manufacturer: "Apple",
+                modelName: "iPhone 16 Pro",
+                variantName: "Hard OLED",
+                printedTitle: "Liphone 16 Pro Hard OLED",
+                barcodeValue: "665871925243",
+                barcodeFormat: "UPC-A digits",
+                barcodeSymbology: "CODE128",
+                supplierSku: "SKU-16PRO-HARD",
+                isActive: true,
+                references: [
+                  {
+                    id: "ref-e2e-1",
+                    sourceDisplayId: "DSP-003",
+                    imageType: "back",
+                    isMatchable: true,
+                    cropBounds: { x: 10, y: 10, width: 200, height: 400 },
+                    readableMarkings: "QR-16P-HD",
+                  },
+                ],
+              },
+            ],
+          },
+        });
+      } else {
+        await route.continue();
+      }
+    });
+  });
+
   test("loads display catalog, filters variants, and inspects reference details", async ({ page }) => {
     // 1. Sign in as operator
     await page.goto("/login");
