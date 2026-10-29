@@ -67,8 +67,8 @@ export function appleVisualEvidence(
 ): AppleVisualEvidenceResult | null {
   const overviewEvidence = aiOverviewModelEvidence(aiOverview);
   const ocrTextCombined = (ocrHints || []).join(" ").toUpperCase();
-  const isOledTechnology = /\b(?:HARD|SOFT|OLED|AMOLED)\b/.test(ocrTextCombined);
-  const isLegacyLcdModel = (name: string) => /^iPhone\s*(?:[5678]|SE)\b/i.test(name);
+  const isOledTechnology = /\b(?:HARD|OLED|AMOLED|AL1[2-6])\b/.test(ocrTextCombined);
+  const isLegacyLcdModel = (name: string) => /^iPhone\s*(?:[5678](?:s)?|SE)\b/i.test(name);
   const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i;
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
   const accessory = /\b(?:case|cover|screen\s*protector|protector|tempered\s*glass|camera\s*lens|lens\s*protector|charger|cable|battery|adhesive|glue|tools?|repair\s*kit)\b/i;

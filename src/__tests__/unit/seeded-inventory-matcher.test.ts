@@ -54,6 +54,25 @@ describe("seeded inventory product matching", () => {
     expect(finalReferences.map((reference) => reference.catalogDisplayId)).not.toContain("product-c");
   });
 
+  it("keeps a match ambiguous when any conflicting cue is returned", async () => {
+    const compareToVerifiedExamples = vi.fn()
+      .mockResolvedValueOnce(comparison())
+      .mockResolvedValueOnce(comparison({
+        conflictingCues: [
+          "DSP-002 has a different lower flex and taped contact assembly, unlike the uploaded display.",
+        ],
+      }));
+
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
+      references
+    );
+
+    expect(match.status).toBe("ambiguous");
+    expect(match.product).toBeNull();
+  });
+
   it("withholds UPC/SKU when a visually selected variant is ambiguous", async () => {
     const compareToVerifiedExamples = vi.fn()
       .mockResolvedValueOnce(comparison())

@@ -1,13 +1,13 @@
 # Production deployment and rollback
 
-Status below reflects the rollout verified on 2026-10-29. Recheck live state, GitHub checks, queue, backups and approval before future operations. Commands labeled **verified** were run during this rollout; commands labeled **unverified** are proposed and were not run. Secrets are in `/opt/rma-system/.env`; do not print them.
+Status below reflects the v0.4.10 rollout verified on 2026-10-30. Recheck live state, GitHub checks, queue, backups and approval before future operations. Commands labeled **verified** were run during the documented rollout; commands labeled **unverified** are proposed and were not run. Secrets are in `/opt/rma-system/.env`; do not print them.
 
 ## Current runtime
 
-- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.8-f4c603f`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
-- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:46cca85d1f1375015a882fc93fea9c00c9f18dfa09f9e8ce6ee05e2f7626775c`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:d7477b2b12f9a5bc78aaa10b7616215043c00130c5da3446923e3003038d4434`; both label version 0.4.8, revision `f4c603fc6522c073daee7db6539bfb594b465b16`.
+- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.10-dfd51f3`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
+- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:c6b0119b5ac241174fb15d5ff081d971ce29fbf2faa48db8b0b55263c619865d`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:9d44680f49d8a1b9044f8fc5941227fa16238b2ce54b5d97706bca22d316a445`; both label version 0.4.10, revision `dfd51f3885ebd9036fe18f04bf84e625da961e68`.
 - Compose project `rma-system` runs app, worker and PostgreSQL. Its reviewed Compose file pins the images literally and mounts only the storage volume into the worker; no worker source bind mount. nginx is the host reverse proxy. The app listens on loopback port 23001.
-- Backup release: `/opt/rma-system/releases/v0.4.7-fa93d6e` remains available on the server for instant rollback if required. Obsolete releases `v0.4.6`, `v0.4.5`, and `v0.4.1` have been cleaned up under owner authorization.
+- Backup release: `/opt/rma-system/releases/v0.4.9-231c24e` remains available on the server for rollback if required. Older releases have been cleaned up under owner authorization.
 
 ## Backups and restore evidence
 
@@ -26,7 +26,7 @@ bash /opt/rma-system/app/scripts/backup-production.sh
 
 Proceed only if the queue count is zero; verify the resulting database dump, storage archive and checksum manifest, transfer securely, restore both in an isolated environment and verify before deploying. This sequence pauses the site. Backup failures require restoring service and stopping the rollout. Retain production data and avoid migrations unless separately approved.
 
-## Rollout procedure used
+## Historical rollout procedure (v0.4.5)
 
 The 0.4.5 release source was extracted into a new directory, the reviewed pinned Compose file was placed there, both digest-pinned images were pulled, the old app and worker were stopped after an idle-queue check, and the `app` symlink was switched to the new directory. The following service commands were executed after the symlink change. They modify production and require explicit approval for future use.
 
@@ -60,9 +60,10 @@ Verify image IDs and worker mounts, public and local login, authenticated RMA de
 
 ## Rollback considerations
 
-Following the verified rollout and owner-authorized removal of legacy 0.4.1 images and the `/opt/rma-system/releases/v0.4.1` directory, an instantaneous switch back to local 0.4.1 images is no longer applicable. If a rollback to 0.4.1 is required in the future:
-1. Re-extract the preserved release archive (`release-v0.4.1.tar.gz` from `~/rms-backups/20261028T145724Z/`) into `/opt/rma-system/releases/v0.4.1`.
-2. Repull or load the historical 0.4.1 images: `ghcr.io/arslanbasharat-o-o/rma-system:0.4.1` and `:worker-0.4.1`.
-3. Update symlink `ln -sfn /opt/rma-system/releases/v0.4.1 /opt/rma-system/app` and start services with `docker compose`.
-
-Then verify image IDs, mounts, health, login and logs. Do not restore database backups over production merely to roll back application images: later writes would be lost. Suspected data corruption requires an explicit decision and a separate reviewed restoration and reconciliation plan.
+The retained rollback target is the v0.4.9 release at
+`/opt/rma-system/releases/v0.4.9-231c24e`. A rollback requires explicit approval,
+an idle-queue check, matching app and worker images from that release, and the
+same health, authentication, mount, and log verification listed above. Do not
+restore database backups merely to roll back application images: later writes
+would be lost. Suspected data corruption requires a separate reviewed
+restoration and reconciliation plan.

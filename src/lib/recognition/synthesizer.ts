@@ -414,7 +414,12 @@ export function synthesizeRecognition(
 
   // Check for contradiction or provider failure
   let hasContradiction = false;
-  if (visualResult?.cleanDecision && visualResult.cleanDecision.confidence < 0.5 && acceptedDisplayMatch?.matchType !== "part_number") {
+  if (
+    visualResult?.cleanDecision &&
+    visualResult.cleanDecision.confidence < 0.5 &&
+    visualResult.candidates.length > 0 &&
+    acceptedDisplayMatch?.matchType !== "part_number"
+  ) {
     hasContradiction = true;
     evidenceNotes.push("Visual search candidates conflict across multiple models.");
   }

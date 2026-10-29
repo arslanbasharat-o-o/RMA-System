@@ -468,6 +468,17 @@ export default function RmaDetailPage({
                         {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
                       </p>
                     )}
+                    {item.inventoryMatchEvidence && (
+                      <p className="text-[10px] leading-snug text-sky-800 dark:text-sky-300">
+                        Seeded comparison:{" "}
+                        {typeof item.inventoryMatchConfidence === "number"
+                          ? `${Math.round(item.inventoryMatchConfidence * 100)}% confidence`
+                          : "review required"}
+                        {item.inventoryMatchEvidence.matchingCues?.length
+                          ? ` · ${item.inventoryMatchEvidence.matchingCues.join("; ")}`
+                          : ""}
+                      </p>
+                    )}
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
                       Vendor:{" "}
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -642,6 +653,17 @@ export default function RmaDetailPage({
                           <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
                             Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
                             {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
+                          </p>
+                        )}
+                        {item.inventoryMatchEvidence && (
+                          <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
+                            Seeded comparison:{" "}
+                            {typeof item.inventoryMatchConfidence === "number"
+                              ? `${Math.round(item.inventoryMatchConfidence * 100)}% confidence`
+                              : "review required"}
+                            {item.inventoryMatchEvidence.matchingCues?.length
+                              ? ` · ${item.inventoryMatchEvidence.matchingCues.join("; ")}`
+                              : ""}
                           </p>
                         )}
                       </td>
