@@ -98,17 +98,14 @@ describe("seeded inventory product matching", () => {
     expect(compareToVerifiedExamples).not.toHaveBeenCalled();
   });
 
-  it("P2: verifies CameraScanner defaults to Back capture angle for display inventory workflow", async () => {
+  it("P2: verifies processor explicitly treats primary photos as back for seeded matcher", async () => {
     const fs = await import("node:fs/promises");
     const path = await import("node:path");
-    const scannerSource = await fs.readFile(
-      path.resolve(process.cwd(), "src/components/scanner/CameraScanner.tsx"),
+    const processorSource = await fs.readFile(
+      path.resolve(process.cwd(), "src/lib/queue/processor.ts"),
       "utf8"
     );
-    // Angles array must have Back first
-    expect(scannerSource).toMatch(/const angles = \[\s*\{\s*type:\s*"back",\s*label:\s*"Back"/);
-    // Initial angle state must be "back"
-    expect(scannerSource).toContain('useState<CapturedPhoto["imageType"]>("back")');
-    expect(scannerSource).toContain('pickerAngle = useRef<CapturedPhoto["imageType"]>("back")');
+    // Explicit primary -> back mapping
+    expect(processorSource).toContain('image.imageType === "primary" ? "back" : image.imageType');
   });
 });

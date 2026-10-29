@@ -10,7 +10,7 @@ Changes to the public source are recorded here.
 - **Seeded Display Catalog Matching Engine**: Introduced catalog-first identification comparing display-back photos against seeded display inventory variants before running Google Lens.
 - **Automated Box Metadata Linking**: Confident seed matches automatically attach the verified box UPC/EAN barcode, symbology, and supplier SKU to the RMA item while bypassing external visual search.
 - **Seeded Catalog UI & Review Notes**: Displayed dedicated seeded inventory match badges, printed box title, barcode, SKU, and comparison confidence in `ItemReviewDrawer` and RMA detail pages.
-- **Display Back Intake Default**: Set the mobile Camera Scanner default angle to the display back view.
+- **Display Angle Preprocessing**: Explicitly mapped legacy and default `primary` photos to the display back view in `processor.ts` for seeded catalog comparisons.
 - **Database Schema**: Added `seeded_display_products` and `seeded_display_references` tables with indexes and foreign keys on `rma_items`.
 - **Seeded Inventory Management**: Added `npm run db:seed-display-inventory` supporting validation, dry-run reporting, transactional seeding, and reference deactivation.
 

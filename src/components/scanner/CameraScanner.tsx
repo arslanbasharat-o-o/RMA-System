@@ -25,8 +25,8 @@ interface LiveRecognitionItem {
 }
 
 const angles = [
-  { type: "back", label: "Back", hint: "Turn the display over. Keep the connectors near the bottom and in focus." },
   { type: "primary", label: "Front", hint: "Keep the camera notch at the top and fit the full display in frame." },
+  { type: "back", label: "Back", hint: "Turn the display over. Keep the connectors near the bottom and in focus." },
   { type: "flex_cable", label: "Flex", hint: "Fill the frame with the flex cable and keep its printed code in focus." },
   { type: "stamp_closeup", label: "Label", hint: "Move closer to the stamp or sticker. Avoid glare." },
 ] as const;
@@ -46,7 +46,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const itemIdRef = useRef<string | null>(null);
   const pendingItem = useRef<Promise<string> | null>(null);
   const captureLock = useRef(false);
-  const pickerAngle = useRef<CapturedPhoto["imageType"]>("back");
+  const pickerAngle = useRef<CapturedPhoto["imageType"]>("primary");
   const uploadQueue = useRef<Promise<void>>(Promise.resolve());
   const uploadingPhotos = useRef(new Set<string>());
   const savedPhotosByImageId = useRef(new Map<string, string>());
@@ -60,7 +60,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const [displayNumber, setDisplayNumber] = useState(1);
   const [completed, setCompleted] = useState(0);
   const [photos, setPhotos] = useState<CapturedPhoto[]>([]);
-  const [angle, setAngle] = useState<CapturedPhoto["imageType"]>("back");
+  const [angle, setAngle] = useState<CapturedPhoto["imageType"]>("primary");
   const [intakeError, setIntakeError] = useState<string | null>(null);
   const [liveItems, setLiveItems] = useState<LiveRecognitionItem[]>([]);
   const customerReady = Boolean(customerName?.trim());
@@ -303,7 +303,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
     itemIdRef.current = null;
     setCompleted((previous) => previous + 1);
     setDisplayNumber((previous) => previous + 1);
-    setAngle("back");
+    setAngle("primary");
     setIntakeError(null);
   };
 
