@@ -960,7 +960,7 @@ export async function processRmaItem(
               filename: primaryImage.originalFilename,
               mimeType: primaryImage.mimeType,
               noCache: options?.force,
-              prompt: DEFAULT_DISPLAY_INSPECTION_PROMPT,
+              prompt: process.env.LENS_SEARCH_PROMPT || DEFAULT_DISPLAY_INSPECTION_PROMPT,
             });
             const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
             visualResult = reconciled?.manual
