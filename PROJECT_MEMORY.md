@@ -71,6 +71,6 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 ## Last verified
 
 - Date: 2026-10-29 (Asia/Karachi).
-- Application image source: `5a83ce254a5ceae0c44a0635ec807ce02654dd7f` (version `0.4.6`); GitHub main is `5a83ce2`. Use `git rev-parse HEAD` for current source.
-- Server app image digest: `sha256:41959a12901f4cfefddce269b56fb70e680fd246a376651712573f6ce5347e31`; worker image digest: `sha256:16ef96fed2a7f2c615afc304560f2a7c7252fe42425683bd842b754229ddf99f`.
-- App/worker/database health and sampled routes verified healthy on 0.4.6. Release 0.4.5 remains available on server as `/opt/rma-system/releases/v0.4.5-e9381a1`. AI Vision Gate fix and display catalog removal deployed and verified live.
+- Application image source: `fa93d6e9fcabcc9b14aa6252cab413b35cc67173` (version `0.4.7`); GitHub main is `fa93d6e`. Use `git rev-parse HEAD` for current source.
+- Server app image digest: `sha256:acf4aca6c396c89b3c54e1397b403668cec1ae75dbf5755b63ae76f4722cb3f1`; worker image digest: `sha256:29eb600beb85b4a5e82de365b860cf8fc02cfbae93dff07dd1941c3dab0049cb`.
+- App/worker/database health and sampled routes verified healthy on 0.4.7. Releases 0.4.6 (`/opt/rma-system/releases/v0.4.6-5a83ce2`) and 0.4.5 (`/opt/rma-system/releases/v0.4.5-e9381a1`) remain available on server for rollback. Foreign key violation on orphaned catalog references and worker hang bug resolved; RMA `31696792-635c-4a8d-8fd9-6d7b2aeb18ca` item 42 cleanly transitioned to `review_required` and zero items remain stuck in processing.

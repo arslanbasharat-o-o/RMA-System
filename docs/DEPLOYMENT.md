@@ -4,10 +4,10 @@ Status below reflects the rollout verified on 2026-10-29. Recheck live state, Gi
 
 ## Current runtime
 
-- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.6-5a83ce2`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
-- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:41959a12901f4cfefddce269b56fb70e680fd246a376651712573f6ce5347e31`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:16ef96fed2a7f2c615afc304560f2a7c7252fe42425683bd842b754229ddf99f`; both label version 0.4.6, revision `5a83ce254a5ceae0c44a0635ec807ce02654dd7f`. Main may contain newer documentation-only commits.
+- Host `<production-host>`; `/opt/rma-system/app` points to `/opt/rma-system/releases/v0.4.7-fa93d6e`. It is an extracted release, not a Git checkout. (Host details, login user, and SSH keys are kept in local untracked notes to protect public repository security).
+- App image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:acf4aca6c396c89b3c54e1397b403668cec1ae75dbf5755b63ae76f4722cb3f1`, worker image `ghcr.io/arslanbasharat-o-o/rma-system@sha256:29eb600beb85b4a5e82de365b860cf8fc02cfbae93dff07dd1941c3dab0049cb`; both label version 0.4.7, revision `fa93d6e9fcabcc9b14aa6252cab413b35cc67173`. Main may contain newer documentation-only commits.
 - Compose project `rma-system` runs app, worker and PostgreSQL. Its reviewed Compose file pins the images literally and mounts only the storage volume into the worker; no worker source bind mount. nginx is the host reverse proxy. The app listens on loopback port 23001.
-- Previous releases: `/opt/rma-system/releases/v0.4.5-e9381a1` remains available on the server for instant rollback if required. Legacy `0.4.1` images and release directory were removed under prior owner authorization.
+- Previous releases: `/opt/rma-system/releases/v0.4.6-5a83ce2` and `/opt/rma-system/releases/v0.4.5-e9381a1` remain available on the server for instant rollback if required. Legacy `0.4.1` images and release directory were removed under prior owner authorization.
 
 ## Backups and restore evidence
 
