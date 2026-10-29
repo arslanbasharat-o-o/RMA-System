@@ -5,6 +5,8 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { eq } from "drizzle-orm";
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -14,6 +16,10 @@ export async function GET(
   if (auth instanceof NextResponse) return auth;
 
   const { id } = await params;
+  if (!id || !UUID_REGEX.test(id)) {
+    return NextResponse.json({ error: "Image not found." }, { status: 404 });
+  }
+
   const url = new URL(req.url);
   const size = url.searchParams.get("size"); // "thumb" | "preview" | undefined
 
