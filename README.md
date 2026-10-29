@@ -69,7 +69,7 @@ npm run build
 
 ## Releases and deployment
 
-The source version is defined in [`package.json`](package.json). Use the [latest published release](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest) (currently v0.4.8) and its matching image tags when deploying. Application and worker images must use the same release version; see [the release process](docs/release-process.md).
+The source version is defined in [`package.json`](package.json). Use the [latest published release](https://github.com/arslanbasharat-o-o/RMA-System/releases/latest) (currently v0.4.10) and its matching image tags when deploying. Application and worker images must use the same release version; see [the release process](docs/release-process.md).
 
 Deployment, migrations, volumes, and backups are documented in [DEPLOYMENT.md](DEPLOYMENT.md) and [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). A passing local test does not establish live provider availability or deployment status.
 
