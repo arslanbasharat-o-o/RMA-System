@@ -99,6 +99,9 @@ export async function GET(req: NextRequest) {
       extractedTextSummary: rmaItems.extractedTextSummary,
       matchedCodesSummary: rmaItems.matchedCodesSummary,
       reviewNotes: rmaItems.reviewNotes,
+      inventoryMatchConfidence: rmaItems.inventoryMatchConfidence,
+      inventoryMatchEvidence: rmaItems.inventoryMatchEvidence,
+      seededDisplayProductId: rmaItems.seededDisplayProductId,
       primaryImageId: sql<string | null>`(SELECT id FROM item_images WHERE item_images.rma_item_id = ${rmaItems.id} ORDER BY sort_order ASC LIMIT 1)`,
       createdAt: rmaItems.createdAt,
     })

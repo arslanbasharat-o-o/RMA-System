@@ -392,7 +392,10 @@ Return JSON with:
                 text: JSON.stringify({
                   suggestedManufacturer: evidence.manufacturer,
                   suggestedModel: (() => {
-                    const ocrHintsList = context?.partNumbers || context?.ocrText || [];
+                    const ocrHintsList = [
+                      ...(context?.partNumbers || []),
+                      ...(context?.ocrText || []),
+                    ];
                     const isLegacy = (m?: string | null) => m && /^iPhone\s*(?:[5678]|SE)\b/i.test(m);
                     const hasModernOrOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
                     return isLegacy(evidence.model || evidence.suggestedModel) && hasModernOrOled
@@ -404,7 +407,10 @@ Return JSON with:
                     source: c.sourceUrl || c.sourceName,
                   })),
                   googleLensAiOverview: context?.aiOverview,
-                  ocrHints: context?.partNumbers || context?.ocrText || [],
+                  ocrHints: [
+                    ...(context?.partNumbers || []),
+                    ...(context?.ocrText || []),
+                  ],
                 }),
               },
               {
@@ -490,9 +496,11 @@ Return JSON with:
       model: null,
       suggestedModel: evidence.suggestedModel || evidence.model,
       confidence: 0.45,
-      reasoning: typeof check.reasoning === "string" && check.reasoning.trim()
-        ? check.reasoning.trim().slice(0, 1000)
-        : "Visual candidates were inconclusive; operator review is required.",
+      reasoning: `The photograph did not corroborate the exact model suggested by source evidence. ${
+        typeof check.reasoning === "string" && check.reasoning.trim()
+          ? check.reasoning.trim().slice(0, 900)
+          : "Operator review is required."
+      }`,
     };
   } catch {
     // Corroboration failure must not silently certify an unchecked image.
@@ -515,4 +523,3 @@ function identityKey(manufacturer: unknown, model: unknown): string {
   }
   return `${mfg}|${device.replace(/\+/g, "plus").replace(/[^a-z0-9]/g, "")}`;
 }
-

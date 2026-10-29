@@ -33,13 +33,13 @@ function parseReviewNotes(rawNotes?: string | null): string[] {
   for (const part of parts) {
     // Filter internal debug logs and developer noise
     if (/Evaluated \d+ tokens against \d+ active rules/i.test(part)) continue;
-    if (/internal catalog references/i.test(part)) continue;
     if (/Display model could not be verified in internal catalog/i.test(part)) continue;
     if (/No OCR text tokens provided for matching/i.test(part)) continue;
     if (/Top matched rule pointed to missing vendor/i.test(part)) continue;
-    if (/Automated recognition conflicts with the retained operator correction/i.test(part)) continue;
-
     let cleaned = part;
+    if (/Automated recognition conflicts with the retained operator correction/i.test(part)) {
+      cleaned = "Automated recognition conflicts with the retained operator correction.";
+    }
 
     // Operator retention pattern
     const mOp = part.match(/Model retained from operator correction:\s*([^.]+?)(?:\s*\((?:Automated suggestion|automated suggestion):\s*([^)]+)\)|\.\s*Automated suggestion:\s*([^.]+))/i);
@@ -318,6 +318,25 @@ export default function ReviewQueuePage() {
                       <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-zinc-900 border border-neutral-200/60 dark:border-zinc-800 flex items-center justify-between text-xs">
                         <span className="text-neutral-500 font-medium">Matched Codes:</span>
                         <CopyBadge value={currentItem.matchedCodesSummary} />
+                      </div>
+                    )}
+                    {currentItem.inventoryMatchEvidence && (
+                      <div className="p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/70 text-xs text-sky-900 dark:text-sky-200 space-y-1">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider block">
+                          Seeded Reference Comparison
+                        </span>
+                        {typeof currentItem.inventoryMatchConfidence === "number" && (
+                          <p>Confidence: {Math.round(currentItem.inventoryMatchConfidence * 100)}%</p>
+                        )}
+                        {currentItem.inventoryMatchEvidence.matchingCues?.length > 0 && (
+                          <p>Matching cues: {currentItem.inventoryMatchEvidence.matchingCues.join("; ")}</p>
+                        )}
+                        {currentItem.inventoryMatchEvidence.conflictingCues?.length > 0 && (
+                          <p>Conflicting cues: {currentItem.inventoryMatchEvidence.conflictingCues.join("; ")}</p>
+                        )}
+                        {currentItem.inventoryMatchEvidence.unresolvedAlternatives?.length > 0 && (
+                          <p>Unresolved alternatives: {currentItem.inventoryMatchEvidence.unresolvedAlternatives.join("; ")}</p>
+                        )}
                       </div>
                     )}
 

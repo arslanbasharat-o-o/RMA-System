@@ -68,12 +68,14 @@ async function matchSeededInventory(
   images: Array<typeof itemImages.$inferSelect>
 ): Promise<SeededInventoryMatch | null> {
   const primaryBack = images.find((image) => image.imageType === "back") ||
-    images.find((image) => image.imageType === "primary");
+    images.find((image) => image.imageType === "primary") ||
+    images.find((image) => image.imageType === "front") ||
+    images[0];
   if (!primaryBack) return null;
 
   const targetImageRows = [
     primaryBack,
-    ...images.filter((image) => ["back", "flex_cable", "stamp_closeup", "sticker_closeup"].includes(image.imageType)),
+    ...images.filter((image) => ["back", "primary", "front", "general", "flex_cable", "stamp_closeup", "sticker_closeup"].includes(image.imageType)),
   ].filter((image, index, list) =>
     list.findIndex((other) => other.checksumSha256 === image.checksumSha256) === index
   ).slice(0, 3);
@@ -128,7 +130,7 @@ async function matchSeededInventory(
   })));
   const targetImages = await Promise.all(targetImageRows.map(async (image) => ({
     // Legacy photographs labeled "primary" represent the primary back view in this workflow
-    imageType: (image.imageType === "primary" ? "back" : image.imageType) as "back" | "flex_cable" | "stamp_closeup" | "sticker_closeup",
+    imageType: (image.imageType === "primary" ? "back" : image.imageType),
     imageBuffer: await storage.getImageBuffer(image.storagePath),
   })));
 
@@ -463,10 +465,20 @@ function catalogModelKey(item: Pick<DisplayCatalogItem, "manufacturer" | "modelN
   return `${normalizeCatalogPhrase(item.manufacturer)}\u0000${catalogDeviceModelName(item)}`;
 }
 
+function hasAffirmativeOledTechnology(hints: string[]): boolean {
+  return hints.some((hint) => /\b(?:HARD|OLED|AMOLED|AL1[2-6])\b/i.test(hint));
+}
+
+function isLegacyLcdCatalogItem(item: Pick<DisplayCatalogItem, "manufacturer" | "modelName">): boolean {
+  return item.manufacturer.trim().toLowerCase() === "apple" &&
+    /^iPhone\s*(?:[5678](?:s)?|SE)\b/i.test(catalogDeviceModelName(item));
+}
+
 function visualCatalogEvidence(
   visualResult: VisualIdentificationResult,
   catalog: DisplayCatalogItem[],
-  preferredCatalogId?: string | null
+  preferredCatalogId?: string | null,
+  ocrHints: string[] = []
 ): VisualCatalogEvidence {
   const rankedCandidates = [...visualResult.candidates]
     .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
@@ -474,6 +486,7 @@ function visualCatalogEvidence(
     .slice(0, 30);
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
   const accessoryListing = /\b(?:case|cover|screen\s*protector|tempered\s*glass|camera\s*lens|charger|cable|battery|adhesive|glue|repair\s*kit|tools?)\b/i;
+  const hasOledTechnology = hasAffirmativeOledTechnology(ocrHints);
   const phraseOffsets = (title: string, phrase: string) => {
     const normalizedTitle = normalizeCatalogPhrase(title);
     const normalizedPhrase = normalizeCatalogPhrase(phrase);
@@ -532,6 +545,7 @@ function visualCatalogEvidence(
     if (accessoryListing.test(candidate.title) || !displayListing.test(candidate.title)) continue;
     const item = modelForCandidate(candidate.title);
     if (!item) continue;
+    if (hasOledTechnology && isLegacyLcdCatalogItem(item)) continue;
 
     const key = catalogModelKey(item);
     const representative = catalog.find((entry) => entry.id === preferredCatalogId && catalogModelKey(entry) === key) ||
@@ -575,11 +589,12 @@ function visualCatalogEvidence(
 export function hasIndependentVisualCatalogSupport(
   visualResult: VisualIdentificationResult,
   catalog: DisplayCatalogItem[],
-  catalogId: string | null
+  catalogId: string | null,
+  ocrHints: string[] = []
 ): boolean {
   const selected = catalog.find((item) => item.id === catalogId);
   const winner = visualCatalogEvidence({ ...visualResult,
-    candidates: candidatesForVerifiedComparison(visualResult) }, catalog).decisiveWinner;
+    candidates: candidatesForVerifiedComparison(visualResult) }, catalog, undefined, ocrHints).decisiveWinner;
   return Boolean(selected && winner && catalogModelKey(selected) === winner.key);
 }
 
@@ -620,9 +635,10 @@ function decisionMatchesCatalogModel(
 
 export function applyVisualCatalogConsensus(
   visualResult: VisualIdentificationResult,
-  catalog: DisplayCatalogItem[]
+  catalog: DisplayCatalogItem[],
+  ocrHints: string[] = []
 ): VisualIdentificationResult {
-  const evidence = visualCatalogEvidence(visualResult, catalog);
+  const evidence = visualCatalogEvidence(visualResult, catalog, undefined, ocrHints);
   const winner = evidence.decisiveWinner;
   if (!winner) return visualResult;
 
@@ -1442,6 +1458,17 @@ export async function processRmaItem(
     catalogWithVerifiedPartNumbers,
     ocrStructured.part_numbers
   );
+  if (
+    proposedDisplayMatch &&
+    proposedDisplayMatch.matchType !== "part_number" &&
+    hasAffirmativeOledTechnology(ocrStructured.technology_markings) &&
+    isLegacyLcdCatalogItem({
+      manufacturer: proposedDisplayMatch.manufacturer,
+      modelName: proposedDisplayMatch.modelName,
+    })
+  ) {
+    proposedDisplayMatch = null;
+  }
 
   // Check our accumulating verified ground-truth knowledge base (operator-verified displays)
   if (!proposedDisplayMatch && ocrStructured.part_numbers.length) {
@@ -1464,7 +1491,11 @@ export async function processRmaItem(
   // Apply catalog-wide voting only when it cannot overrule exact part-number
   // evidence or a prior verified-part-number conflict.
   if (!seededCatalogAccepted && !verifiedPartNumberConflicts.length && proposedDisplayMatch?.matchType !== "part_number") {
-    const catalogConsensus = applyVisualCatalogConsensus(visualResult, catalogWithVerifiedPartNumbers);
+    const catalogConsensus = applyVisualCatalogConsensus(
+      visualResult,
+      catalogWithVerifiedPartNumbers,
+      ocrStructured.technology_markings
+    );
     if (catalogConsensus !== visualResult) {
       visualResult = catalogConsensus;
       proposedDisplayMatch = matchDisplayToCatalog(
@@ -1627,7 +1658,12 @@ export async function processRmaItem(
             references.map((reference) => reference.catalogDisplayId),
             { unresolvedAlternatives: verifiedComparison.unresolvedAlternatives,
               supportingReferenceCount: supportingModelReferenceCount,
-              searchCorroborated: hasIndependentVisualCatalogSupport(visualResult, allCatalog, verifiedComparison.selectedCatalogDisplayId),
+              searchCorroborated: hasIndependentVisualCatalogSupport(
+                visualResult,
+                allCatalog,
+                verifiedComparison.selectedCatalogDisplayId,
+                ocrStructured.technology_markings
+              ),
               matchingCueCount: verifiedComparison.matchingCues.length }
           )) {
           verifiedComparisonApplied = true;
@@ -1657,7 +1693,12 @@ export async function processRmaItem(
   const initialVisualConfidence = proposedDisplayMatch?.confidenceScore ?? visualResult.cleanDecision?.confidence ?? 0;
   const unresolvedVisualAlternatives = Boolean(verifiedComparison?.unresolvedAlternatives.length);
   const uncorroboratedVisualSuggestion = Boolean(verifiedComparison && !verifiedComparisonApplied &&
-    !hasIndependentVisualCatalogSupport(visualResult, allCatalog, proposedDisplayMatch?.catalogId || null));
+    !hasIndependentVisualCatalogSupport(
+      visualResult,
+      allCatalog,
+      proposedDisplayMatch?.catalogId || null,
+      ocrStructured.technology_markings
+    ));
   if (!verifiedSuggestionShown && (needsVisualHelp || verifiedComparisonDisagrees || unresolvedVisualAlternatives || uncorroboratedVisualSuggestion) && shouldWithholdUnconfirmedVisualSuggestion(
     initialVisualConfidence,
     verifiedComparisonApplied,
@@ -1874,13 +1915,20 @@ export async function processRmaItem(
       manualModel.catalogDisplayId = null;
     }
 
-    const modelConflict = normalizeIdentifier(manualModel.predictedModel) !== normalizeIdentifier(unified.predictedModel) ||
-      normalizeIdentifier(manualModel.predictedManufacturer) !== normalizeIdentifier(unified.predictedManufacturer) ||
-      (manualModel.catalogDisplayId && manualModel.catalogDisplayId !== unified.catalogDisplayId);
-    if (modelConflict) {
+    const modelDiffers = normalizeIdentifier(manualModel.predictedModel) !== normalizeIdentifier(unified.predictedModel);
+    const manufacturerDiffers = normalizeIdentifier(manualModel.predictedManufacturer) !== normalizeIdentifier(unified.predictedManufacturer);
+    const catalogDiffers = Boolean(manualModel.catalogDisplayId && manualModel.catalogDisplayId !== unified.catalogDisplayId);
+    if (modelDiffers || manufacturerDiffers || catalogDiffers) {
       finalItemStatus = "review_required";
       unified.overallMatchStatus = "ambiguous";
-      unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel} (Automated suggestion: ${unified.predictedModel || "unresolved"}).`);
+      if (modelDiffers || manufacturerDiffers) {
+        const automatedLabel = manufacturerDiffers
+          ? [unified.predictedManufacturer, unified.predictedModel].filter(Boolean).join(" ") || "unresolved"
+          : unified.predictedModel || "unresolved";
+        unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel} (Automated suggestion: ${automatedLabel}).`);
+      } else {
+        unified.evidenceNotes.push(`Operator-confirmed model retained, but its display assembly differs from the automated catalog link.`);
+      }
     } else {
       unified.evidenceNotes.push(`Model retained from operator correction: ${manualModel.predictedManufacturer} ${manualModel.predictedModel}.`);
       if (allCatalog.length > 0 && !manualModel.catalogDisplayId) {
@@ -1896,7 +1944,6 @@ export async function processRmaItem(
     .filter((n) => {
       if (!n || seenNotes.has(n)) return false;
       if (/Evaluated \d+ tokens against \d+ active rules/i.test(n)) return false;
-      if (/internal catalog references/i.test(n)) return false;
       if (/Display model could not be verified in internal catalog/i.test(n)) return false;
       if (/No OCR text tokens provided for matching/i.test(n)) return false;
       if (/Top matched rule pointed to missing vendor/i.test(n)) return false;
