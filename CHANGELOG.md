@@ -4,6 +4,14 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-10-29
+
+### Added
+- **Google Lens v1.0.22 Multisearch Integration**: Forwarded `LENS_SEARCH_PROMPT` to both `app` and `worker` services via `docker-compose.yml`, enabling physical inspection criteria (notch vs Dynamic Island, diagonal sizing, aftermarket IC markings) in live Google Lens queries.
+- **Dynamic Inspection Prompt Prioritization**: Prioritized environment-configured inspection prompt (`process.env.LENS_SEARCH_PROMPT`) over defaults in `SelfHostedLensProvider` and background worker `processor.ts`.
+- **Admin Settings Visibility**: Exposed `lensSearchPrompt` in `/api/settings` and rendered active inspection prompt status in the Recognition Providers settings card.
+- **Service Documentation**: Updated `docs/self-hosted-lens.md` and `.env.example` with Google Lens v1.0.22 image references and multisearch prompt configuration.
+
 ## [0.4.7] - 2026-10-29
 
 ### Fixed
