@@ -134,6 +134,16 @@ export class VendorRuleMatcher {
         expandedTokens.add(stripped);
       }
 
+      // Dot-matrix hardware stamp OCR confusion normalization:
+      // On brushed metal display shields, the crossbar of 'T' in 'TXP'/'TXPP' is often truncated or faded,
+      // leading OCR engines to transcribe 'LXPP' or 'LXP' instead of 'TXPP' or 'TXP'.
+      if (/^LX/i.test(upper)) {
+        expandedTokens.add(upper.replace(/^LX/i, "TX"));
+      }
+      if (stripped && /^LX/i.test(stripped)) {
+        expandedTokens.add(stripped.replace(/^LX/i, "TX"));
+      }
+
       // Split words/sub-tokens (e.g. "QC TXP09 PASS" -> "QC", "TXP09", "PASS")
       const parts = upper.split(/[\s,;:|/\-_()[\]{}]+/).filter((p) => p.length >= 2);
       for (const p of parts) {
@@ -142,6 +152,20 @@ export class VendorRuleMatcher {
         if (pStripped && pStripped !== p) {
           expandedTokens.add(pStripped);
         }
+
+        // Dot-matrix hardware stamp OCR confusion normalization for sub-tokens:
+        if (/^LX/i.test(pStripped)) {
+          const tVariant = pStripped.replace(/^LX/i, "TX");
+          expandedTokens.add(tVariant);
+          const tAlpha = tVariant.match(/^([A-Z]{3,6})/);
+          if (tAlpha) {
+            expandedTokens.add(tAlpha[1]);
+            if (tAlpha[1].length === 4 && tAlpha[1].endsWith("P")) {
+              expandedTokens.add(tAlpha[1].slice(0, 3));
+            }
+          }
+        }
+
         // Extract alpha prefix from sub-token (e.g. "TXPP05" -> "TXPP", "TXP05" -> "TXP")
         const partAlpha = pStripped.match(/^([A-Z]{3,6})/);
         if (partAlpha) {
