@@ -97,7 +97,8 @@ test.describe("Display Inventory Catalog Management", () => {
 
     // 7. Verify modal contents
     await expect(page.getByText(/Sample Identifier/i)).toBeVisible();
-    await expect(page.getByRole("button", { name: "Close" })).toBeVisible();
-    await page.getByRole("button", { name: "Close" }).click();
+    const closeBtn = page.getByRole("button", { name: "Close" }).first();
+    await expect(closeBtn).toBeVisible();
+    await closeBtn.click();
   });
 });
