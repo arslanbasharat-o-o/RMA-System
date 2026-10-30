@@ -362,11 +362,9 @@ export function ItemReviewDrawer({
               <div className="shrink-0 mt-1">
                 {item?.modelSource === "manual" && item?.verifiedAt ? (
                   <Badge variant="outline">Verified</Badge>
-                ) : item && hasModelSuggestion(item) ? (
-                  <Badge variant="outline">Suggestion</Badge>
-                ) : (
+                ) : !hasModelSuggestion(item) ? (
                   <Badge variant="outline">Unidentified</Badge>
-                )}
+                ) : null}
               </div>
             </div>
 

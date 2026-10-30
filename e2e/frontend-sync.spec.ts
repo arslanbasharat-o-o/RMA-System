@@ -182,11 +182,11 @@ test("RMA rows distinguish unverified suggestions from unidentified displays", a
   await expect(page.getByRole("heading", { name: "RMA-TEST-000001" })).toBeVisible();
 
   if (testInfo.project.name.startsWith("mobile")) {
-    await expect(page.getByText("Suggestion", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("iPhone 14", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Unidentified", { exact: true }).first()).toBeVisible();
     await expect(page.getByText(/Search evidence did not identify one model/).first()).toBeVisible();
   } else {
-    await expect(page.locator("table").getByText("Suggestion", { exact: true })).toBeVisible();
+    await expect(page.locator("table").getByText("iPhone 14", { exact: true })).toBeVisible();
     await expect(page.locator("table").getByText("Unidentified", { exact: true })).toBeVisible();
     await expect(page.locator("table").getByText(/Search evidence did not identify one model/)).toBeVisible();
     await expect(page.getByRole("columnheader", { name: "Model Result" })).toBeVisible();

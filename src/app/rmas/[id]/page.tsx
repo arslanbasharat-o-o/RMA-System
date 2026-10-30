@@ -53,7 +53,8 @@ function modelResultText(item: any) {
 
 function modelResultLabel(item: any) {
   if (item.status === "verified" && item.verifiedAt) return "Verified";
-  return hasModelSuggestion(item) ? "Suggestion" : "Unidentified";
+  if (!hasModelSuggestion(item)) return "Unidentified";
+  return null;
 }
 
 export default function RmaDetailPage({
@@ -452,9 +453,11 @@ export default function RmaDetailPage({
                       <p className="min-w-0 text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
                         {modelResultText(item)}
                       </p>
-                      <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
-                        {modelResultLabel(item)}
-                      </span>
+                      {modelResultLabel(item) && (
+                        <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
+                          {modelResultLabel(item)}
+                        </span>
+                      )}
                     </div>
 
                     {item.status === "review_required" && !item.predictedModel && (
@@ -642,9 +645,11 @@ export default function RmaDetailPage({
                           <span className="font-bold text-slate-900 dark:text-slate-100">
                             {modelResultText(item)}
                           </span>
-                          <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
-                            {modelResultLabel(item)}
-                          </span>
+                          {modelResultLabel(item) && (
+                            <span className="shrink-0 rounded border border-slate-300 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:border-zinc-700 dark:text-zinc-300">
+                              {modelResultLabel(item)}
+                            </span>
+                          )}
                         </div>
                         {item.status === "review_required" && !item.predictedModel && (
                           <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">

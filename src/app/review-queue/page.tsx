@@ -46,7 +46,7 @@ function parseReviewNotes(rawNotes?: string | null): string[] {
     if (mOp) {
       const retainedModel = mOp[1].trim();
       const autoSuggestion = (mOp[2] || mOp[3] || "unresolved").trim();
-      cleaned = `Operator confirmed ${retainedModel} (differs from automated suggestion: ${autoSuggestion})`;
+      cleaned = `Operator confirmed ${retainedModel} (differs from automated detection: ${autoSuggestion})`;
     }
 
     // Visual decision pattern
@@ -58,7 +58,7 @@ function parseReviewNotes(rawNotes?: string | null): string[] {
         .replace(/Operator review is required\.?/gi, "")
         .replace(/The photograph did not corroborate the exact model suggested by source evidence\.?/gi, "")
         .trim();
-      cleaned = reasoning ? `Visual suggestion: ${model} — ${reasoning}` : `Visual suggestion: ${model}`;
+      cleaned = reasoning ? `Detected: ${model} — ${reasoning}` : `Detected: ${model}`;
     }
 
     // Visual conflict pattern
