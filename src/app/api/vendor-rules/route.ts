@@ -47,6 +47,7 @@ export async function GET(req: NextRequest) {
       vendorVariants,
       eq(vendorRecognitionRules.vendorVariantId, vendorVariants.id)
     )
+    .where(eq(vendorRecognitionRules.isActive, true))
     .orderBy(desc(vendorRecognitionRules.priority));
 
   return NextResponse.json({ rules });
