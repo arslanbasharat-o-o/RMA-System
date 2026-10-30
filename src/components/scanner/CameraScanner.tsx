@@ -423,14 +423,14 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                   const needsReview = item.status === "review_required" || item.matchStatus === "ambiguous";
                   const badge = processing ? "Processing" : item.status === "failed" ? "Retry needed"
                     : item.status === "pending_upload" ? "Awaiting photo" : item.status === "verified" ? "Verified" : needsReview ? "Needs review"
-                      : item.predictedModel ? "Suggested" : "Awaiting result";
+                      : item.predictedModel ? "Detected" : "Awaiting result";
                   return <article key={item.id} role="listitem" className="min-w-44 max-w-56 flex-1 rounded-lg border border-neutral-700 bg-neutral-950 px-3 py-2">
                     <div className="flex items-center justify-between gap-2 text-[11px]">
                       <span className="font-medium text-neutral-300">Display {item.itemNumber}</span>
                       <span className={needsReview ? "text-amber-300" : item.status === "failed" ? "text-red-300" : "text-neutral-400"}>{badge}</span>
                     </div>
                     <p className="mt-1 truncate text-xs font-semibold text-white" title={item.predictedModel || undefined}>
-                      {item.predictedModel || (processing ? "Identifying model…" : item.status === "pending_upload" ? "Add a replacement photo" : "No model suggestion")}
+                      {item.predictedModel || (processing ? "Identifying model…" : item.status === "pending_upload" ? "Add a replacement photo" : "Unidentified display")}
                     </p>
                     {item.barcodeValue && (
                       <p className="mt-0.5 truncate font-mono text-[10px] text-neutral-400">

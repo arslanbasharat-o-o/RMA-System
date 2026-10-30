@@ -131,6 +131,31 @@ export async function GET(
     return { ...candidate, candidateTitle: typeof title === "string" ? title : candidate.candidateTitle };
   });
 
+  const allSeeds = await db
+    .select({
+      id: seededDisplayProducts.id,
+      manufacturer: seededDisplayProducts.manufacturer,
+      modelName: seededDisplayProducts.modelName,
+      printedTitle: seededDisplayProducts.printedTitle,
+      barcodeValue: seededDisplayProducts.barcodeValue,
+      supplierSku: seededDisplayProducts.supplierSku,
+    })
+    .from(seededDisplayProducts);
+
+  const enrichedCandidates = currentCandidates.map((candidate) => {
+    const title = (candidate.candidateTitle || "").toLowerCase().trim();
+    const matched = allSeeds.find((s) => {
+      const mName = s.modelName?.toLowerCase().trim();
+      const pTitle = s.printedTitle?.toLowerCase().trim();
+      return (mName && title.includes(mName)) || (pTitle && title.includes(pTitle));
+    });
+    return {
+      ...candidate,
+      barcodeValue: matched?.barcodeValue || null,
+      supplierSku: matched?.supplierSku || matched?.printedTitle || null,
+    };
+  });
+
   let seededProduct = item.seededDisplayProductId ? {
     id: item.seededDisplayProductId,
     manufacturer: item.inventoryProductManufacturer,
@@ -182,7 +207,7 @@ export async function GET(
     images,
     runs,
     ocrExtractions: extractions,
-    candidates: currentCandidates,
+    candidates: enrichedCandidates,
     reviewHistory: reviews,
   }, {
     headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },

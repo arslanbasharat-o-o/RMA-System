@@ -112,7 +112,7 @@ export default function ReportsPage() {
       case "manual_match":
         return "Manual Match";
       case "suggested_match":
-        return "Suggested";
+        return "Needs Review";
       case "failed":
         return "Unmatched";
       default:
