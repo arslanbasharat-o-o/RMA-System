@@ -594,7 +594,7 @@ export function ItemReviewDrawer({
                 type="text"
                 value={reviewNotes}
                 onChange={(e) => { editing.current = true; setReviewNotes(e.target.value); }}
-                placeholder="Optional operator notes..."
+                placeholder="e.g. Verified genuine AMI aftermarket ink stamp"
                 className="w-full text-base sm:text-xs min-h-11 sm:min-h-0 h-9 px-3 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
             </div>
