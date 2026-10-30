@@ -432,9 +432,11 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                     <p className="mt-1 truncate text-xs font-semibold text-white" title={item.predictedModel || undefined}>
                       {item.predictedModel || (processing ? "Identifying model…" : item.status === "pending_upload" ? "Add a replacement photo" : "Unidentified display")}
                     </p>
-                    {item.barcodeValue && (
+                    {(item.barcodeValue || item.supplierSku) && (
                       <p className="mt-0.5 truncate font-mono text-[10px] text-neutral-400">
-                        UPC: <span className="font-semibold text-neutral-200">{item.barcodeValue}</span>
+                        {item.barcodeValue && <span>UPC: <span className="font-semibold text-neutral-200">{item.barcodeValue}</span></span>}
+                        {item.barcodeValue && item.supplierSku && <span className="mx-1 text-neutral-600">·</span>}
+                        {item.supplierSku && <span>SKU: <span className="font-semibold text-neutral-200">{item.supplierSku}</span></span>}
                       </p>
                     )}
                   </article>;

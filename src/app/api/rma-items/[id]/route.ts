@@ -15,7 +15,8 @@ import {
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
-import { eq, asc, desc, and, inArray, lte, or, ilike } from "drizzle-orm";
+import { eq, asc, desc, and, inArray, lte } from "drizzle-orm";
+import { matchSeededProductByText } from "@/lib/recognition/seeded-inventory";
 
 export async function GET(
   req: NextRequest,
@@ -136,19 +137,18 @@ export async function GET(
       id: seededDisplayProducts.id,
       manufacturer: seededDisplayProducts.manufacturer,
       modelName: seededDisplayProducts.modelName,
+      variantName: seededDisplayProducts.variantName,
       printedTitle: seededDisplayProducts.printedTitle,
       barcodeValue: seededDisplayProducts.barcodeValue,
+      barcodeFormat: seededDisplayProducts.barcodeFormat,
+      barcodeSymbology: seededDisplayProducts.barcodeSymbology,
       supplierSku: seededDisplayProducts.supplierSku,
+      otherCodes: seededDisplayProducts.otherCodes,
     })
     .from(seededDisplayProducts);
 
   const enrichedCandidates = currentCandidates.map((candidate) => {
-    const title = (candidate.candidateTitle || "").toLowerCase().trim();
-    const matched = allSeeds.find((s) => {
-      const mName = s.modelName?.toLowerCase().trim();
-      const pTitle = s.printedTitle?.toLowerCase().trim();
-      return (mName && title.includes(mName)) || (pTitle && title.includes(pTitle));
-    });
+    const matched = matchSeededProductByText(candidate.candidateTitle, allSeeds);
     return {
       ...candidate,
       barcodeValue: matched?.barcodeValue || null,
@@ -169,16 +169,10 @@ export async function GET(
     otherCodes: item.inventoryProductOtherCodes,
   } : null;
 
-  if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly)) {
-    const candidateQuery = (item.predictedModel || item.predictedDisplayAssembly || "").trim();
-    const [matchedSeed] = await db
-      .select()
-      .from(seededDisplayProducts)
-      .where(or(
-        ilike(seededDisplayProducts.modelName, candidateQuery),
-        ilike(seededDisplayProducts.printedTitle, candidateQuery)
-      ))
-      .limit(1);
+  if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly) && allSeeds.length > 0) {
+    const matchedSeed =
+      matchSeededProductByText(item.predictedDisplayAssembly, allSeeds) ||
+      matchSeededProductByText(item.predictedModel, allSeeds);
 
     if (matchedSeed) {
       seededProduct = {

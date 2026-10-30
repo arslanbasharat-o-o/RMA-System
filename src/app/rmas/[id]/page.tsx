@@ -460,12 +460,6 @@ export default function RmaDetailPage({
                       )}
                     </div>
 
-                    {item.status === "review_required" && !item.predictedModel && (
-                      <p className="text-[11px] leading-snug text-amber-700 dark:text-amber-300">
-                        Search evidence did not identify one model. Review the candidates before confirming.
-                      </p>
-                    )}
-
                     <div className="text-[11px] leading-tight space-y-0.5">
                       {(item.barcodeValue || item.seededProduct?.barcodeValue) && (
                         <div className="flex items-center gap-1.5 font-mono">
@@ -651,11 +645,6 @@ export default function RmaDetailPage({
                             </span>
                           )}
                         </div>
-                        {item.status === "review_required" && !item.predictedModel && (
-                          <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
-                            Search evidence did not identify one model. Review the candidates before confirming.
-                          </p>
-                        )}
                       </td>
                       <td className="px-4 py-3 font-mono">
                         {barcode ? (

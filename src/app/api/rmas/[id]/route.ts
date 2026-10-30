@@ -14,6 +14,7 @@ import {
 import { requireAuth } from "@/lib/auth/middleware";
 import { eq, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { matchSeededProductByText } from "@/lib/recognition/seeded-inventory";
 
 const UpdateRmaSchema = z.object({
   status: z
@@ -137,13 +138,9 @@ export async function GET(
   const needsFallback = items.filter(
     (i) => !i.seededDisplayProductId && (i.predictedModel || i.predictedDisplayAssembly)
   );
-  const seedLookup = new Map<string, typeof seededDisplayProducts.$inferSelect>();
+  let allSeeds: Array<typeof seededDisplayProducts.$inferSelect> = [];
   if (needsFallback.length > 0) {
-    const allSeeds = await db.select().from(seededDisplayProducts);
-    for (const s of allSeeds) {
-      if (s.modelName) seedLookup.set(s.modelName.toLowerCase().trim(), s);
-      if (s.printedTitle) seedLookup.set(s.printedTitle.toLowerCase().trim(), s);
-    }
+    allSeeds = await db.select().from(seededDisplayProducts);
   }
 
   const itemsWithImages = items.map((item) => {
@@ -161,9 +158,10 @@ export async function GET(
       otherCodes: item.inventoryProductOtherCodes,
     } : null;
 
-    if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly)) {
-      const match = seedLookup.get((item.predictedModel || "").toLowerCase().trim()) ||
-                    seedLookup.get((item.predictedDisplayAssembly || "").toLowerCase().trim());
+    if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly) && allSeeds.length > 0) {
+      const match =
+        matchSeededProductByText(item.predictedDisplayAssembly, allSeeds) ||
+        matchSeededProductByText(item.predictedModel, allSeeds);
       if (match) {
         seededProduct = {
           id: match.id,

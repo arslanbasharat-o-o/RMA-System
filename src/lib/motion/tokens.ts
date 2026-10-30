@@ -15,16 +15,19 @@ export const duration = {
   layout: 0.30,    // Major layout switches, sidebar collapse
 } as const;
 
-// Cubic bezier easings
+// Cubic bezier easings (Emil Kowalski design engineering curves)
 export const easing = {
   // Snappy deceleration - primary curve for UI entering the viewport
-  smoothOut: [0.16, 1, 0.3, 1] as [number, number, number, number],
+  smoothOut: [0.23, 1, 0.32, 1] as [number, number, number, number],
   
-  // Acceleration - for exits and dismissals
-  smoothIn: [0.7, 0, 0.84, 0] as [number, number, number, number],
+  // iOS / Emil Kowalski drawer curve
+  drawer: [0.32, 0.72, 0, 1] as [number, number, number, number],
   
-  // Standard ease-in-out for shared transitions
-  smoothInOut: [0.65, 0, 0.35, 1] as [number, number, number, number],
+  // Fast exit curve - never use slow ease-in for UI
+  smoothIn: [0.23, 1, 0.32, 1] as [number, number, number, number],
+  
+  // Strong ease-in-out for on-screen movement
+  smoothInOut: [0.77, 0, 0.175, 1] as [number, number, number, number],
   
   // Subtle anticipation for decisive actions
   subtleBounce: [0.34, 1.4, 0.64, 1] as [number, number, number, number],

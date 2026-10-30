@@ -1,5 +1,5 @@
 import { Variants } from "motion/react";
-import { duration, easing, springs } from "./tokens";
+import { duration, easing } from "./tokens";
 
 /**
  * Standard page content entrance
@@ -115,13 +115,16 @@ export const drawerSlideVariants: Variants = {
   visible: {
     x: 0,
     boxShadow: "-10px 0 30px rgba(0, 0, 0, 0.15)",
-    transition: springs.gentle,
+    transition: {
+      duration: duration.dialog,
+      ease: easing.drawer,
+    },
   },
   exit: {
     x: "100%",
     transition: {
       duration: duration.fast,
-      ease: easing.smoothIn,
+      ease: easing.drawer,
     },
   },
 };

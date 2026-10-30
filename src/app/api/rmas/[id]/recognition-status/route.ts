@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { rmaItems, seededDisplayProducts } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { asc, eq } from "drizzle-orm";
+import { matchSeededProductByText } from "@/lib/recognition/seeded-inventory";
 
 export async function GET(
   req: NextRequest,
@@ -22,51 +23,48 @@ export async function GET(
       seededDisplayProductId: rmaItems.seededDisplayProductId,
       barcodeValue: seededDisplayProducts.barcodeValue,
       supplierSku: seededDisplayProducts.supplierSku,
+      printedTitle: seededDisplayProducts.printedTitle,
     })
     .from(rmaItems)
     .leftJoin(seededDisplayProducts, eq(rmaItems.seededDisplayProductId, seededDisplayProducts.id))
     .where(eq(rmaItems.rmaId, id))
     .orderBy(asc(rmaItems.itemNumber));
 
-  // Fallback lookup: if seededDisplayProductId was not linked but predictedModel exists, resolve barcode
+  // Fallback lookup: if barcodeValue was not linked directly, resolve via catalog model matching
   const needsFallback = items.filter((i) => !i.barcodeValue && i.predictedModel);
-  let barcodeMap = new Map<string, { barcodeValue: string | null; supplierSku: string | null }>();
+  let allSeeds: Array<{
+    id: string;
+    manufacturer: string;
+    modelName: string;
+    variantName: string | null;
+    printedTitle: string;
+    barcodeValue: string | null;
+    supplierSku: string | null;
+  }> = [];
 
   if (needsFallback.length > 0) {
-    const allSeeds = await db
+    allSeeds = await db
       .select({
+        id: seededDisplayProducts.id,
+        manufacturer: seededDisplayProducts.manufacturer,
         modelName: seededDisplayProducts.modelName,
+        variantName: seededDisplayProducts.variantName,
         printedTitle: seededDisplayProducts.printedTitle,
         barcodeValue: seededDisplayProducts.barcodeValue,
         supplierSku: seededDisplayProducts.supplierSku,
       })
       .from(seededDisplayProducts);
-
-    for (const s of allSeeds) {
-      if (s.modelName) {
-        barcodeMap.set(s.modelName.toLowerCase().trim(), {
-          barcodeValue: s.barcodeValue,
-          supplierSku: s.supplierSku,
-        });
-      }
-      if (s.printedTitle) {
-        barcodeMap.set(s.printedTitle.toLowerCase().trim(), {
-          barcodeValue: s.barcodeValue,
-          supplierSku: s.supplierSku,
-        });
-      }
-    }
   }
 
   const enrichedItems = items.map((i) => {
     let barcodeValue = i.barcodeValue;
-    let supplierSku = i.supplierSku;
+    let supplierSku = i.supplierSku || i.printedTitle;
 
-    if (!barcodeValue && i.predictedModel) {
-      const match = barcodeMap.get(i.predictedModel.toLowerCase().trim());
+    if (!barcodeValue && i.predictedModel && allSeeds.length > 0) {
+      const match = matchSeededProductByText(i.predictedModel, allSeeds);
       if (match) {
         barcodeValue = match.barcodeValue;
-        supplierSku = match.supplierSku;
+        supplierSku = match.supplierSku || match.printedTitle;
       }
     }
 

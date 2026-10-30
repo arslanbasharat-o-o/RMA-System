@@ -16,6 +16,9 @@
     --success: #10b981;
     --warning: #f59e0b;
     --destructive: #ef4444;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   .dark {
@@ -31,6 +34,9 @@
     --success: #10b981;
     --warning: #f59e0b;
     --destructive: #ef4444;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
   }
 
   html, body {
@@ -49,6 +55,20 @@
 
   .dark body {
     background-color: var(--background);
+  }
+
+  /* Interactive tactile feedback for buttons and clickable cards */
+  button:active:not(:disabled),
+  [role="button"]:active:not([aria-disabled="true"]) {
+    transform: scale(0.98);
+    transition: transform 120ms var(--ease-out);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    button:active:not(:disabled),
+    [role="button"]:active:not([aria-disabled="true"]) {
+      transform: none !important;
+    }
   }
 }
 
