@@ -462,8 +462,10 @@ export default function DisplayCatalogPage() {
                                 className="h-10 w-8 rounded overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-indigo-500/50 transition-all cursor-pointer"
                               >
                                 <img
-                                  src={`/api/images/${primaryRef.id}`}
+                                  src={`/api/images/${primaryRef.id}?size=thumb`}
                                   alt={primaryRef.sourceDisplayId}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="h-full w-full object-cover"
                                   onError={(e) => {
                                     (e.target as HTMLElement).style.display = "none";

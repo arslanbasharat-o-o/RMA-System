@@ -1,6 +1,6 @@
 "use client";
 
-import { motion, useReducedMotion, type Variants } from "framer-motion";
+import { motion, useReducedMotion, type Variants } from "motion/react";
 
 import { cn } from "@/lib/utils/cn";
 
@@ -9,17 +9,17 @@ interface BlurInProps {
   className?: string;
   "data-testid"?: string;
   variant?: {
-    hidden: { filter: string; opacity: number };
-    visible: { filter: string; opacity: number };
+    hidden: { filter: string; opacity: number; y?: number };
+    visible: { filter: string; opacity: number; y?: number };
   };
   duration?: number;
 }
 
-const BlurIn = ({ word, className, "data-testid": testId, variant, duration = 1 }: BlurInProps) => {
+const BlurIn = ({ word, className, "data-testid": testId, variant, duration = 0.2 }: BlurInProps) => {
   const prefersReducedMotion = useReducedMotion();
   const defaultVariants: Variants = {
-    hidden: { filter: "blur(10px)", opacity: 0 },
-    visible: { filter: "blur(0px)", opacity: 1 },
+    hidden: { filter: "blur(4px)", opacity: 0, y: 3 },
+    visible: { filter: "blur(0px)", opacity: 1, y: 0 },
   };
   const combinedVariants = variant ?? defaultVariants;
 
@@ -34,7 +34,7 @@ const BlurIn = ({ word, className, "data-testid": testId, variant, duration = 1 
       variants={combinedVariants}
       data-testid={testId}
       className={cn(
-        "font-display text-xl sm:text-2xl md:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50",
+        "font-display text-xl sm:text-2xl md:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 will-change-[transform,opacity,filter]",
         className,
       )}
     >

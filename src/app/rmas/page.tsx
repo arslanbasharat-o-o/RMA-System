@@ -39,6 +39,7 @@ export default function RmaListPage() {
   const [loading, setLoading] = useState(true);
 
   const listRequest = useRef<AbortController | null>(null);
+  const isInitial = useRef(true);
 
   const fetchRmas = async () => {
     listRequest.current?.abort();
@@ -71,6 +72,11 @@ export default function RmaListPage() {
   };
 
   useEffect(() => {
+    if (isInitial.current) {
+      isInitial.current = false;
+      fetchRmas();
+      return;
+    }
     const timer = setTimeout(() => {
       fetchRmas();
     }, 250);

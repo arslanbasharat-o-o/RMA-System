@@ -15,7 +15,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageLoading } from "@/components/ui/loading-message";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { toast } from "sonner";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
@@ -190,20 +190,6 @@ export default function RmaDetailPage({
     }
   };
 
-  if (!data && refreshError) {
-    return (
-      <AppShell>
-        <div role="alert" className="space-y-3 p-4">
-          <p>Connection interrupted. Reconnecting to this RMA automatically…</p>
-        </div>
-      </AppShell>
-    );
-  }
-
-  if (loading && !data) {
-    return <PageLoading label="Loading RMA details…" />;
-  }
-
   const rmaShipmentStatus =
     rma?.status === "completed"
       ? "completed"
@@ -215,7 +201,16 @@ export default function RmaDetailPage({
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      {!data && refreshError ? (
+        <div role="alert" className="space-y-3 p-4">
+          <p>Connection interrupted. Reconnecting to this RMA automatically…</p>
+        </div>
+      ) : loading && !data ? (
+        <div className="flex min-h-[45vh] items-center justify-center px-4">
+          <LoadingMessage label="Loading RMA details…" />
+        </div>
+      ) : (
+        <div className="space-y-6">
         {refreshError && (
           <div
             role="alert"
@@ -780,6 +775,7 @@ export default function RmaDetailPage({
           )}
         </AnimatePresence>
       </div>
+    )}
     </AppShell>
   );
 }

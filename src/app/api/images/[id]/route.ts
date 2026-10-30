@@ -61,6 +61,19 @@ export async function GET(
     return NextResponse.json({ error: "Image not found." }, { status: 404 });
   }
 
+  const etag = `"${imageRecord.id}-${size || "orig"}"`;
+  const cacheControl = "private, max-age=86400, stale-while-revalidate=604800";
+
+  if (req.headers.get("if-none-match") === etag) {
+    return new NextResponse(null, {
+      status: 304,
+      headers: {
+        "ETag": etag,
+        "Cache-Control": cacheControl,
+      },
+    });
+  }
+
   let targetPath = imageRecord.storagePath;
   let contentType = imageRecord.mimeType;
 
@@ -79,7 +92,8 @@ export async function GET(
       status: 200,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": "private, no-store",
+        "Cache-Control": cacheControl,
+        "ETag": etag,
         "X-Content-Type-Options": "nosniff",
       },
     });

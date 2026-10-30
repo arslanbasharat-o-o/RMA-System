@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { motion, type SVGMotionProps } from "framer-motion";
+import { motion, type SVGMotionProps } from "motion/react";
 import { cn } from "@/lib/utils/cn";
 interface IconProps extends Omit<SVGMotionProps<SVGSVGElement>, "animate"> {
   size?: number;
