@@ -43,7 +43,7 @@ import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { hasModelSuggestion } from "@/lib/model-result";
-import { CopyBadge } from "@/components/premium";
+import { BarcodeVisual } from "@/components/ui/barcode-visual";
 
 export function ItemReviewDrawer({
   itemId,
@@ -412,25 +412,20 @@ export function ItemReviewDrawer({
               ) : null}
             </div>
 
-            {/* Clean Key-Value Row */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
-              <div>
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
-                  Barcode (UPC)
+            {/* Visual Barcode Graphic */}
+            {activeBarcode && (
+              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider mb-1.5">
+                  Visual Barcode (UPC/EAN)
                 </span>
-                {activeBarcode ? (
-                  <div className="mt-0.5">
-                    <CopyBadge
-                      value={activeBarcode}
-                      label={activeBarcode}
-                      className="font-mono text-xs font-bold"
-                    />
-                  </div>
-                ) : (
-                  <span className="text-neutral-400 font-mono text-xs mt-0.5 block">—</span>
-                )}
+                <div className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-center">
+                  <BarcodeVisual value={activeBarcode} height={44} showText={true} />
+                </div>
               </div>
+            )}
 
+            {/* Clean Key-Value Row */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
               <div>
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                   Product SKU

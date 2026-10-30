@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vendorVariants, vendors } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
+import { syncVendorRecognitionRules } from "@/lib/recognition/rules/sync";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -45,6 +46,9 @@ export async function PUT(
     return NextResponse.json({ error: "Variant not found." }, { status: 404 });
   }
 
+  // Automatically synchronize rules for the parent vendor
+  await syncVendorRecognitionRules(updated.vendorId);
+
   return NextResponse.json({ success: true, variant: updated });
 }
 
@@ -62,6 +66,10 @@ export async function DELETE(
     .set({ isActive: false, updatedAt: new Date() })
     .where(eq(vendorVariants.id, id))
     .returning();
+
+  if (deactivated) {
+    await syncVendorRecognitionRules(deactivated.vendorId);
+  }
 
   return NextResponse.json({ success: true, variant: deactivated });
 }

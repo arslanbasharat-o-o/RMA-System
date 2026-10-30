@@ -23,6 +23,7 @@ import {
   CopyBadge,
   ShimmerButton,
 } from "@/components/premium";
+import { BarcodeVisual } from "@/components/ui/barcode-visual";
 
 interface SeededReference {
   id: string;
@@ -645,19 +646,16 @@ export default function DisplayCatalogPage() {
                   </div>
 
                   <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
-                      Barcode (UPC)
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block mb-1">
+                      Visual Barcode & UPC
                     </span>
-                    <div className="mt-0.5">
-                      {selectedProduct.barcodeValue ? (
-                        <CopyBadge
-                          value={selectedProduct.barcodeValue}
-                          label={selectedProduct.barcodeValue}
-                        />
-                      ) : (
-                        <span className="text-neutral-400 font-mono">—</span>
-                      )}
-                    </div>
+                    {selectedProduct.barcodeValue ? (
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-center">
+                        <BarcodeVisual value={selectedProduct.barcodeValue} height={42} showText={true} />
+                      </div>
+                    ) : (
+                      <span className="text-neutral-400 font-mono text-xs">—</span>
+                    )}
                   </div>
 
                   <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">

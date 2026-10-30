@@ -481,7 +481,7 @@ EXTRACTION INSTRUCTIONS:
    - Do NOT paraphrase, do NOT correct supposed typos, and do NOT guess faded letters.
 
 2. SPECIFIC MARKING TYPES TO EXTRACT:
-   - Vendor / Supplier Stamps: Ink stamps in violet, blue, red, black, or white (e.g. 'AMI', 'AMI/A', 'AMI INCELL', 'AMI OLED', 'JK', 'GX', 'ZY', 'RJ', 'XY', 'HQ').
+   - Vendor / Supplier Stamps: Ink stamps or laser markings in violet, blue, red, green, black, or white, circular/oval/square inspection marks, and supplier codes (e.g. 'TXP09', 'TXP08', 'TXP10', 'AMI', 'AMI/A', 'AMI INCELL', 'AMI OLED', 'JK', 'GX', 'ZY', 'RJ', 'SQ9', 'HQ'). Meticulously inspect corners, backlight metal plates, flex cables, connectors, and warranty labels for small 3-7 character supplier codes. Include both compound and spaced variations (e.g. if you observe 'TXP 09' or 'TXP-09', record both 'TXP 09' and 'TXP09') in 'vendor_markings' and 'detected_codes'.
    - Flex Cable Part Numbers: Laser-etched or printed codes on the flexible circuit or connectors (e.g. '821-03200-A', '821-02688-A', 'GH82-25801A', 'REV: 2.1').
    - Technology Classifications: Printed words such as 'INCELL', 'OLED', 'HARD OLED', 'SOFT OLED', 'AFTERMARKET', 'TFT', 'FOG'.
    - Sticker / QC Markings: Barcodes, warranty dates, batch codes (e.g. 'QC PASS 08/25', '2024-W12', 'TAP07-DFF').
