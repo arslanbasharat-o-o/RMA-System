@@ -8,12 +8,11 @@ import {
   AlertTriangle,
   ZoomIn,
   Trash2,
+  Images,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
-import { CopyBadge } from "@/components/premium";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { useScrollLock } from "@/lib/utils/scroll-lock";
 import { toast } from "sonner";
@@ -68,6 +67,7 @@ export function ItemReviewDrawer({
   const [reviewNotes, setReviewNotes] = useState("");
   const [saving, setSaving] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+  const [activeImageId, setActiveImageId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const editing = useRef(false);
   const optionsLoaded = useRef(false);
@@ -99,6 +99,7 @@ export function ItemReviewDrawer({
     optionsLoaded.current = false;
     setLoading(true);
     setData(null);
+    setActiveImageId(null);
   }, [itemId]);
 
   const { refreshError } = useLiveRefresh(itemId, async (signal) => {
@@ -117,7 +118,8 @@ export function ItemReviewDrawer({
       setCustomModel(itemJson.item.predictedModel || "");
       setSelectedVendorId(itemJson.item.identifiedVendorId || "");
       setSelectedVariantId(itemJson.item.identifiedVendorVariantId || "");
-      setReviewNotes(itemJson.item.reviewNotes || "");
+      const isAutomated = /^(?:Visual suggestion|Automated|Display model could not|No OCR|Evaluated \d+)/i.test(itemJson.item.reviewNotes || "");
+      setReviewNotes(isAutomated ? "" : (itemJson.item.reviewNotes || ""));
     }
     if (!optionsLoaded.current) {
       const venRes = await fetch("/api/vendors", { signal, cache: "no-store" });
@@ -232,8 +234,15 @@ export function ItemReviewDrawer({
 
   const { item, images, candidates, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
-  const barcode = item?.barcodeValue || item?.seededProduct?.barcodeValue;
-  const sku = item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle;
+  const currentImage = (images && images.find((i: any) => i.id === activeImageId)) || images?.[0];
+
+  const matchedCandidate = candidates?.find((c: any) =>
+    (customModel && c.candidateTitle?.toLowerCase().includes(customModel.toLowerCase().trim())) ||
+    (customModel && c.parsedModel?.toLowerCase() === customModel.toLowerCase().trim())
+  );
+
+  const activeBarcode = matchedCandidate?.barcodeValue || item?.barcodeValue || item?.seededProduct?.barcodeValue || null;
+  const activeSku = matchedCandidate?.supplierSku || item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -316,40 +325,67 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {/* Images Gallery */}
-          <div>
-            <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500 mb-2">
-              Captured Photos ({images?.length || 0})
-            </h4>
-            <div className="grid grid-cols-3 gap-2">
-              {images?.map((img: any) => (
-                <div
-                  key={img.id}
-                  onClick={() => setZoomedImage(`/api/images/${img.id}?size=preview`)}
-                  className="group relative aspect-square rounded-md border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-100 dark:bg-neutral-800 cursor-zoom-in"
-                  title="Click to zoom image"
-                >
-                  <img
-                    src={`/api/images/${img.id}?size=thumb`}
-                    alt={img.originalFilename}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                  />
-                  <span className="absolute bottom-1 left-1 px-1 py-0.5 rounded bg-black/60 text-[9px] text-white uppercase font-mono">
-                    {img.imageType}
-                  </span>
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                    <ZoomIn className="h-4 w-4 text-white drop-shadow" />
-                  </div>
+          {/* Featured Photo Viewer */}
+          {currentImage ? (
+            <div className="space-y-2">
+              <div
+                onClick={() => setZoomedImage(`/api/images/${currentImage.id}?size=preview`)}
+                className="group relative w-full h-64 sm:h-72 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900/60 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
+                title="Click to zoom image"
+              >
+                <img
+                  src={`/api/images/${currentImage.id}?size=preview`}
+                  alt={currentImage.originalFilename || "Display photograph"}
+                  className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                />
+                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-neutral-900/75 backdrop-blur-xs text-[10px] font-semibold uppercase tracking-wider text-white">
+                  {currentImage.imageType || "Photo"}
+                </span>
+                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-900/70 backdrop-blur-xs text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                  <ZoomIn className="h-3.5 w-3.5" />
+                  <span>Zoom</span>
                 </div>
-              ))}
-            </div>
-          </div>
+              </div>
 
-          {/* Clean Display Specifications Sheet */}
-          <div className="space-y-3 text-xs">
-            <div className="pb-3 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between gap-3">
+              {/* Thumbnails row if multiple images exist */}
+              {images && images.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                  {images.map((img: any) => {
+                    const isSelected = currentImage.id === img.id;
+                    return (
+                      <button
+                        key={img.id}
+                        type="button"
+                        onClick={() => setActiveImageId(img.id)}
+                        className={`relative h-14 w-14 shrink-0 rounded-lg border-2 overflow-hidden bg-neutral-100 dark:bg-neutral-900 transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-neutral-900 dark:border-neutral-100 shadow-xs"
+                            : "border-transparent opacity-60 hover:opacity-100"
+                        }`}
+                      >
+                        <img
+                          src={`/api/images/${img.id}?size=thumb`}
+                          alt={img.originalFilename}
+                          className="h-full w-full object-cover"
+                        />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="h-40 w-full rounded-xl border border-dashed border-neutral-300 dark:border-neutral-800 flex flex-col items-center justify-center text-neutral-400 text-xs">
+              <Images className="h-6 w-6 mb-1 text-neutral-300 dark:text-neutral-600" />
+              <span>No photos captured yet</span>
+            </div>
+          )}
+
+          {/* Clean Display Details & Specifications */}
+          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/40 p-4 space-y-3.5">
+            <div className="flex items-start justify-between gap-3">
               <div>
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                   Identified Model
                 </span>
                 <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
@@ -359,99 +395,119 @@ export function ItemReviewDrawer({
                       : "Unidentified Model")}
                 </h3>
               </div>
-              <div className="shrink-0 mt-1">
-                {item?.modelSource === "manual" && item?.verifiedAt ? (
-                  <Badge variant="outline">Verified</Badge>
-                ) : !hasModelSuggestion(item) ? (
-                  <Badge variant="outline">Unidentified</Badge>
-                ) : null}
-              </div>
+              {item?.modelSource === "manual" && item?.verifiedAt ? (
+                <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                  Verified
+                </span>
+              ) : !hasModelSuggestion(item) ? (
+                <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                  Unidentified
+                </span>
+              ) : null}
             </div>
 
-            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
-                Barcode (UPC)
-              </span>
+            {/* Clean Key-Value Grid */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 text-xs">
               <div>
-                {barcode ? (
-                  <CopyBadge value={barcode} label={barcode} />
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                  Barcode (UPC)
+                </span>
+                {activeBarcode ? (
+                  <span className="font-mono text-xs font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
+                    {activeBarcode}
+                  </span>
                 ) : (
                   <span className="text-neutral-400 font-mono">—</span>
                 )}
               </div>
-            </div>
 
-            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
-                Product SKU
-              </span>
-              <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
-                {sku || "—"}
-              </span>
-            </div>
-
-            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
-              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
-                Vendor
-              </span>
-              <span className="font-medium text-neutral-800 dark:text-neutral-200">
-                {item?.identifiedVendorName || "Unidentified"}
-                {item?.identifiedVendorVariantName && (
-                  <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
-                )}
-              </span>
-            </div>
-
-            {item?.extractedTextSummary && (
-              <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-3">
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider shrink-0">
-                  Markings
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                  Product SKU
                 </span>
-                <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate">
-                  {item.extractedTextSummary}
+                <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                  {activeSku || "—"}
                 </span>
               </div>
-            )}
 
-            {/* Alternative Matches (Clean List) */}
-            {candidates && candidates.length > 0 && (
-              <div className="pt-1">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
-                    Alternative Matches
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                  Vendor
+                </span>
+                <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                  {item?.identifiedVendorName || "Unidentified"}
+                  {item?.identifiedVendorVariantName && (
+                    <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
+                  )}
+                </span>
+              </div>
+
+              {item?.extractedTextSummary && (
+                <div>
+                  <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                    Markings
                   </span>
-                  <span className="text-[10px] text-neutral-400">Select to update model</span>
+                  <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate block">
+                    {item.extractedTextSummary}
+                  </span>
                 </div>
-                <div className="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden">
-                  {candidates.slice(0, 5).map((c: any) => {
-                    const parsed = extractManufacturerAndModel(c.candidateTitle);
-                    const isSelected = selectedCandidateId === c.id || (customModel && customModel.toLowerCase() === parsed.model.toLowerCase());
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => {
-                          editing.current = true;
-                          setCustomManufacturer(parsed.manufacturer);
-                          setCustomModel(parsed.model);
-                          setSelectedCandidateId(c.id);
-                          toast.info(`Selected ${parsed.manufacturer} ${parsed.model}`);
-                        }}
-                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
-                          isSelected
-                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-semibold"
-                            : "hover:bg-neutral-50 dark:hover:bg-neutral-850 text-neutral-700 dark:text-neutral-300"
-                        }`}
-                      >
-                        <span className="truncate">{parsed.manufacturer} {parsed.model}</span>
-                        {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
+
+          {/* Alternative Matches / Search Candidates */}
+          {candidates && candidates.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                  Search Candidates
+                </span>
+                <span className="text-[11px] text-neutral-400">Select candidate to apply</span>
+              </div>
+              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800/80 overflow-hidden bg-white dark:bg-neutral-900/30">
+                {candidates.slice(0, 5).map((c: any) => {
+                  const mfr = c.parsedManufacturer || extractManufacturerAndModel(c.candidateTitle).manufacturer;
+                  const mdl = c.parsedModel || extractManufacturerAndModel(c.candidateTitle).model;
+                  const isSelected = selectedCandidateId === c.id || (customModel && customModel.toLowerCase() === mdl.toLowerCase());
+                  const candBarcode = c.barcodeValue;
+                  const candSku = c.supplierSku;
+
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        editing.current = true;
+                        setCustomManufacturer(mfr);
+                        setCustomModel(mdl);
+                        setSelectedCandidateId(c.id);
+                        toast.info(`Selected ${mfr} ${mdl}`);
+                      }}
+                      className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between gap-3 transition-colors ${
+                        isSelected
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100"
+                          : "hover:bg-neutral-50 dark:hover:bg-neutral-850 text-neutral-800 dark:text-neutral-200"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="font-semibold text-xs truncate">{mfr} {mdl}</p>
+                        {(candBarcode || candSku) && (
+                          <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
+                            {candBarcode && <span>UPC: {candBarcode}</span>}
+                            {candBarcode && candSku && <span className="mx-1.5">·</span>}
+                            {candSku && <span>SKU: {candSku}</span>}
+                          </p>
+                        )}
+                      </div>
+                      {isSelected && (
+                        <Check className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Verification & Manual Overrides */}
           <div className="space-y-3.5 pt-1">
@@ -469,7 +525,7 @@ export function ItemReviewDrawer({
                   type="text"
                   value={customManufacturer}
                   onChange={(e) => { editing.current = true; setCustomManufacturer(e.target.value); }}
-                  placeholder="e.g. Samsung"
+                  placeholder="e.g. Apple"
                   className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100"
                 />
               </div>
@@ -481,7 +537,7 @@ export function ItemReviewDrawer({
                   type="text"
                   value={customModel}
                   onChange={(e) => { editing.current = true; setCustomModel(e.target.value); }}
-                  placeholder="e.g. Galaxy Note 20 Ultra"
+                  placeholder="e.g. iPhone 16 Pro"
                   className="w-full text-xs h-9 px-2.5 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-semibold"
                 />
               </div>
@@ -529,16 +585,16 @@ export function ItemReviewDrawer({
               </div>
             )}
 
-            {/* Review Notes */}
+            {/* Operator Notes: Never pre-populated with AI diagnostic text */}
             <div>
               <label className="block text-xs font-medium text-neutral-700 dark:text-neutral-300 mb-1">
-                Correction Notes:
+                Operator Notes (Optional):
               </label>
               <input
                 type="text"
                 value={reviewNotes}
                 onChange={(e) => { editing.current = true; setReviewNotes(e.target.value); }}
-                placeholder="e.g. Verified genuine AMI aftermarket ink stamp"
+                placeholder="Optional operator notes..."
                 className="w-full text-base sm:text-xs min-h-11 sm:min-h-0 h-9 px-3 rounded-lg border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 focus:outline-none focus:ring-1 focus:ring-neutral-400"
               />
             </div>
