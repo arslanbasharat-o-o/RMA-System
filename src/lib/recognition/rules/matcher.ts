@@ -61,7 +61,7 @@ export class VendorRuleMatcher {
             vendorVariantId: null,
             ruleType: "stamp_pattern",
             pattern: prefix,
-            priority: 160,
+            priority: 160 + prefix.length * 5,
             confidenceWeight: 0.9,
             isActive: true,
           });
@@ -136,12 +136,12 @@ export class VendorRuleMatcher {
 
       // Dot-matrix hardware stamp OCR confusion normalization:
       // On brushed metal display shields, the crossbar of 'T' in 'TXP'/'TXPP' is often truncated or faded,
-      // leading OCR engines to transcribe 'LXPP' or 'LXP' instead of 'TXPP' or 'TXP'.
-      if (/^LX/i.test(upper)) {
-        expandedTokens.add(upper.replace(/^LX/i, "TX"));
+      // and diagonal strokes of 'X' can be segmented, leading OCR engines to transcribe 'LXPP', 'LXP', 'LKPP', or 'LKPC'.
+      if (/^L[KX]/i.test(upper)) {
+        expandedTokens.add(upper.replace(/^L[KX]/i, "TX"));
       }
-      if (stripped && /^LX/i.test(stripped)) {
-        expandedTokens.add(stripped.replace(/^LX/i, "TX"));
+      if (stripped && /^L[KX]/i.test(stripped)) {
+        expandedTokens.add(stripped.replace(/^L[KX]/i, "TX"));
       }
 
       // Split words/sub-tokens (e.g. "QC TXP09 PASS" -> "QC", "TXP09", "PASS")
@@ -154,13 +154,13 @@ export class VendorRuleMatcher {
         }
 
         // Dot-matrix hardware stamp OCR confusion normalization for sub-tokens:
-        if (/^LX/i.test(pStripped)) {
-          const tVariant = pStripped.replace(/^LX/i, "TX");
+        if (/^L[KX]/i.test(pStripped)) {
+          const tVariant = pStripped.replace(/^L[KX]/i, "TX");
           expandedTokens.add(tVariant);
           const tAlpha = tVariant.match(/^([A-Z]{3,6})/);
           if (tAlpha) {
             expandedTokens.add(tAlpha[1]);
-            if (tAlpha[1].length === 4 && tAlpha[1].endsWith("P")) {
+            if (tAlpha[1].length === 4 && (tAlpha[1].endsWith("P") || tAlpha[1].startsWith("TXP"))) {
               expandedTokens.add(tAlpha[1].slice(0, 3));
             }
           }
@@ -170,8 +170,8 @@ export class VendorRuleMatcher {
         const partAlpha = pStripped.match(/^([A-Z]{3,6})/);
         if (partAlpha) {
           expandedTokens.add(partAlpha[1]);
-          // For 4-letter prefixes like TXPP, also add the 3-letter root TXP
-          if (partAlpha[1].length === 4 && partAlpha[1].endsWith("P")) {
+          // For 4-letter prefixes like TXPP / TXPC / TXPS, also add the 3-letter root TXP
+          if (partAlpha[1].length === 4 && (partAlpha[1].endsWith("P") || partAlpha[1].startsWith("TXP"))) {
             expandedTokens.add(partAlpha[1].slice(0, 3));
           }
         }
@@ -329,10 +329,21 @@ export class VendorRuleMatcher {
       };
     }
 
-    // Find the highest-scoring alternative belonging to a DIFFERENT parent vendor
-    const conflictingAlternative = alternatives.find(
-      (alt) => alt.vendorId !== topVendor.id
-    );
+    // Find the highest-scoring alternative belonging to a DIFFERENT parent vendor.
+    // Exclude alternatives whose matched pattern is merely a shorter substring/prefix of the winning pattern
+    // (e.g. 3-character root 'TXP' should never conflict with 4-character specific code 'TXPC').
+    const conflictingAlternative = alternatives.find((alt) => {
+      if (alt.vendorId === topVendor.id) return false;
+      const altMatch = matches.find((m) => m.rule.vendorId === alt.vendorId);
+      if (altMatch && topMatch.rule.pattern && altMatch.rule.pattern) {
+        const topPat = topMatch.rule.pattern.toUpperCase();
+        const altPat = altMatch.rule.pattern.toUpperCase();
+        if (topPat.startsWith(altPat) && topPat.length > altPat.length) {
+          return false;
+        }
+      }
+      return true;
+    });
 
     // If conflicting vendor exists with significant score, surface ambiguity without silently choosing
     if (

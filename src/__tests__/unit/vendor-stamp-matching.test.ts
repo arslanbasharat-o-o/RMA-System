@@ -69,6 +69,12 @@ describe("Vendor Rule Matching with Stamp Families", () => {
     expect(resultOcrMisread.vendorName).toBe("Vendor T");
     expect(resultOcrMisread.confidenceScore).toBeGreaterThanOrEqual(0.7);
 
+    // Test with dot-matrix OCR misread LKPC9N-COF (where T->L and X->K)
+    const resultOcrMisread2 = matcher.matchTokens(["LKPC9N-COF"]);
+    expect(resultOcrMisread2.vendorName).toBeDefined();
+    expect(["Vendor T", "Crystal"]).toContain(resultOcrMisread2.vendorName);
+    expect(resultOcrMisread2.confidenceScore).toBeGreaterThanOrEqual(0.7);
+
     // Test with exact variant code TXP09
     const result4 = matcher.matchTokens(["TXP09"]);
     expect(result4.vendorName).toBe("Vendor T");
