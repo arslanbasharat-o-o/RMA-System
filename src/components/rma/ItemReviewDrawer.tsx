@@ -303,13 +303,15 @@ export function ItemReviewDrawer({
 
           {item?.visualStatus === "failed" && (
             <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
-              <p className="font-medium">Visual search timed out. Select a model below to verify.</p>
+              <p className="font-semibold">Visual identification unavailable</p>
+              <p>{/abort|timed out|timeout/i.test(item.visualError || "") ? "The visual search timed out. " : "The visual provider could not identify this image. "}Your photos are saved.{item.vendorOcrStatus === "success" ? " Text recognition completed successfully." : ""} Retry the image later or select a verified model below.</p>
               <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")}>Retry visual identification</Button>
             </div>
           )}
           {item?.vendorOcrStatus === "failed" && (
             <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
-              <p className="font-medium">Markings recognition unavailable. Select vendor below.</p>
+              <p className="font-semibold">Markings recognition unavailable</p>
+              <p>Your photos are saved. Retry the markings scan later or select the vendor manually.</p>
               <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")}>Retry markings recognition</Button>
             </div>
           )}
