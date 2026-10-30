@@ -580,6 +580,7 @@ export default function DisplayCatalogPage() {
         <Modal
           isOpen={showDetailModal}
           onClose={() => setShowDetailModal(false)}
+          maxWidth="max-w-2xl"
           title={
             selectedProduct
               ? `${selectedProduct.manufacturer} ${selectedProduct.modelName} — ${selectedProduct.variantName}`
@@ -588,28 +589,54 @@ export default function DisplayCatalogPage() {
         >
           {selectedProduct && (
             <div className="space-y-4">
-              <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 space-y-1.5">
-                <div className="flex justify-between items-center">
+              <div className="p-3.5 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50/70 dark:bg-neutral-900/40 space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 block">Product SKU</span>
-                    <span className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100">
-                      {selectedProduct.printedTitle}
+                    <span className="text-[10px] uppercase font-semibold tracking-wider text-neutral-400 dark:text-neutral-500 block">
+                      Product SKU
                     </span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className="text-sm font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                        {selectedProduct.printedTitle}
+                      </span>
+                      {selectedProduct.supplierSku && selectedProduct.supplierSku !== selectedProduct.printedTitle && (
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                          Alt: {selectedProduct.supplierSku}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <CopyBadge
-                    value={selectedProduct.barcodeValue || ""}
-                    label={selectedProduct.barcodeValue ? `UPC: ${selectedProduct.barcodeValue}` : "No Barcode"}
-                  />
+                  <div>
+                    {selectedProduct.barcodeValue ? (
+                      <CopyBadge
+                        value={selectedProduct.barcodeValue}
+                        label={`UPC: ${selectedProduct.barcodeValue}`}
+                      />
+                    ) : (
+                      <span className="text-[11px] text-neutral-400 font-mono">No barcode</span>
+                    )}
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-500 pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800">
-                  <div>Catalog Model: <strong className="text-neutral-800 dark:text-neutral-200">{selectedProduct.manufacturer} {selectedProduct.modelName} ({selectedProduct.variantName})</strong></div>
-                  <div>Source Key: <strong className="font-mono text-neutral-800 dark:text-neutral-200">{selectedProduct.sourceKey.slice(0, 16)}…</strong></div>
+
+                <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800 flex flex-wrap items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
+                  <div>
+                    <span className="text-neutral-400">Model: </span>
+                    <strong className="text-neutral-800 dark:text-neutral-200 font-medium">
+                      {selectedProduct.manufacturer} {selectedProduct.modelName} ({selectedProduct.variantName})
+                    </strong>
+                  </div>
+                  {selectedProduct.sourceKey && (
+                    <div className="text-[10px] font-mono text-neutral-400" title={selectedProduct.sourceKey}>
+                      Key: {selectedProduct.sourceKey.slice(0, 12)}…
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* Reference Selector Tabs if multiple */}
               {selectedProduct.references.length > 1 && (
-                <div className="flex gap-2 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                <div className="flex items-center gap-1.5 border-b border-neutral-200 dark:border-neutral-800 pb-2">
+                  <span className="text-[10px] uppercase font-semibold text-neutral-400 mr-1">Samples:</span>
                   {selectedProduct.references.map((r) => (
                     <button
                       key={r.id}
@@ -617,8 +644,8 @@ export default function DisplayCatalogPage() {
                       onClick={() => setSelectedRef(r)}
                       className={`px-2.5 py-1 rounded text-xs font-mono font-medium transition-colors ${
                         selectedRef?.id === r.id
-                          ? "bg-indigo-600 text-white"
-                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300"
+                          ? "bg-indigo-600 text-white shadow-xs"
+                          : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
                       }`}
                     >
                       {r.sourceDisplayId}
@@ -629,32 +656,35 @@ export default function DisplayCatalogPage() {
 
               {/* Reference Viewer */}
               {selectedRef && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-900 flex items-center justify-center min-h-[220px]">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden bg-neutral-950 flex items-center justify-center min-h-[240px] p-2">
                     <img
                       src={`/api/images/${selectedRef.id}`}
                       alt={selectedRef.sourceDisplayId}
-                      className="max-h-[300px] w-auto object-contain"
+                      className="max-h-[320px] w-auto object-contain rounded"
                     />
                   </div>
 
-                  <div className="space-y-3 text-xs">
+                  <div className="space-y-3.5 text-xs">
                     <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-semibold">
+                      <span className="text-neutral-400 block text-[10px] uppercase font-semibold tracking-wider">
                         Sample Identifier
                       </span>
-                      <div className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm">
-                        {selectedRef.sourceDisplayId} ({selectedRef.sourceImageId})
+                      <div className="font-mono font-bold text-neutral-900 dark:text-neutral-100 text-sm mt-0.5">
+                        {selectedRef.sourceDisplayId}{" "}
+                        <span className="text-xs font-normal text-neutral-400">
+                          ({selectedRef.sourceImageId})
+                        </span>
                       </div>
                     </div>
 
                     <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-semibold">
+                      <span className="text-neutral-400 block text-[10px] uppercase font-semibold tracking-wider">
                         Match Engine Status
                       </span>
                       <div className="flex items-center gap-2 mt-1">
                         <span
-                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-xs font-medium ${
                             selectedRef.isMatchable
                               ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
                               : "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800"
@@ -666,53 +696,47 @@ export default function DisplayCatalogPage() {
                           variant="outline"
                           size="sm"
                           onClick={() => handleToggleReference(selectedRef)}
-                          className="h-6 text-[10px] px-2"
+                          className="h-6 text-[11px] px-2.5"
                         >
                           {selectedRef.isMatchable ? "Deactivate" : "Activate"}
                         </Button>
                       </div>
                     </div>
 
-                    {selectedRef.cropMetadata && (
+                    {/* Only render Readable Markings if they actually exist */}
+                    {Array.isArray(selectedRef.readableMarkings) && selectedRef.readableMarkings.length > 0 && (
                       <div>
-                        <span className="text-neutral-400 block text-[10px] uppercase font-semibold">
-                          Crop Bounds
-                        </span>
-                        <pre className="text-[10px] bg-neutral-100 dark:bg-neutral-900 p-2 rounded border border-neutral-200 dark:border-neutral-800 font-mono text-neutral-700 dark:text-neutral-300 mt-1">
-                          {JSON.stringify(selectedRef.cropMetadata, null, 2)}
-                        </pre>
-                      </div>
-                    )}
-
-                    {selectedRef.readableMarkings && (
-                      <div>
-                        <span className="text-neutral-400 block text-[10px] uppercase font-semibold">
+                        <span className="text-neutral-400 block text-[10px] uppercase font-semibold tracking-wider">
                           Readable Markings
                         </span>
                         <div className="space-y-1 mt-1">
-                          {Array.isArray(selectedRef.readableMarkings) ? (
-                            selectedRef.readableMarkings.map((m: any, idx: number) => {
-                              const text = typeof m === "string" ? m : m?.text || JSON.stringify(m);
-                              const loc = typeof m === "object" && m?.location ? ` (${m.location})` : "";
-                              return (
-                                <div
-                                  key={idx}
-                                  className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800"
-                                >
-                                  <strong className="font-mono text-indigo-600 dark:text-indigo-400">{text}</strong>
-                                  {loc && <span className="text-neutral-500">{loc}</span>}
-                                </div>
-                              );
-                            })
-                          ) : typeof selectedRef.readableMarkings === "string" ? (
-                            <div className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800">
-                              <strong className="font-mono text-indigo-600 dark:text-indigo-400">
-                                {selectedRef.readableMarkings}
-                              </strong>
-                            </div>
-                          ) : null}
+                          {selectedRef.readableMarkings.map((m: any, idx: number) => {
+                            const text = typeof m === "string" ? m : m?.text || JSON.stringify(m);
+                            const loc = typeof m === "object" && m?.location ? ` (${m.location})` : "";
+                            return (
+                              <div
+                                key={idx}
+                                className="text-[11px] p-1.5 rounded bg-neutral-50 dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 flex items-center justify-between"
+                              >
+                                <strong className="font-mono text-indigo-600 dark:text-indigo-400">{text}</strong>
+                                {loc && <span className="text-neutral-400 text-[10px]">{loc}</span>}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
+                    )}
+
+                    {/* Technical crop coordinates collapsed in details */}
+                    {selectedRef.cropMetadata && (
+                      <details className="text-[11px] text-neutral-500 pt-1 group">
+                        <summary className="text-[10px] uppercase font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer select-none">
+                          Technical Crop Coordinates
+                        </summary>
+                        <pre className="text-[10px] bg-neutral-100 dark:bg-neutral-900 p-2 rounded border border-neutral-200 dark:border-neutral-800 font-mono text-neutral-600 dark:text-neutral-400 mt-1 overflow-x-auto">
+                          {JSON.stringify(selectedRef.cropMetadata, null, 2)}
+                        </pre>
+                      </details>
                     )}
                   </div>
                 </div>
