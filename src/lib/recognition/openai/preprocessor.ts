@@ -122,8 +122,7 @@ export async function preprocessForOcr(
 
       const midBackBuffer = await sharp(primaryBuffer)
         .extract({ left: midLeft, top: midTop, width: midWidth, height: midHeight })
-        .linear(1.3, -15)
-        .sharpen({ sigma: 2.0, m1: 1.5, m2: 3.0 })
+        .clahe({ width: 24, height: 24, maxSlope: 3 })
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
       crops.push({ kind: "mid_back_stamp", label: "mid-backplate inspection stamp and shield markings", buffer: midBackBuffer });
@@ -132,24 +131,29 @@ export async function preprocessForOcr(
       // Critical: Factory QC & vendor ink stamps on display backplates are frequently stamped upside-down
       // relative to the phone's upright orientation. Providing this 180° rotated crop enables OCR models
       // to read inverted stamps right-side-up with complete clarity.
-      const midBackInvertedBuffer = await sharp(midBackBuffer)
+      const invTargetWidth = Math.max(800, midWidth * 2);
+      const midBackInvertedBuffer = await sharp(primaryBuffer)
+        .extract({ left: midLeft, top: midTop, width: midWidth, height: midHeight })
         .rotate(180)
+        .resize(invTargetWidth, null, { kernel: "lanczos3", withoutEnlargement: false })
+        .clahe({ width: 24, height: 24, maxSlope: 3 })
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
       crops.push({ kind: "mid_back_stamp", label: "mid-backplate markings (180-degree rotated view for inverted ink stamps)", buffer: midBackInvertedBuffer });
 
-      // Tight focused lower-mid stamp crop (y: 47% to 65%):
+      // Tight focused lower-mid stamp crop (y: 44% to 66%):
       // Provides a close-up magnification of the factory stamp zone right above the flex connector
-      const tightTop = Math.max(0, Math.floor(height * 0.47));
-      const tightHeight = Math.min(height - tightTop, Math.floor(height * 0.18));
-      const tightWidth = Math.max(1, Math.floor(width * 0.65));
+      const tightTop = Math.max(0, Math.floor(height * 0.44));
+      const tightHeight = Math.min(height - tightTop, Math.floor(height * 0.20));
+      const tightWidth = Math.max(1, Math.floor(width * 0.60));
       const tightLeft = Math.floor((width - tightWidth) / 2);
+      const tightTargetWidth = Math.max(900, tightWidth * 3);
 
       const tightStampBuffer = await sharp(primaryBuffer)
         .extract({ left: tightLeft, top: tightTop, width: tightWidth, height: tightHeight })
         .rotate(180)
-        .normalize()
-        .sharpen({ sigma: 2.0, m1: 1.5, m2: 3.0 })
+        .resize(tightTargetWidth, null, { kernel: "lanczos3", withoutEnlargement: false })
+        .clahe({ width: 24, height: 24, maxSlope: 3 })
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
       crops.push({ kind: "mid_back_stamp", label: "tight close-up of vendor ink stamp (rotated 180-degrees)", buffer: tightStampBuffer });
