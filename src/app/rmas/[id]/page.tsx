@@ -676,7 +676,7 @@ export default function RmaDetailPage({
                           </span>
                         ) : (
                           <span className="text-slate-400 dark:text-slate-500 italic">
-                            Unidentified
+                            Unidentified Vendor
                           </span>
                         )}
                       </td>
