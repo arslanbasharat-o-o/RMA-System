@@ -75,11 +75,11 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 ## Last verified
 
 - Date: 2026-10-30 (Asia/Karachi).
-- Application image source: `81683cef206160477756278be0adfce8dc55fbd2` (version `0.4.11`); GitHub main is `81683ce`.
-- Deployed release: `v0.4.11` active at `/opt/rma-system/releases/v0.4.11-81683ce`; symlink `/opt/rma-system/app` verified pointing to `v0.4.11-81683ce`.
+- Application image source: `d88f95844d59b3362a0c17442b8c55d947e83cb7` (version `0.4.11`); GitHub main is `d88f958`.
+- Deployed release: `v0.4.11` active at `/opt/rma-system/releases/v0.4.11-d88f958`; symlink `/opt/rma-system/app` verified pointing to `v0.4.11-d88f958`.
 - App/worker/database health verified healthy on 0.4.11 (`/api/health` returns HTTP 200 `{"status":"ok","database":"healthy","version":"0.4.11"}`).
 - Resolved display identification bug on RMA `94bfc7fc-7137-4196-8dff-39d661736ac3` (test item `2a4cee2f-5553-475a-84f9-a8a96bdf6b07`): filtered contradictory cues in `src/lib/recognition/seeded-inventory.ts` and refined OpenAI vision system prompt. Live verified on production database: recognized as `iPhone 16 Pro` (`iPhone 16 Pro Hard OLED Display`, barcode `665871925243`) with 0.99 confidence. Item 2 recognized as `iPhone 16 Plus` (`iPhone 16 Plus COF Display`, barcode `665386615219`) with 0.99 confidence.
-- Seeded Data Management: implemented `/display-catalog` and `/api/display-inventory` with catalog stats (76 products, 83 references), reference image inspection via `/api/images/[id]`, active/matchable toggles, dry-run sync diff preview, and role-protected safe test data cleanup.
+- Seeded Data Management & SKU Clarity: implemented `/display-catalog` and `/api/display-inventory` with catalog stats (76 products, 83 references), reference image inspection via `/api/images/[id]`, active/matchable toggles, dry-run sync diff preview, and role-protected safe test data cleanup. Consolidated table columns to correctly identify printed titles as primary "Product SKU" (e.g., `Liphone 11 AM`, `Liphone 16 Pro Hard OLED`), eliminated redundant empty "Supplier SKU" columns, and populated `supplier_sku` across all 76 database records in production.
 - Addressed all CodeRabbit review findings: hardened disposable test predicate, restricted API roles to admin/operator, separated sync diff metrics, enforced strict boolean confirmation, and refined candidate rejection cue filtering.
 - Full automated test suite passes: TypeScript typecheck, ESLint, 30 Vitest test files (234 tests), production Docker builder, and multi-browser Playwright matrix.
 - Production zero-downtime deployment active on `https://rma.txparts.io`. Previous backups (`v0.4.10-360d3bc` and `v0.4.9-231c24e`) retained for instant rollback.
