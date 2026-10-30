@@ -34,7 +34,7 @@ const BlurIn = ({ word, className, "data-testid": testId, variant, duration = 1 
       variants={combinedVariants}
       data-testid={testId}
       className={cn(
-        "font-display text-center text-4xl font-bold tracking-[-0.02em] drop-shadow-sm md:text-7xl md:leading-[5rem]",
+        "font-display text-xl sm:text-2xl md:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50",
         className,
       )}
     >

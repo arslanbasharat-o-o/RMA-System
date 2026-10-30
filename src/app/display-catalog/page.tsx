@@ -299,7 +299,7 @@ export default function DisplayCatalogPage() {
               word="Display Inventory Catalog"
               data-testid="display-catalog-title"
               duration={0.24}
-              className="text-left text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
             />
           </div>
 
