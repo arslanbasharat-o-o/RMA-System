@@ -74,13 +74,14 @@ function productValues(product: SeedProduct) {
     barcodeValue: product.barcodeValue,
     barcodeFormat: product.barcodeFormat,
     barcodeSymbology: product.barcodeSymbology,
-    supplierSku: product.supplierSku,
+    supplierSku: product.supplierSku || product.printedTitle,
     otherCodes: product.otherCodes,
     updatedAt: new Date(),
   };
 }
 
 function productMatchesSeed(existing: typeof seededDisplayProducts.$inferSelect, product: SeedProduct) {
+  const expectedSku = product.supplierSku || product.printedTitle;
   return existing.manufacturer === product.manufacturer &&
     existing.modelName === product.modelName &&
     existing.variantName === product.variantName &&
@@ -88,7 +89,7 @@ function productMatchesSeed(existing: typeof seededDisplayProducts.$inferSelect,
     existing.barcodeValue === product.barcodeValue &&
     existing.barcodeFormat === product.barcodeFormat &&
     existing.barcodeSymbology === product.barcodeSymbology &&
-    existing.supplierSku === product.supplierSku &&
+    (existing.supplierSku === expectedSku || existing.supplierSku === product.supplierSku) &&
     JSON.stringify(existing.otherCodes) === JSON.stringify(product.otherCodes);
 }
 

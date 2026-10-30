@@ -82,7 +82,7 @@ test.describe("Display Inventory Catalog Management", () => {
     await expect(page.getByText("Catalog-First Visual")).toBeVisible();
 
     // 4. Test Search Filter for iPhone 16 Pro
-    const searchInput = page.getByPlaceholder(/Search model, printed title, UPC barcode/i);
+    const searchInput = page.getByPlaceholder(/Search model.*barcode/i);
     await expect(searchInput).toBeVisible();
     await searchInput.fill("iPhone 16 Pro");
 
