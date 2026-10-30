@@ -297,24 +297,36 @@ export function ItemReviewDrawer({
           )}
 
           {["uploaded", "queued", "processing"].includes(item?.status) && (
-            <div role="status" className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-400 py-1">
-              <LoadingMessage label="Processing display photos…" compact />
+            <div role="status" className="rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 p-3 text-xs text-neutral-800 dark:text-neutral-200">
+              <p className="font-semibold">
+                {item.status === "queued"
+                  ? "Queued for optical analysis…"
+                  : item.visualStatus === "pending"
+                    ? item.vendorOcrStatus === "success"
+                      ? "Analyzing display model…"
+                      : "Scanning display model and markings…"
+                    : item.vendorOcrStatus === "pending"
+                      ? "Reading physical markings…"
+                      : "Preparing final recognition results…"}
+              </p>
             </div>
           )}
 
           {item?.visualStatus === "failed" && (
-            <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              <span>Visual recognition was unavailable for this photograph.</span>
-              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")} className="h-7 text-xs shrink-0 active:scale-[0.97]">
-                Retry
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
+              <p className="font-semibold">Visual identification unavailable</p>
+              <p>{/abort|timed out|timeout/i.test(item.visualError || "") ? "The visual search timed out. " : "The visual provider could not identify this image. "}Your photos are saved.{item.vendorOcrStatus === "success" ? " Text recognition completed successfully." : ""} Retry the image later or select a verified model below.</p>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")} className="active:scale-[0.97]">
+                Retry visual identification
               </Button>
             </div>
           )}
           {item?.vendorOcrStatus === "failed" && (
-            <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-2.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-              <span>Markings recognition was unavailable for this photograph.</span>
-              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")} className="h-7 text-xs shrink-0 active:scale-[0.97]">
-                Retry
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
+              <p className="font-semibold">Markings recognition unavailable</p>
+              <p>Physical marking OCR was unavailable for this photograph. Your photos are saved. Retry markings scan or select a verified model below.</p>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")} className="active:scale-[0.97]">
+                Retry markings identification
               </Button>
             </div>
           )}
