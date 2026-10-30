@@ -381,7 +381,7 @@ export default function DisplayCatalogPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-neutral-400" />
             <Input
               type="text"
-              placeholder="Search model, printed title, UPC barcode, SKU, or sample ID (DSP-003)..."
+              placeholder="Search model, SKU, UPC barcode, or sample ID (DSP-003)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-9 h-9 text-xs"
@@ -434,9 +434,8 @@ export default function DisplayCatalogPage() {
                 <thead className="border-b border-neutral-200 dark:border-neutral-800 bg-neutral-50/75 dark:bg-neutral-900/50 text-[11px] font-semibold text-neutral-500 dark:text-neutral-400">
                   <tr>
                     <th className="py-3 px-4">Display Model & Variant</th>
-                    <th className="py-3 px-4">Box Printed Title</th>
+                    <th className="py-3 px-4">Product SKU</th>
                     <th className="py-3 px-4">Box Barcode (UPC/EAN)</th>
-                    <th className="py-3 px-4">Supplier SKU</th>
                     <th className="py-3 px-4">References</th>
                     <th className="py-3 px-4 text-center">Status</th>
                     <th className="py-3 px-4 text-right">Actions</th>
@@ -487,8 +486,15 @@ export default function DisplayCatalogPage() {
                           </div>
                         </td>
 
-                        <td className="py-3 px-4 font-medium text-neutral-700 dark:text-neutral-300">
-                          {product.printedTitle}
+                        <td className="py-3 px-4">
+                          <div className="font-mono font-semibold text-xs text-neutral-900 dark:text-neutral-100">
+                            {product.printedTitle}
+                          </div>
+                          {product.supplierSku && product.supplierSku !== product.printedTitle && (
+                            <div className="text-[10px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5">
+                              Alt: {product.supplierSku}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3 px-4">
@@ -500,10 +506,6 @@ export default function DisplayCatalogPage() {
                           ) : (
                             <span className="text-neutral-400 italic">None</span>
                           )}
-                        </td>
-
-                        <td className="py-3 px-4 font-mono text-[11px] text-neutral-600 dark:text-neutral-400">
-                          {product.supplierSku || "—"}
                         </td>
 
                         <td className="py-3 px-4">
@@ -588,17 +590,20 @@ export default function DisplayCatalogPage() {
             <div className="space-y-4">
               <div className="p-3 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 space-y-1.5">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs font-semibold text-neutral-800 dark:text-neutral-200">
-                    {selectedProduct.printedTitle}
-                  </span>
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 block">Product SKU</span>
+                    <span className="text-xs font-mono font-bold text-neutral-900 dark:text-neutral-100">
+                      {selectedProduct.printedTitle}
+                    </span>
+                  </div>
                   <CopyBadge
                     value={selectedProduct.barcodeValue || ""}
                     label={selectedProduct.barcodeValue ? `UPC: ${selectedProduct.barcodeValue}` : "No Barcode"}
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-500 pt-1 border-t border-neutral-200/60 dark:border-neutral-800">
-                  <div>SKU: <strong className="font-mono text-neutral-800 dark:text-neutral-200">{selectedProduct.supplierSku || "None"}</strong></div>
-                  <div>Source Key: <strong className="font-mono text-neutral-800 dark:text-neutral-200">{selectedProduct.sourceKey}</strong></div>
+                <div className="grid grid-cols-2 gap-2 text-[11px] text-neutral-500 pt-1.5 border-t border-neutral-200/60 dark:border-neutral-800">
+                  <div>Catalog Model: <strong className="text-neutral-800 dark:text-neutral-200">{selectedProduct.manufacturer} {selectedProduct.modelName} ({selectedProduct.variantName})</strong></div>
+                  <div>Source Key: <strong className="font-mono text-neutral-800 dark:text-neutral-200">{selectedProduct.sourceKey.slice(0, 16)}…</strong></div>
                 </div>
               </div>
 

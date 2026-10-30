@@ -464,8 +464,8 @@ export default function RmaDetailPage({
                     )}
                     {item.seededProduct && (
                       <p className="text-[10px] leading-snug text-sky-800 dark:text-sky-300">
-                        Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
-                        {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
+                        Product SKU: <span className="font-mono">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</span>
+                        {" · "}Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
                       </p>
                     )}
                     {item.inventoryMatchEvidence && (
@@ -651,8 +651,8 @@ export default function RmaDetailPage({
                         )}
                         {item.seededProduct && (
                           <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                            Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
-                            {" · "}Catalog SKU: <span className="font-mono">{item.seededProduct.supplierSku || "—"}</span>
+                            Product SKU: <span className="font-mono">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</span>
+                            {" · "}Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
                           </p>
                         )}
                         {item.inventoryMatchEvidence && (

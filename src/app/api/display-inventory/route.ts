@@ -167,12 +167,13 @@ export async function POST(req: NextRequest) {
         if (!existing) {
           createProds++;
         } else {
+          const expectedSku = p.supplierSku || p.printedTitle;
           const willChange =
             existing.modelName !== p.modelName ||
             existing.variantName !== p.variantName ||
             existing.printedTitle !== p.printedTitle ||
             existing.barcodeValue !== (p.barcodeValue || null) ||
-            existing.supplierSku !== (p.supplierSku || null) ||
+            (existing.supplierSku !== expectedSku && existing.supplierSku !== (p.supplierSku || null)) ||
             !existing.isActive;
           if (willChange) updateProds++;
           else unchangedProds++;

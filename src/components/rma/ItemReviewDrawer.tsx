@@ -376,15 +376,12 @@ export function ItemReviewDrawer({
                   <span className="font-semibold text-sky-950 dark:text-sky-100">Seeded inventory match</span>
                   <Badge variant="outline">{item?.status === "verified" ? "Confirmed" : "Needs confirmation"}</Badge>
                 </div>
-                <p className="mt-1 text-sky-900 dark:text-sky-200">
+                <p className="mt-1 font-medium text-sky-900 dark:text-sky-200">
                   {item.seededProduct.modelName} · {item.seededProduct.variantName}
                 </p>
-                <p className="mt-1 text-[11px] text-sky-800 dark:text-sky-300">
-                  Printed box title: <span className="font-medium">{item.seededProduct.printedTitle}</span>
-                </p>
                 <div className="mt-2 grid grid-cols-1 gap-1 border-t border-sky-200 pt-2 text-[11px] dark:border-sky-900 sm:grid-cols-2">
-                  <span>Catalog UPC/EAN: <strong className="font-mono">{item.seededProduct.barcodeValue || "Not present in seed"}</strong></span>
-                  <span>Catalog SKU: <strong className="font-mono">{item.seededProduct.supplierSku || "Not present in seed"}</strong></span>
+                  <span>Product SKU: <strong className="font-mono text-sky-950 dark:text-sky-100">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</strong></span>
+                  <span>Catalog UPC/EAN: <strong className="font-mono text-sky-950 dark:text-sky-100">{item.seededProduct.barcodeValue || "—"}</strong></span>
                 </div>
                 {item.seededProduct.barcodeValue && (
                   <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
