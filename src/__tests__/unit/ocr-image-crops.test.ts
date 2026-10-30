@@ -26,9 +26,16 @@ describe("angle-aware display crops", () => {
   it("crops the bottom flex area and connector markings from a back view", async () => {
     const result = await preprocessForOcr(await sampleImage(), "back");
 
-    expect(result.allCrops.map((crop) => crop.kind)).toEqual(["flex_area", "connector_markings"]);
+    expect(result.allCrops.map((crop) => crop.kind)).toEqual([
+      "flex_area",
+      "connector_markings",
+      "mid_back_stamp",
+      "mid_back_stamp",
+    ]);
     expect(result.allCrops[0].label).toContain("flex cable");
     expect(result.allCrops[1].label).toContain("markings");
+    expect(result.allCrops[2].label).toContain("mid-backplate");
+    expect(result.allCrops[3].label).toContain("rotated view");
     expect((await sharp(result.allCrops[0].buffer).metadata()).height).toBe(400);
   });
 

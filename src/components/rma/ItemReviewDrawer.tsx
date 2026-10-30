@@ -331,25 +331,25 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {/* Featured Photo Viewer */}
+          {/* Featured Photo Viewer - Full resolution display */}
           {currentImage ? (
             <div className="space-y-2">
               <div
-                onClick={() => setZoomedImage(`/api/images/${currentImage.id}?size=preview`)}
-                className="group relative w-full h-64 sm:h-72 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900/60 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
-                title="Click to zoom image"
+                onClick={() => setZoomedImage(`/api/images/${currentImage.id}`)}
+                className="group relative w-full h-80 sm:h-96 md:h-[400px] rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-900/95 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
+                title="Click to zoom full-resolution image"
               >
                 <img
-                  src={`/api/images/${currentImage.id}?size=preview`}
+                  src={`/api/images/${currentImage.id}`}
                   alt={currentImage.originalFilename || "Display photograph"}
                   className="max-h-full max-w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.02]"
                 />
-                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-black/75 text-white backdrop-blur-xs">
                   {currentImage.imageType || "Photo"}
                 </span>
-                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded bg-black/70 text-[11px] text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/75 text-xs text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                   <ZoomIn className="h-3.5 w-3.5" />
-                  <span>Zoom</span>
+                  <span>Full Res Zoom</span>
                 </div>
               </div>
 
@@ -387,7 +387,7 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {/* Clean Display Details: No nested boxes or CSS capsules */}
+          {/* Clean Display Details */}
           <div className="space-y-3 pt-2">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -416,7 +416,7 @@ export function ItemReviewDrawer({
             {activeBarcode && (
               <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider mb-1.5">
-                  Visual Barcode (UPC/EAN)
+                  Barcode (UPC/EAN)
                 </span>
                 <div className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-center">
                   <BarcodeVisual value={activeBarcode} height={44} showText={true} />
@@ -440,21 +440,29 @@ export function ItemReviewDrawer({
                   Vendor
                 </span>
                 <span className="font-medium text-neutral-800 dark:text-neutral-200 mt-0.5 block">
-                  {item?.identifiedVendorName || "Unidentified"}
-                  {item?.identifiedVendorVariantName && (
-                    <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
+                  {item?.identifiedVendorName ? (
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      {item.identifiedVendorName}
+                      {item.identifiedVendorVariantName && (
+                        <span className="text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                          ({item.identifiedVendorVariantName})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400 dark:text-neutral-500">Unidentified</span>
                   )}
                 </span>
               </div>
 
               {item?.extractedTextSummary && (
-                <div>
+                <div className="col-span-2 pt-1">
                   <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
-                    Markings
+                    Extracted Markings & Stamps
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate mt-0.5 block">
+                  <div className="mt-1 p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/70 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-words">
                     {item.extractedTextSummary}
-                  </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -517,7 +525,7 @@ export function ItemReviewDrawer({
           {/* Verification & Manual Overrides */}
           <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Verify or Correct Model
+              Model & Vendor Verification
             </h4>
 
             {/* Model Inputs */}
@@ -561,10 +569,10 @@ export function ItemReviewDrawer({
                   setSelectedVariantId("");
                 }}
               >
-                <option value="">-- Unidentified Vendor --</option>
+                <option value="">Unidentified Vendor</option>
                 {vendorList.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name}
+                    {v.name} ({v.code})
                   </option>
                 ))}
               </Select>
@@ -580,10 +588,10 @@ export function ItemReviewDrawer({
                   value={selectedVariantId}
                   onChange={(e) => { editing.current = true; setSelectedVariantId(e.target.value); }}
                 >
-                  <option value="">-- None / Standard --</option>
+                  <option value="">Standard / Default</option>
                   {currentVendor.variants.map((va: any) => (
                     <option key={va.id} value={va.id}>
-                      {va.name}
+                      {va.name} ({va.code})
                     </option>
                   ))}
                 </Select>

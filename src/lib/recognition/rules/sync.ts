@@ -65,6 +65,23 @@ export async function syncVendorRecognitionRules(vendorId: string): Promise<numb
       confidenceWeight: 0.95,
       description: `Auto-generated stamp pattern rule for vendor ${vendor.name}`,
     });
+
+    // Auto-generate code family prefix rule (e.g. "TXP" from "TXP06-COF")
+    const alphaMatch = cleanCode.match(/^([A-Z]{3,6})/);
+    if (alphaMatch) {
+      const prefix = alphaMatch[1];
+      if (prefix !== cleanCode) {
+        desiredRules.push({
+          vendorId: vendor.id,
+          vendorVariantId: null,
+          ruleType: "stamp_pattern",
+          pattern: prefix,
+          priority: 155,
+          confidenceWeight: 0.9,
+          description: `Auto-generated prefix stamp rule for vendor ${vendor.name} (${prefix})`,
+        });
+      }
+    }
   }
 
   // 2. Vendor Aliases (e.g. additional stock / stamp codes like TXP08, TXP10)

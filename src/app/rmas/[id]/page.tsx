@@ -22,7 +22,6 @@ import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { hasModelSuggestion } from "@/lib/model-result";
 import {
   CardSpotlight,
-  CopyBadge,
   StatusText,
   ShimmerButton,
 } from "@/components/premium";
@@ -263,7 +262,9 @@ export default function RmaDetailPage({
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1><CopyBadge value={rma?.rmaNumber || ""} className="text-base sm:text-lg font-bold py-1 px-3" /></h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 font-mono">
+                  {rma?.rmaNumber}
+                </h1>
                 <StatusText
                   variant={
                     rmaShipmentStatus === "completed"
@@ -272,10 +273,8 @@ export default function RmaDetailPage({
                       ? "neutral"
                       : "info"
                   }
-                  showIcon={false}
-                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 font-semibold"
                 >
-                  Shipment: {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
+                  {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
                 </StatusText>
               </div>
 

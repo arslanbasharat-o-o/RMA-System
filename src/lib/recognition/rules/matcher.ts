@@ -50,6 +50,25 @@ export class VendorRuleMatcher {
         existingRuleKeys.add(`${v.id}:${codeUpper}`);
       }
 
+      // Auto-synthesize prefix stamp rule for code families (e.g. "TXP" from "TXP06-COF", "TXP09", "TXP-08")
+      const alphaPrefixMatch = codeUpper.match(/^([A-Z]{3,6})/);
+      if (alphaPrefixMatch) {
+        const prefix = alphaPrefixMatch[1];
+        if (!existingRuleKeys.has(`${v.id}:${prefix}`)) {
+          synthesized.push({
+            id: `synth-prefix-${v.id}-${prefix}`,
+            vendorId: v.id,
+            vendorVariantId: null,
+            ruleType: "stamp_pattern",
+            pattern: prefix,
+            priority: 160,
+            confidenceWeight: 0.9,
+            isActive: true,
+          });
+          existingRuleKeys.add(`${v.id}:${prefix}`);
+        }
+      }
+
       for (const alias of v.aliases || []) {
         const aliasUpper = alias.toUpperCase();
         if (!existingRuleKeys.has(`${v.id}:${aliasUpper}`)) {
@@ -119,6 +138,19 @@ export class VendorRuleMatcher {
       const parts = upper.split(/[\s,;:|/\-_()[\]{}]+/).filter((p) => p.length >= 2);
       for (const p of parts) {
         expandedTokens.add(p);
+        const pStripped = p.replace(/[^A-Z0-9]/g, "");
+        if (pStripped && pStripped !== p) {
+          expandedTokens.add(pStripped);
+        }
+        // Extract alpha prefix from sub-token (e.g. "TXPP05" -> "TXPP", "TXP05" -> "TXP")
+        const partAlpha = pStripped.match(/^([A-Z]{3,6})/);
+        if (partAlpha) {
+          expandedTokens.add(partAlpha[1]);
+          // For 4-letter prefixes like TXPP, also add the 3-letter root TXP
+          if (partAlpha[1].length === 4 && partAlpha[1].endsWith("P")) {
+            expandedTokens.add(partAlpha[1].slice(0, 3));
+          }
+        }
       }
     }
 

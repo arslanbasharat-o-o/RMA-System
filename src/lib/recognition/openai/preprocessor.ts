@@ -10,7 +10,7 @@ export type DisplayImageType =
   | "general";
 
 export interface DisplayFeatureCrop {
-  kind: "camera_notch" | "flex_area" | "connector_markings" | "detail";
+  kind: "camera_notch" | "flex_area" | "connector_markings" | "mid_back_stamp" | "detail";
   label: string;
   buffer: Buffer;
 }
@@ -112,6 +112,31 @@ export async function preprocessForOcr(
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
       crops.push({ kind: "connector_markings", label: "flex cable connector markings close-up", buffer: enhancedStampBuffer });
+
+      // Mid-backplate stamp & markings region (y: 35% to 75%):
+      // Vendor stamps, QC inspection marks, and supplier codes are often placed on the mid-back shield
+      const midTop = Math.max(0, Math.floor(height * 0.35));
+      const midHeight = Math.min(height - midTop, Math.floor(height * 0.40));
+      const midWidth = Math.max(1, Math.floor(width * 0.85));
+      const midLeft = Math.floor((width - midWidth) / 2);
+
+      const midBackBuffer = await sharp(primaryBuffer)
+        .extract({ left: midLeft, top: midTop, width: midWidth, height: midHeight })
+        .linear(1.3, -15)
+        .sharpen({ sigma: 2.0, m1: 1.5, m2: 3.0 })
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "mid_back_stamp", label: "mid-backplate inspection stamp and shield markings", buffer: midBackBuffer });
+
+      // Inverted (180° rotated) mid-backplate view:
+      // Critical: Factory QC & vendor ink stamps on display backplates are frequently stamped upside-down
+      // relative to the phone's upright orientation. Providing this 180° rotated crop enables OCR models
+      // to read inverted stamps right-side-up with complete clarity.
+      const midBackInvertedBuffer = await sharp(midBackBuffer)
+        .rotate(180)
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "mid_back_stamp", label: "mid-backplate markings (180-degree rotated view for inverted ink stamps)", buffer: midBackInvertedBuffer });
     } else if (type === "flex_cable") {
       const detailWidth = Math.max(1, Math.floor(width * 0.85));
       const detailHeight = Math.max(1, Math.floor(height * 0.85));
