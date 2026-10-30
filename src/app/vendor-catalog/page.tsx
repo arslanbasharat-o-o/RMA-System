@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { Play, Sparkles } from "lucide-react";
+import { Play, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -183,6 +183,40 @@ export default function VendorCatalogPage() {
     setTestResult(topMatch);
   };
 
+  const handleDeleteVendor = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove vendor "${name}"?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/vendors/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete vendor");
+      toast.success(`Vendor "${name}" removed.`);
+      fetchData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete vendor");
+    }
+  };
+
+  const handleDeleteVariant = async (id: string, name: string) => {
+    if (!window.confirm(`Are you sure you want to remove variant "${name}"?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/vendor-variants/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete variant");
+      toast.success(`Variant "${name}" removed.`);
+      fetchData();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete variant");
+    }
+  };
+
   const activeVendorForVariant = vendors.find((v) => v.id === ruleVendorId);
 
   return (
@@ -306,9 +340,19 @@ export default function VendorCatalogPage() {
                           </p>
                         )}
                       </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200/60 dark:border-neutral-700/60 shrink-0 whitespace-nowrap leading-none">
-                        {vendor.variants?.length || 0} variants
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 border border-neutral-200/60 dark:border-neutral-700/60 shrink-0 whitespace-nowrap leading-none">
+                          {vendor.variants?.length || 0} variants
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteVendor(vendor.id, vendor.name)}
+                          className="p-1 rounded text-neutral-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                          title="Remove vendor"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -330,9 +374,19 @@ export default function VendorCatalogPage() {
                                 ({va.code})
                               </span>
                             </div>
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
-                              {va.displayTechnology || "Standard"}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded border border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300">
+                                {va.displayTechnology || "Standard"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVariant(va.id, va.name)}
+                                className="p-1 rounded text-neutral-400 hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                title="Remove variant"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
                           </div>
                         ))}
                         {(!vendor.variants || vendor.variants.length === 0) && (

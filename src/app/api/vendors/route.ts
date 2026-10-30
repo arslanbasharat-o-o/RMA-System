@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vendors, vendorVariants, vendorRecognitionRules } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
 const CreateVendorSchema = z.object({
@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
   const vendorList = await db
     .select()
     .from(vendors)
+    .where(eq(vendors.isActive, true))
     .orderBy(desc(vendors.createdAt));
 
   // Include child variants
@@ -28,11 +29,21 @@ export async function GET(req: NextRequest) {
       const variants = await db
         .select()
         .from(vendorVariants)
-        .where(eq(vendorVariants.vendorId, v.id));
+        .where(
+          and(
+            eq(vendorVariants.vendorId, v.id),
+            eq(vendorVariants.isActive, true)
+          )
+        );
       const rules = await db
         .select()
         .from(vendorRecognitionRules)
-        .where(eq(vendorRecognitionRules.vendorId, v.id));
+        .where(
+          and(
+            eq(vendorRecognitionRules.vendorId, v.id),
+            eq(vendorRecognitionRules.isActive, true)
+          )
+        );
       return {
         ...v,
         variants,
