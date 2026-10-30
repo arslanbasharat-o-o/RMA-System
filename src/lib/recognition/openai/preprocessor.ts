@@ -137,6 +137,22 @@ export async function preprocessForOcr(
         .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
         .toBuffer();
       crops.push({ kind: "mid_back_stamp", label: "mid-backplate markings (180-degree rotated view for inverted ink stamps)", buffer: midBackInvertedBuffer });
+
+      // Tight focused lower-mid stamp crop (y: 47% to 65%):
+      // Provides a close-up magnification of the factory stamp zone right above the flex connector
+      const tightTop = Math.max(0, Math.floor(height * 0.47));
+      const tightHeight = Math.min(height - tightTop, Math.floor(height * 0.18));
+      const tightWidth = Math.max(1, Math.floor(width * 0.65));
+      const tightLeft = Math.floor((width - tightWidth) / 2);
+
+      const tightStampBuffer = await sharp(primaryBuffer)
+        .extract({ left: tightLeft, top: tightTop, width: tightWidth, height: tightHeight })
+        .rotate(180)
+        .normalize()
+        .sharpen({ sigma: 2.0, m1: 1.5, m2: 3.0 })
+        .jpeg({ quality: 95, chromaSubsampling: "4:4:4" })
+        .toBuffer();
+      crops.push({ kind: "mid_back_stamp", label: "tight close-up of vendor ink stamp (rotated 180-degrees)", buffer: tightStampBuffer });
     } else if (type === "flex_cable") {
       const detailWidth = Math.max(1, Math.floor(width * 0.85));
       const detailHeight = Math.max(1, Math.floor(height * 0.85));

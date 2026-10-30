@@ -31,11 +31,13 @@ describe("angle-aware display crops", () => {
       "connector_markings",
       "mid_back_stamp",
       "mid_back_stamp",
+      "mid_back_stamp",
     ]);
     expect(result.allCrops[0].label).toContain("flex cable");
     expect(result.allCrops[1].label).toContain("markings");
     expect(result.allCrops[2].label).toContain("mid-backplate");
     expect(result.allCrops[3].label).toContain("rotated view");
+    expect(result.allCrops[4].label).toContain("tight close-up");
     expect((await sharp(result.allCrops[0].buffer).metadata()).height).toBe(400);
   });
 
