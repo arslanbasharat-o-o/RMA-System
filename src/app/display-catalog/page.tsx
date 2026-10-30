@@ -583,56 +583,53 @@ export default function DisplayCatalogPage() {
           maxWidth="max-w-2xl"
           title={
             selectedProduct
-              ? `${selectedProduct.manufacturer} ${selectedProduct.modelName} — ${selectedProduct.variantName}`
+              ? `${selectedProduct.manufacturer} ${selectedProduct.modelName}${selectedProduct.variantName ? ` — ${selectedProduct.variantName}` : ""}`
               : "Display Details"
           }
         >
           {selectedProduct && (
             <div className="space-y-4">
-              {/* Reference Selector Tabs if multiple */}
-              {selectedProduct.references.length > 1 && (
-                <div className="flex items-center gap-2 pb-2 border-b border-neutral-200 dark:border-neutral-800">
-                  <span className="text-[11px] font-semibold text-neutral-400">Samples:</span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {selectedProduct.references.map((r) => (
-                      <button
-                        key={r.id}
-                        type="button"
-                        onClick={() => setSelectedRef(r)}
-                        className={`px-2.5 py-1 rounded-md text-xs font-mono font-medium transition-colors ${
-                          selectedRef?.id === r.id
-                            ? "bg-indigo-600 text-white"
-                            : "bg-neutral-100 dark:bg-neutral-850 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-800"
-                        }`}
-                      >
-                        {r.sourceDisplayId}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Main Content: Left Image Showcase + Right Spec Sheet */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-start">
-                {/* Left Side: Product Showcase Frame */}
-                {selectedRef ? (
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/80 dark:bg-neutral-900/60 p-3 flex items-center justify-center min-h-[260px] max-h-[300px]">
-                    <img
-                      src={`/api/images/${selectedRef.id}`}
-                      alt={selectedRef.sourceDisplayId}
-                      className="max-h-[250px] w-auto object-contain rounded-md"
-                    />
+                {/* Left Side: Reference Image Showcase & Sample Selector */}
+                <div className="space-y-2.5">
+                  <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900 flex items-center justify-center min-h-[240px] max-h-[280px] p-3 overflow-hidden">
+                    {selectedRef ? (
+                      <img
+                        src={`/api/images/${selectedRef.id}`}
+                        alt={selectedRef.sourceDisplayId}
+                        className="max-h-[230px] w-auto object-contain rounded"
+                      />
+                    ) : (
+                      <span className="text-xs text-neutral-400">No reference photograph</span>
+                    )}
                   </div>
-                ) : (
-                  <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/40 p-4 flex items-center justify-center min-h-[260px] text-xs text-neutral-400">
-                    No sample image
-                  </div>
-                )}
+
+                  {/* Sample Switcher if multiple */}
+                  {selectedProduct.references.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                      <span className="text-[11px] font-medium text-neutral-400">Sample:</span>
+                      {selectedProduct.references.map((r) => (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => setSelectedRef(r)}
+                          className={`px-2 py-0.5 rounded text-[11px] font-mono font-medium transition-[background-color,color] duration-150 ease-out active:scale-[0.97] cursor-pointer ${
+                            selectedRef?.id === r.id
+                              ? "bg-neutral-900 text-white dark:bg-white dark:text-neutral-900"
+                              : "bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 hover:bg-neutral-200 dark:hover:bg-neutral-700"
+                          }`}
+                        >
+                          {r.sourceDisplayId}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Right Side: Flat Specification List */}
-                <div className="space-y-3 text-xs">
-                  <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                <div className="space-y-3.5 text-xs">
+                  <div>
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                       Product SKU
                     </span>
                     <span className="text-sm font-mono font-bold text-neutral-900 dark:text-neutral-100 mt-0.5 block">
@@ -640,13 +637,13 @@ export default function DisplayCatalogPage() {
                     </span>
                     {selectedProduct.supplierSku && selectedProduct.supplierSku !== selectedProduct.printedTitle && (
                       <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-0.5 block">
-                        Alt: {selectedProduct.supplierSku}
+                        Alt SKU: {selectedProduct.supplierSku}
                       </span>
                     )}
                   </div>
 
-                  <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                       Barcode (UPC)
                     </span>
                     <div className="mt-0.5">
@@ -661,8 +658,8 @@ export default function DisplayCatalogPage() {
                     </div>
                   </div>
 
-                  <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                  <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                       Model & Manufacturer
                     </span>
                     <span className="font-semibold text-neutral-800 dark:text-neutral-200 mt-0.5 block">
@@ -672,9 +669,9 @@ export default function DisplayCatalogPage() {
                   </div>
 
                   {selectedRef && (
-                    <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
-                      <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
-                        Sample Reference
+                    <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                      <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
+                        Sample Identifier
                       </span>
                       <span className="font-mono text-neutral-800 dark:text-neutral-200 mt-0.5 block">
                         {selectedRef.sourceDisplayId}
@@ -686,20 +683,20 @@ export default function DisplayCatalogPage() {
                   )}
 
                   {selectedRef && (
-                    <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+                    <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800 flex items-center justify-between">
                       <div>
-                        <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                        <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                           Match Engine
                         </span>
                         <span className={`text-[11px] font-medium mt-0.5 block ${selectedRef.isMatchable ? "text-emerald-600 dark:text-emerald-400" : "text-amber-600 dark:text-amber-400"}`}>
-                          {selectedRef.isMatchable ? "Active in Matching" : "Excluded"}
+                          {selectedRef.isMatchable ? "Active in Matching Engine" : "Excluded from Engine"}
                         </span>
                       </div>
                       <Button
                         variant="outline"
                         size="sm"
                         onClick={() => handleToggleReference(selectedRef)}
-                        className="h-7 text-[11px] px-2.5"
+                        className="h-7 text-[11px] px-2.5 active:scale-[0.97]"
                       >
                         {selectedRef.isMatchable ? "Deactivate" : "Activate"}
                       </Button>
@@ -708,9 +705,9 @@ export default function DisplayCatalogPage() {
 
                   {/* Readable Markings */}
                   {selectedRef && Array.isArray(selectedRef.readableMarkings) && selectedRef.readableMarkings.length > 0 && (
-                    <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800">
-                      <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider mb-1">
-                        Readable Markings
+                    <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                      <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block mb-1">
+                        Verified Markings
                       </span>
                       <div className="space-y-1">
                         {selectedRef.readableMarkings.map((m: any, idx: number) => {
@@ -724,23 +721,11 @@ export default function DisplayCatalogPage() {
                       </div>
                     </div>
                   )}
-
-                  {/* Technical crop coordinates collapsed in details */}
-                  {selectedRef?.cropMetadata && (
-                    <details className="text-[11px] text-neutral-400 pt-0.5 group">
-                      <summary className="text-[10px] uppercase font-semibold text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-300 cursor-pointer select-none">
-                        Technical Crop Coordinates
-                      </summary>
-                      <pre className="text-[10px] bg-neutral-100 dark:bg-neutral-900 p-2 rounded-md border border-neutral-200 dark:border-neutral-800 font-mono text-neutral-600 dark:text-neutral-400 mt-1 overflow-x-auto">
-                        {JSON.stringify(selectedRef.cropMetadata, null, 2)}
-                      </pre>
-                    </details>
-                  )}
                 </div>
               </div>
 
               <div className="flex justify-end pt-3 border-t border-neutral-200 dark:border-neutral-800">
-                <Button variant="outline" size="sm" onClick={() => setShowDetailModal(false)}>
+                <Button variant="outline" size="sm" onClick={() => setShowDetailModal(false)} className="active:scale-[0.97]">
                   Close
                 </Button>
               </div>

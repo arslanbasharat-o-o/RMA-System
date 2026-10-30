@@ -43,6 +43,7 @@ import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { hasModelSuggestion } from "@/lib/model-result";
+import { CopyBadge } from "@/components/premium";
 
 export function ItemReviewDrawer({
   itemId,
@@ -236,7 +237,8 @@ export function ItemReviewDrawer({
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
   const currentImage = (images && images.find((i: any) => i.id === activeImageId)) || images?.[0];
 
-  const matchedCandidate = candidates?.find((c: any) =>
+  const selectedCandidate = candidates?.find((c: any) => c.id === selectedCandidateId);
+  const matchedCandidate = selectedCandidate || candidates?.find((c: any) =>
     (customModel && c.candidateTitle?.toLowerCase().includes(customModel.toLowerCase().trim())) ||
     (customModel && c.parsedModel?.toLowerCase() === customModel.toLowerCase().trim())
   );
@@ -286,7 +288,7 @@ export function ItemReviewDrawer({
         </div>
 
         {/* Scrollable Body */}
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-24 sm:p-6 sm:pb-28 space-y-4 sm:space-y-6">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 pb-24 sm:p-6 sm:pb-28 space-y-4 sm:space-y-5">
           {refreshError && (
             <div role="alert" className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/80 dark:border-amber-800/60 p-2.5 text-xs text-amber-800 dark:text-amber-300">
               <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
@@ -295,7 +297,7 @@ export function ItemReviewDrawer({
           )}
 
           {["uploaded", "queued", "processing"].includes(item?.status) && (
-            <div role="status" className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3 text-xs text-neutral-800 dark:text-neutral-200">
+            <div role="status" className="rounded-lg border border-neutral-200/80 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50 p-3 text-xs text-neutral-800 dark:text-neutral-200">
               <p className="font-semibold">
                 {item.status === "queued"
                   ? "Queued for optical analysis…"
@@ -314,14 +316,18 @@ export function ItemReviewDrawer({
             <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
               <p className="font-semibold">Visual identification unavailable</p>
               <p>{/abort|timed out|timeout/i.test(item.visualError || "") ? "The visual search timed out. " : "The visual provider could not identify this image. "}Your photos are saved.{item.vendorOcrStatus === "success" ? " Text recognition completed successfully." : ""} Retry the image later or select a verified model below.</p>
-              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")}>Retry visual identification</Button>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")} className="active:scale-[0.97]">
+                Retry visual identification
+              </Button>
             </div>
           )}
           {item?.vendorOcrStatus === "failed" && (
             <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
               <p className="font-semibold">Markings recognition unavailable</p>
-              <p>Your photos are saved. Retry the markings scan later or select the vendor manually.</p>
-              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")}>Retry markings recognition</Button>
+              <p>Physical marking OCR was unavailable for this photograph. Your photos are saved. Retry markings scan or select a verified model below.</p>
+              <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")} className="active:scale-[0.97]">
+                Retry markings identification
+              </Button>
             </div>
           )}
 
@@ -336,12 +342,12 @@ export function ItemReviewDrawer({
                 <img
                   src={`/api/images/${currentImage.id}?size=preview`}
                   alt={currentImage.originalFilename || "Display photograph"}
-                  className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.02]"
+                  className="max-h-full max-w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.02]"
                 />
-                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-neutral-900/75 backdrop-blur-xs text-[10px] font-semibold uppercase tracking-wider text-white">
+                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
                   {currentImage.imageType || "Photo"}
                 </span>
-                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded-md bg-neutral-900/70 backdrop-blur-xs text-[11px] text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded bg-black/70 text-[11px] text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                   <ZoomIn className="h-3.5 w-3.5" />
                   <span>Zoom</span>
                 </div>
@@ -357,10 +363,10 @@ export function ItemReviewDrawer({
                         key={img.id}
                         type="button"
                         onClick={() => setActiveImageId(img.id)}
-                        className={`relative h-14 w-14 shrink-0 rounded-lg border-2 overflow-hidden bg-neutral-100 dark:bg-neutral-900 transition-all cursor-pointer ${
+                        className={`relative h-13 w-13 shrink-0 rounded-lg overflow-hidden bg-neutral-100 dark:bg-neutral-900 transition-all duration-150 ease-out cursor-pointer active:scale-[0.95] ${
                           isSelected
-                            ? "border-neutral-900 dark:border-neutral-100 shadow-xs"
-                            : "border-transparent opacity-60 hover:opacity-100"
+                            ? "ring-2 ring-neutral-900 dark:ring-neutral-100 shadow-xs"
+                            : "opacity-60 hover:opacity-100"
                         }`}
                       >
                         <img
@@ -375,20 +381,20 @@ export function ItemReviewDrawer({
               )}
             </div>
           ) : (
-            <div className="h-40 w-full rounded-xl border border-dashed border-neutral-300 dark:border-neutral-800 flex flex-col items-center justify-center text-neutral-400 text-xs">
+            <div className="h-36 w-full rounded-xl border border-dashed border-neutral-300 dark:border-neutral-800 flex flex-col items-center justify-center text-neutral-400 text-xs">
               <Images className="h-6 w-6 mb-1 text-neutral-300 dark:text-neutral-600" />
               <span>No photos captured yet</span>
             </div>
           )}
 
-          {/* Clean Display Details & Specifications */}
-          <div className="rounded-xl border border-neutral-200 dark:border-neutral-800/80 bg-neutral-50/70 dark:bg-neutral-900/40 p-4 space-y-3.5">
+          {/* Clean Display Details: No nested boxes or CSS capsules */}
+          <div className="space-y-3 pt-2">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
                   Identified Model
                 </span>
-                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                <h3 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
                   {item?.predictedDisplayAssembly ||
                     (item?.predictedModel
                       ? [item?.predictedManufacturer, item.predictedModel].filter(Boolean).join(" ")
@@ -406,35 +412,39 @@ export function ItemReviewDrawer({
               ) : null}
             </div>
 
-            {/* Clean Key-Value Grid */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-2 border-t border-neutral-200/60 dark:border-neutral-800/60 text-xs">
+            {/* Clean Key-Value Row */}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
               <div>
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                   Barcode (UPC)
                 </span>
                 {activeBarcode ? (
-                  <span className="font-mono text-xs font-bold text-neutral-900 dark:text-neutral-100 tracking-tight">
-                    {activeBarcode}
-                  </span>
+                  <div className="mt-0.5">
+                    <CopyBadge
+                      value={activeBarcode}
+                      label={activeBarcode}
+                      className="font-mono text-xs font-bold"
+                    />
+                  </div>
                 ) : (
-                  <span className="text-neutral-400 font-mono">—</span>
+                  <span className="text-neutral-400 font-mono text-xs mt-0.5 block">—</span>
                 )}
               </div>
 
               <div>
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                   Product SKU
                 </span>
-                <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 block truncate">
                   {activeSku || "—"}
                 </span>
               </div>
 
               <div>
-                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                   Vendor
                 </span>
-                <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                <span className="font-medium text-neutral-800 dark:text-neutral-200 mt-0.5 block">
                   {item?.identifiedVendorName || "Unidentified"}
                   {item?.identifiedVendorVariantName && (
                     <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
@@ -444,10 +454,10 @@ export function ItemReviewDrawer({
 
               {item?.extractedTextSummary && (
                 <div>
-                  <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block">
+                  <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                     Markings
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate block">
+                  <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate mt-0.5 block">
                     {item.extractedTextSummary}
                   </span>
                 </div>
@@ -457,14 +467,14 @@ export function ItemReviewDrawer({
 
           {/* Alternative Matches / Search Candidates */}
           {candidates && candidates.length > 0 && (
-            <div className="space-y-2">
+            <div className="space-y-2 pt-2 border-t border-neutral-100 dark:border-neutral-800">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-semibold text-neutral-900 dark:text-neutral-100">
                   Search Candidates
                 </span>
-                <span className="text-[11px] text-neutral-400">Select candidate to apply</span>
+                <span className="text-[11px] text-neutral-400">Click candidate to apply</span>
               </div>
-              <div className="rounded-xl border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800/80 overflow-hidden bg-white dark:bg-neutral-900/30">
+              <div className="rounded-lg border border-neutral-200 dark:border-neutral-800 divide-y divide-neutral-100 dark:divide-neutral-800/80 overflow-hidden">
                 {candidates.slice(0, 5).map((c: any) => {
                   const mfr = c.parsedManufacturer || extractManufacturerAndModel(c.candidateTitle).manufacturer;
                   const mdl = c.parsedModel || extractManufacturerAndModel(c.candidateTitle).model;
@@ -483,9 +493,9 @@ export function ItemReviewDrawer({
                         setSelectedCandidateId(c.id);
                         toast.info(`Selected ${mfr} ${mdl}`);
                       }}
-                      className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between gap-3 transition-colors ${
+                      className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between gap-3 transition-[background-color,color] duration-150 ease-out active:scale-[0.985] cursor-pointer ${
                         isSelected
-                          ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100"
+                          ? "bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-100"
                           : "hover:bg-neutral-50 dark:hover:bg-neutral-850 text-neutral-800 dark:text-neutral-200"
                       }`}
                     >
@@ -493,9 +503,9 @@ export function ItemReviewDrawer({
                         <p className="font-semibold text-xs truncate">{mfr} {mdl}</p>
                         {(candBarcode || candSku) && (
                           <p className="font-mono text-[10px] text-neutral-500 dark:text-neutral-400 truncate mt-0.5">
-                            {candBarcode && <span>UPC: {candBarcode}</span>}
-                            {candBarcode && candSku && <span className="mx-1.5">·</span>}
-                            {candSku && <span>SKU: {candSku}</span>}
+                            {candBarcode && <span>UPC: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{candBarcode}</span></span>}
+                            {candBarcode && candSku && <span className="mx-1.5 text-neutral-300 dark:text-neutral-700">·</span>}
+                            {candSku && <span>SKU: <span className="font-semibold text-neutral-800 dark:text-neutral-200">{candSku}</span></span>}
                           </p>
                         )}
                       </div>
@@ -510,7 +520,7 @@ export function ItemReviewDrawer({
           )}
 
           {/* Verification & Manual Overrides */}
-          <div className="space-y-3.5 pt-1">
+          <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
               Verify or Correct Model
             </h4>
@@ -606,64 +616,64 @@ export function ItemReviewDrawer({
                 size="md"
                 loading={saving}
                 onClick={() => handleApplyCorrection("manual_verify")}
-                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold h-10 justify-center shadow-xs cursor-pointer"
+                className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold h-10 justify-center shadow-xs cursor-pointer active:scale-[0.97]"
               >
                 <Check className="h-4 w-4 mr-1.5 shrink-0" />
                 <span>Confirm & Verify</span>
               </Button>
             </div>
 
-              {/* Secondary Scan & Item Management Actions */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-zinc-800">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    loading={saving}
-                    onClick={() => handleRetryRecognition("all")}
-                    title="Rescan display and markings"
-                    className="text-xs h-8"
-                  >
-                    <RotateCcw className="h-3 w-3 mr-1 shrink-0" />
-                    <span>Rescan All</span>
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={saving}
-                    onClick={() => handleRetryRecognition("vendor_ocr")}
-                    title="Rescan markings"
-                    className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    <span>Rescan Markings</span>
-                  </Button>
-
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    loading={saving}
-                    onClick={() => handleRetryRecognition("visual")}
-                    title="Rescan display image"
-                    className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white"
-                  >
-                    <span>Rescan Image</span>
-                  </Button>
-                </div>
+            {/* Secondary Scan & Item Management Actions */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-zinc-800">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={saving}
+                  onClick={() => handleRetryRecognition("all")}
+                  title="Rescan display and markings"
+                  className="text-xs h-8 active:scale-[0.97]"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1 shrink-0" />
+                  <span>Rescan All</span>
+                </Button>
 
                 <Button
                   variant="ghost"
                   size="sm"
                   loading={saving}
-                  onClick={() => setShowDeleteConfirm(true)}
-                  title="Remove this display item from RMA"
-                  className="text-xs h-8 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                  onClick={() => handleRetryRecognition("vendor_ocr")}
+                  title="Rescan markings"
+                  className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-[0.97]"
                 >
-                  <Trash2 className="h-3 w-3 mr-1 shrink-0" />
-                  <span>Delete</span>
+                  <span>Rescan Markings</span>
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  loading={saving}
+                  onClick={() => handleRetryRecognition("visual")}
+                  title="Rescan display image"
+                  className="text-xs h-8 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white active:scale-[0.97]"
+                >
+                  <span>Rescan Image</span>
                 </Button>
               </div>
+
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={saving}
+                onClick={() => setShowDeleteConfirm(true)}
+                title="Remove this display item from RMA"
+                className="text-xs h-8 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 active:scale-[0.97]"
+              >
+                <Trash2 className="h-3 w-3 mr-1 shrink-0" />
+                <span>Delete</span>
+              </Button>
             </div>
+          </div>
 
           {/* Audit Review History */}
           {reviewHistory && reviewHistory.length > 0 && (

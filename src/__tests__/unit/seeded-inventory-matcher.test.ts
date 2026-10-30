@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { VerifiedDisplayComparisonResult } from "@/lib/recognition/openai/vision";
 import {
   matchSeededInventoryProduct,
+  matchSeededProductByText,
   type SeededInventoryProduct,
   type SeededInventoryReference,
 } from "@/lib/recognition/seeded-inventory";
@@ -147,3 +148,56 @@ describe("seeded inventory product matching", () => {
     expect(processorSource).toContain('image.imageType === "primary" ? "back" : image.imageType');
   });
 });
+
+describe("matchSeededProductByText", () => {
+  const seedList: SeededInventoryProduct[] = [
+    { id: "1", manufacturer: "Apple", modelName: "iPhone 16", variantName: "COF", printedTitle: "Liphone 16 COF", barcodeValue: "665386615240", barcodeFormat: null, barcodeSymbology: null, supplierSku: null },
+    { id: "2", manufacturer: "Apple", modelName: "iPhone 16 Pro", variantName: "Hard", printedTitle: "Liphone 16 Pro Hard OLED", barcodeValue: "665871925243", barcodeFormat: null, barcodeSymbology: null, supplierSku: "SKU-16PRO-HD" },
+    { id: "3", manufacturer: "Apple", modelName: "iPhone 16 Pro Max", variantName: "COF", printedTitle: "Liphone 16 Pro Max COF 120HZ", barcodeValue: "665871826212", barcodeFormat: null, barcodeSymbology: null, supplierSku: null },
+    { id: "4", manufacturer: "Samsung", modelName: "Galaxy S24", variantName: "OLED", printedTitle: "Samsung S24 OLED", barcodeValue: "880609123456", barcodeFormat: null, barcodeSymbology: null, supplierSku: "SAM-S24" },
+  ];
+
+  it("resolves exact model name", () => {
+    const match = matchSeededProductByText("iPhone 16 Pro", seedList);
+    expect(match?.id).toBe("2");
+    expect(match?.barcodeValue).toBe("665871925243");
+  });
+
+  it("resolves manufacturer prepended to model name", () => {
+    const match = matchSeededProductByText("Apple iPhone 16 Pro", seedList);
+    expect(match?.id).toBe("2");
+    expect(match?.barcodeValue).toBe("665871925243");
+  });
+
+  it("prioritizes longest model match over substring", () => {
+    const match = matchSeededProductByText("Apple iPhone 16 Pro Max Screen Assembly", seedList);
+    expect(match?.id).toBe("3");
+    expect(match?.barcodeValue).toBe("665871826212");
+  });
+
+  it("matches printedTitle directly", () => {
+    const match = matchSeededProductByText("Liphone 16 Pro Hard OLED", seedList);
+    expect(match?.id).toBe("2");
+    expect(match?.supplierSku).toBe("SKU-16PRO-HD");
+  });
+
+  it("matches supplierSku directly", () => {
+    const match = matchSeededProductByText("SAM-S24", seedList);
+    expect(match?.id).toBe("4");
+    expect(match?.barcodeValue).toBe("880609123456");
+  });
+
+  it("matches barcode value directly", () => {
+    const match = matchSeededProductByText("665386615240", seedList);
+    expect(match?.id).toBe("1");
+    expect(match?.modelName).toBe("iPhone 16");
+  });
+
+  it("handles empty or null queries safely", () => {
+    expect(matchSeededProductByText("", seedList)).toBeNull();
+    expect(matchSeededProductByText(null, seedList)).toBeNull();
+    expect(matchSeededProductByText(undefined, seedList)).toBeNull();
+    expect(matchSeededProductByText("Nonexistent Device XYZ", seedList)).toBeNull();
+  });
+});
+

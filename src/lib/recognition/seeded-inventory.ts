@@ -177,3 +177,66 @@ export async function matchSeededInventoryProduct(
 
   return result(accepted ? "accepted" : "ambiguous", finalComparison, accepted ? selectedProduct : null);
 }
+
+/**
+ * Match a text query (e.g. predicted model, assembly title, or search candidate title)
+ * against available seeded display products to resolve barcode (UPC) and product SKU.
+ */
+export function matchSeededProductByText<T extends {
+  id: string;
+  manufacturer: string;
+  modelName: string;
+  variantName?: string | null;
+  printedTitle: string;
+  barcodeValue: string | null;
+  supplierSku: string | null;
+}>(query: string | null | undefined, seeds: T[]): T | null {
+  if (!query || !query.trim() || !seeds || seeds.length === 0) return null;
+  const q = query.toLowerCase().trim();
+  const cleanQ = q.replace(/^(?:apple|samsung|google|oneplus|motorola|lg)\s+/i, "").trim();
+
+  // 1. Exact match on printedTitle, supplierSku, or barcodeValue
+  const exactCode = seeds.find((s) =>
+    (s.barcodeValue && s.barcodeValue.trim() === q) ||
+    (s.supplierSku && s.supplierSku.toLowerCase().trim() === q) ||
+    (s.printedTitle && s.printedTitle.toLowerCase().trim() === q)
+  );
+  if (exactCode) return exactCode;
+
+  // 2. Exact match on manufacturer + modelName or modelName alone
+  const exactModel = seeds.find((s) => {
+    const full = `${s.manufacturer} ${s.modelName}`.toLowerCase().trim();
+    const mdl = s.modelName.toLowerCase().trim();
+    return full === q || mdl === q || mdl === cleanQ;
+  });
+  if (exactModel) return exactModel;
+
+  // 3. Substring match: sorted by modelName length descending (prioritize "iPhone 16 Pro Max" over "iPhone 16 Pro")
+  const sortedSeeds = [...seeds].sort(
+    (a, b) => (b.modelName?.length || 0) - (a.modelName?.length || 0)
+  );
+
+  const partialMatch = sortedSeeds.find((s) => {
+    const mdl = s.modelName.toLowerCase().trim();
+    const pTitle = s.printedTitle?.toLowerCase().trim();
+    const full = `${s.manufacturer} ${s.modelName}`.toLowerCase().trim();
+    return (
+      (mdl.length >= 4 && (q.includes(mdl) || cleanQ.includes(mdl))) ||
+      (pTitle && pTitle.length >= 4 && q.includes(pTitle)) ||
+      (full.length >= 6 && q.includes(full))
+    );
+  });
+  if (partialMatch) return partialMatch;
+
+  // 4. Reverse substring: if clean query is at least 4 chars and seed modelName includes it
+  if (cleanQ.length >= 4) {
+    const reverseMatch = sortedSeeds.find((s) => {
+      const mdl = s.modelName.toLowerCase().trim();
+      return mdl.includes(cleanQ);
+    });
+    if (reverseMatch) return reverseMatch;
+  }
+
+  return null;
+}
+
