@@ -447,7 +447,7 @@ export default function RmaDetailPage({
                     </div>
                   )}
 
-                  <div className="flex-1 min-w-0 space-y-1">
+                  <div className="flex-1 min-w-0 space-y-1.5">
                     <div className="flex min-w-0 items-start justify-between gap-2">
                       <p className="min-w-0 text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug">
                         {modelResultText(item)}
@@ -462,23 +462,26 @@ export default function RmaDetailPage({
                         Search evidence did not identify one model. Review the candidates before confirming.
                       </p>
                     )}
-                    {item.seededProduct && (
-                      <p className="text-[10px] leading-snug text-sky-800 dark:text-sky-300">
-                        Product SKU: <span className="font-mono">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</span>
-                        {" · "}Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
-                      </p>
-                    )}
-                    {item.inventoryMatchEvidence && (
-                      <p className="text-[10px] leading-snug text-sky-800 dark:text-sky-300">
-                        Seeded comparison:{" "}
-                        {typeof item.inventoryMatchConfidence === "number"
-                          ? `${Math.round(item.inventoryMatchConfidence * 100)}% confidence`
-                          : "review required"}
-                        {item.inventoryMatchEvidence.matchingCues?.length
-                          ? ` · ${item.inventoryMatchEvidence.matchingCues.join("; ")}`
-                          : ""}
-                      </p>
-                    )}
+
+                    <div className="text-[11px] leading-tight space-y-0.5">
+                      {(item.barcodeValue || item.seededProduct?.barcodeValue) && (
+                        <div className="flex items-center gap-1.5 font-mono">
+                          <span className="text-slate-500 dark:text-zinc-400 font-sans text-[10px] uppercase font-semibold">UPC:</span>
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {item.barcodeValue || item.seededProduct?.barcodeValue}
+                          </span>
+                        </div>
+                      )}
+                      {(item.supplierSku || item.seededProduct?.supplierSku || item.seededProduct?.printedTitle) && (
+                        <div className="flex items-center gap-1.5 font-mono text-[10px] text-slate-600 dark:text-zinc-400">
+                          <span className="font-sans text-[10px] uppercase font-semibold text-slate-400">SKU:</span>
+                          <span className="truncate">
+                            {item.supplierSku || item.seededProduct?.supplierSku || item.seededProduct?.printedTitle}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
                     <p className="text-[11px] text-slate-600 dark:text-slate-400 truncate">
                       Vendor:{" "}
                       <span className="font-semibold text-slate-800 dark:text-slate-200">
@@ -488,11 +491,6 @@ export default function RmaDetailPage({
                         ? ` (${item.identifiedVendorVariantName})`
                         : ""}
                     </p>
-                    {item.extractedTextSummary && (
-                      <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-mono truncate bg-slate-50 dark:bg-zinc-900/50 px-1.5 py-0.5 rounded border border-slate-200/60 dark:border-zinc-800 inline-block max-w-full">
-                        Text: {item.extractedTextSummary}
-                      </p>
-                    )}
                   </div>
                 </div>
 
@@ -584,14 +582,19 @@ export default function RmaDetailPage({
                   <th className="px-3 py-3 w-12 font-semibold">#</th>
                   <th className="px-4 py-3 w-16 font-semibold">Photo</th>
                   <th className="px-4 py-3 font-semibold">Model Result</th>
+                  <th className="px-4 py-3 font-semibold">Barcode (UPC)</th>
+                  <th className="px-4 py-3 font-semibold">Product SKU</th>
                   <th className="px-4 py-3 font-semibold">Vendor / Variant</th>
-                  <th className="px-4 py-3 font-semibold">Inspection Status</th>
+                  <th className="px-4 py-3 font-semibold">Status</th>
                   <th className="px-4 py-3 text-right font-semibold">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/70 dark:divide-zinc-800/80">
                 {items.map((item: any) => {
                   const isVerified = item.status === "verified";
+                  const barcode = item.barcodeValue || item.seededProduct?.barcodeValue;
+                  const sku = item.supplierSku || item.seededProduct?.supplierSku || item.seededProduct?.printedTitle;
+
                   return (
                     <tr
                       key={item.id}
@@ -635,7 +638,7 @@ export default function RmaDetailPage({
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2">
                           <span className="font-bold text-slate-900 dark:text-slate-100">
                             {modelResultText(item)}
                           </span>
@@ -643,41 +646,31 @@ export default function RmaDetailPage({
                             {modelResultLabel(item)}
                           </span>
                         </div>
-
                         {item.status === "review_required" && !item.predictedModel && (
                           <p className="mt-1 text-[11px] leading-snug text-amber-700 dark:text-amber-300">
                             Search evidence did not identify one model. Review the candidates before confirming.
                           </p>
                         )}
-                        {item.seededProduct && (
-                          <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                            Product SKU: <span className="font-mono">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</span>
-                            {" · "}Catalog UPC/EAN: <span className="font-mono">{item.seededProduct.barcodeValue || "—"}</span>
-                          </p>
+                      </td>
+                      <td className="px-4 py-3 font-mono">
+                        {barcode ? (
+                          <span className="font-bold text-slate-900 dark:text-slate-100">
+                            {barcode}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400 dark:text-zinc-600">—</span>
                         )}
-                        {item.inventoryMatchEvidence && (
-                          <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                            Seeded comparison:{" "}
-                            {typeof item.inventoryMatchConfidence === "number"
-                              ? `${Math.round(item.inventoryMatchConfidence * 100)}% confidence`
-                              : "review required"}
-                            {item.inventoryMatchEvidence.matchingCues?.length
-                              ? ` · ${item.inventoryMatchEvidence.matchingCues.join("; ")}`
-                              : ""}
-                          </p>
-                        )}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-[11px] text-slate-700 dark:text-zinc-300">
+                        {sku || <span className="text-slate-400 dark:text-zinc-600">—</span>}
                       </td>
                       <td className="px-4 py-3 text-slate-800 dark:text-slate-200">
                         {item.identifiedVendorName ? (
                           <span>
                             {item.identifiedVendorName}
-                            {item.identifiedVendorVariantName ? (
+                            {item.identifiedVendorVariantName && (
                               <span className="text-slate-500 dark:text-slate-400 font-mono text-[11px] ml-1">
                                 ({item.identifiedVendorVariantName})
-                              </span>
-                            ) : (
-                              <span className="text-amber-600 dark:text-amber-400 font-mono text-[10px] ml-1">
-                                [Variant Unresolved]
                               </span>
                             )}
                           </span>

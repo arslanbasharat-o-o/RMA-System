@@ -8,12 +8,12 @@ import {
   AlertTriangle,
   ZoomIn,
   Trash2,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Modal } from "@/components/ui/modal";
+import { CopyBadge } from "@/components/premium";
 import { LoadingMessage } from "@/components/ui/loading-message";
 import { useScrollLock } from "@/lib/utils/scroll-lock";
 import { toast } from "sonner";
@@ -230,8 +230,10 @@ export function ItemReviewDrawer({
     </div>
   </div>;
 
-  const { item, images, candidates, ocrExtractions, reviewHistory } = data || {};
+  const { item, images, candidates, reviewHistory } = data || {};
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
+  const barcode = item?.barcodeValue || item?.seededProduct?.barcodeValue;
+  const sku = item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -284,33 +286,30 @@ export function ItemReviewDrawer({
           )}
 
           {["uploaded", "queued", "processing"].includes(item?.status) && (
-            <div role="status" className="rounded-lg border border-blue-200/80 bg-blue-50/50 dark:border-blue-900/40 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300 space-y-0.5">
+            <div role="status" className="rounded-lg border border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-neutral-900/50 p-3 text-xs text-neutral-800 dark:text-neutral-200">
               <p className="font-semibold">
                 {item.status === "queued"
-                  ? "Queued for automated optical analysis…"
+                  ? "Queued for optical analysis…"
                   : item.visualStatus === "pending"
                     ? item.vendorOcrStatus === "success"
-                      ? "Text recognition finished. Analyzing display model…"
-                      : "Scanning display model and reading markings…"
+                      ? "Analyzing display model…"
+                      : "Scanning display model and markings…"
                     : item.vendorOcrStatus === "pending"
-                      ? "Reading physical display markings…"
+                      ? "Reading physical markings…"
                       : "Preparing final recognition results…"}
-              </p>
-              <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
-                Live updates will refresh here automatically.
               </p>
             </div>
           )}
 
           {item?.visualStatus === "failed" && (
-            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 space-y-2">
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
               <p className="font-semibold">Visual identification unavailable</p>
               <p>{/abort|timed out|timeout/i.test(item.visualError || "") ? "The visual search timed out. " : "The visual provider could not identify this image. "}Your photos are saved.{item.vendorOcrStatus === "success" ? " Text recognition completed successfully." : ""} Retry the image later or select a verified model below.</p>
               <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("visual")}>Retry visual identification</Button>
             </div>
           )}
           {item?.vendorOcrStatus === "failed" && (
-            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200 space-y-2">
+            <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200 space-y-2">
               <p className="font-semibold">Markings recognition unavailable</p>
               <p>Your photos are saved. Retry the markings scan later or select the vendor manually.</p>
               <Button variant="outline" size="sm" loading={saving} onClick={() => handleRetryRecognition("vendor_ocr")}>Retry markings recognition</Button>
@@ -346,13 +345,21 @@ export function ItemReviewDrawer({
             </div>
           </div>
 
-          {/* Unified Display & Attribution Details */}
-          <div className="p-4 rounded-xl border border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/30 space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider">
-                Model result
-              </span>
-              <div className="flex items-center gap-2">
+          {/* Clean Display Specifications Sheet */}
+          <div className="space-y-3 text-xs">
+            <div className="pb-3 border-b border-neutral-200 dark:border-neutral-800 flex items-start justify-between gap-3">
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 block tracking-wider">
+                  Identified Model
+                </span>
+                <h3 className="text-base font-bold text-neutral-900 dark:text-neutral-100 mt-0.5">
+                  {item?.predictedDisplayAssembly ||
+                    (item?.predictedModel
+                      ? [item?.predictedManufacturer, item.predictedModel].filter(Boolean).join(" ")
+                      : "Unidentified Model")}
+                </h3>
+              </div>
+              <div className="shrink-0 mt-1">
                 {item?.modelSource === "manual" && item?.verifiedAt ? (
                   <Badge variant="outline">Verified</Badge>
                 ) : item && hasModelSuggestion(item) ? (
@@ -363,82 +370,68 @@ export function ItemReviewDrawer({
               </div>
             </div>
 
-            <div className="text-sm font-bold text-neutral-900 dark:text-neutral-100">
-              {item?.predictedDisplayAssembly ||
-                (item?.predictedModel
-                  ? [item?.predictedManufacturer, item.predictedModel].filter(Boolean).join(" ")
-                  : "Unidentified Model")}
-            </div>
-
-            {item?.seededProduct && (
-              <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-3 text-xs dark:border-sky-900 dark:bg-sky-950/30">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-sky-950 dark:text-sky-100">Seeded inventory match</span>
-                  <Badge variant="outline">{item?.status === "verified" ? "Confirmed" : "Needs confirmation"}</Badge>
-                </div>
-                <p className="mt-1 font-medium text-sky-900 dark:text-sky-200">
-                  {item.seededProduct.modelName} · {item.seededProduct.variantName}
-                </p>
-                <div className="mt-2 grid grid-cols-1 gap-1 border-t border-sky-200 pt-2 text-[11px] dark:border-sky-900 sm:grid-cols-2">
-                  <span>Product SKU: <strong className="font-mono text-sky-950 dark:text-sky-100">{item.seededProduct.supplierSku || item.seededProduct.printedTitle}</strong></span>
-                  <span>Catalog UPC/EAN: <strong className="font-mono text-sky-950 dark:text-sky-100">{item.seededProduct.barcodeValue || "—"}</strong></span>
-                </div>
-                {item.seededProduct.barcodeValue && (
-                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                    {item.seededProduct.barcodeFormat || "Barcode"}{item.seededProduct.barcodeSymbology ? ` · ${item.seededProduct.barcodeSymbology}` : ""} — loaded from the seed record, not read from this display photo.
-                  </p>
-                )}
-                {Array.isArray(item.seededProduct.otherCodes) && item.seededProduct.otherCodes.length > 0 && (
-                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                    Other box codes: {item.seededProduct.otherCodes.map((code: any) => code.value).join(", ")}
-                  </p>
-                )}
-                {typeof item.inventoryMatchConfidence === "number" && (
-                  <p className="mt-1 text-[10px] text-sky-800 dark:text-sky-300">
-                    Visual comparison confidence: {Math.round(item.inventoryMatchConfidence * 100)}%
-                  </p>
+            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
+                Barcode (UPC)
+              </span>
+              <div>
+                {barcode ? (
+                  <CopyBadge value={barcode} label={barcode} />
+                ) : (
+                  <span className="text-neutral-400 font-mono">—</span>
                 )}
               </div>
-            )}
-
-            {item?.status === "review_required" && !item?.predictedModel && (
-              <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-300">
-                Search evidence did not identify one model. Compare the candidates and choose the exact catalog model before confirming.
-              </p>
-            )}
-
-            <div className="pt-2.5 border-t border-neutral-200/60 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-600 dark:text-neutral-400">
-              <span>Vendor: <strong className="text-neutral-900 dark:text-neutral-100 font-medium">{item?.identifiedVendorName || "Unidentified"}</strong></span>
-              <span>Variant: <strong className="text-neutral-900 dark:text-neutral-100 font-medium">{item?.identifiedVendorVariantName || "None"}</strong></span>
             </div>
 
-            {/* Extracted Markings */}
-            {ocrExtractions && ocrExtractions.length > 0 && item?.extractedTextSummary && (
-              <div className="pt-2 border-t border-neutral-200/60 dark:border-neutral-800 text-xs space-y-1">
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400 font-medium">Extracted Markings:</span>
-                <p className="p-2 rounded bg-white dark:bg-[#121215] border border-neutral-200 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-words">
+            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
+                Product SKU
+              </span>
+              <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100">
+                {sku || "—"}
+              </span>
+            </div>
+
+            <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between">
+              <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
+                Vendor
+              </span>
+              <span className="font-medium text-neutral-800 dark:text-neutral-200">
+                {item?.identifiedVendorName || "Unidentified"}
+                {item?.identifiedVendorVariantName && (
+                  <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
+                )}
+              </span>
+            </div>
+
+            {item?.extractedTextSummary && (
+              <div className="pb-2.5 border-b border-neutral-200 dark:border-neutral-800 flex items-center justify-between gap-3">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider shrink-0">
+                  Markings
+                </span>
+                <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate">
                   {item.extractedTextSummary}
-                </p>
+                </span>
               </div>
             )}
 
-            {/* Visual Search Candidates from Google Lens */}
+            {/* Alternative Matches (Clean List) */}
             {candidates && candidates.length > 0 && (
-              <div className="space-y-2 pt-2 border-t border-neutral-200/60 dark:border-neutral-800">
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-semibold text-neutral-600 dark:text-neutral-300 uppercase tracking-wider flex items-center gap-1.5">
-                    <Sparkles className="h-3 w-3 text-indigo-500" />
-                    Google Search Matches ({candidates.length})
+              <div className="pt-1">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10px] uppercase font-semibold text-neutral-400 tracking-wider">
+                    Alternative Matches
                   </span>
-                  <span className="text-[10px] text-neutral-400">Click to select as correct model</span>
+                  <span className="text-[10px] text-neutral-400">Select to update model</span>
                 </div>
-                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                  {candidates.slice(0, 8).map((c: any) => {
+                <div className="divide-y divide-neutral-100 dark:divide-neutral-800 rounded-lg border border-neutral-200 dark:border-neutral-800 overflow-hidden">
+                  {candidates.slice(0, 5).map((c: any) => {
                     const parsed = extractManufacturerAndModel(c.candidateTitle);
                     const isSelected = selectedCandidateId === c.id || (customModel && customModel.toLowerCase() === parsed.model.toLowerCase());
                     return (
-                      <div
+                      <button
                         key={c.id}
+                        type="button"
                         onClick={() => {
                           editing.current = true;
                           setCustomManufacturer(parsed.manufacturer);
@@ -446,36 +439,15 @@ export function ItemReviewDrawer({
                           setSelectedCandidateId(c.id);
                           toast.info(`Selected ${parsed.manufacturer} ${parsed.model}`);
                         }}
-                        className={`p-2.5 rounded-lg border text-xs cursor-pointer transition-all flex items-start justify-between gap-2 ${
+                        className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors ${
                           isSelected
-                            ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500 dark:border-emerald-500 ring-1 ring-emerald-500 shadow-xs"
-                            : "bg-white dark:bg-[#18181c] border-neutral-200/80 dark:border-neutral-800 hover:border-neutral-400 dark:hover:border-neutral-700"
+                            ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 font-semibold"
+                            : "hover:bg-neutral-50 dark:hover:bg-neutral-850 text-neutral-700 dark:text-neutral-300"
                         }`}
                       >
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-0.5">
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400">
-                              #{c.rank}
-                            </span>
-                            <span className="font-bold text-neutral-900 dark:text-neutral-100 truncate">
-                              {parsed.manufacturer} {parsed.model}
-                            </span>
-                          </div>
-                          <p className="text-[10px] text-neutral-500 dark:text-neutral-400 line-clamp-1 break-words">
-                            {c.candidateTitle}
-                          </p>
-                        </div>
-                        {isSelected ? (
-                          <span className="shrink-0 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px] font-semibold">
-                            <Check className="h-3.5 w-3.5" />
-                            Selected
-                          </span>
-                        ) : (
-                          <span className="shrink-0 text-[10px] text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200">
-                            Select
-                          </span>
-                        )}
-                      </div>
+                        <span className="truncate">{parsed.manufacturer} {parsed.model}</span>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />}
+                      </button>
                     );
                   })}
                 </div>

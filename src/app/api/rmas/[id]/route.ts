@@ -133,22 +133,58 @@ export async function GET(
     imagesByItemId.set(img.rmaItemId, list);
   }
 
+  // Fallback lookup: if seededDisplayProductId was not linked but predictedModel exists, resolve barcode & SKU
+  const needsFallback = items.filter(
+    (i) => !i.seededDisplayProductId && (i.predictedModel || i.predictedDisplayAssembly)
+  );
+  const seedLookup = new Map<string, typeof seededDisplayProducts.$inferSelect>();
+  if (needsFallback.length > 0) {
+    const allSeeds = await db.select().from(seededDisplayProducts);
+    for (const s of allSeeds) {
+      if (s.modelName) seedLookup.set(s.modelName.toLowerCase().trim(), s);
+      if (s.printedTitle) seedLookup.set(s.printedTitle.toLowerCase().trim(), s);
+    }
+  }
+
   const itemsWithImages = items.map((item) => {
     const images = imagesByItemId.get(item.id) || [];
+    let seededProduct = item.seededDisplayProductId ? {
+      id: item.seededDisplayProductId,
+      manufacturer: item.inventoryProductManufacturer,
+      modelName: item.inventoryProductModelName,
+      variantName: item.inventoryProductVariantName,
+      printedTitle: item.inventoryProductPrintedTitle,
+      barcodeValue: item.inventoryProductBarcodeValue,
+      barcodeFormat: item.inventoryProductBarcodeFormat,
+      barcodeSymbology: item.inventoryProductBarcodeSymbology,
+      supplierSku: item.inventoryProductSupplierSku,
+      otherCodes: item.inventoryProductOtherCodes,
+    } : null;
+
+    if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly)) {
+      const match = seedLookup.get((item.predictedModel || "").toLowerCase().trim()) ||
+                    seedLookup.get((item.predictedDisplayAssembly || "").toLowerCase().trim());
+      if (match) {
+        seededProduct = {
+          id: match.id,
+          manufacturer: match.manufacturer,
+          modelName: match.modelName,
+          variantName: match.variantName,
+          printedTitle: match.printedTitle,
+          barcodeValue: match.barcodeValue,
+          barcodeFormat: match.barcodeFormat,
+          barcodeSymbology: match.barcodeSymbology,
+          supplierSku: match.supplierSku,
+          otherCodes: match.otherCodes,
+        };
+      }
+    }
+
     return {
       ...item,
-      seededProduct: item.seededDisplayProductId ? {
-        id: item.seededDisplayProductId,
-        manufacturer: item.inventoryProductManufacturer,
-        modelName: item.inventoryProductModelName,
-        variantName: item.inventoryProductVariantName,
-        printedTitle: item.inventoryProductPrintedTitle,
-        barcodeValue: item.inventoryProductBarcodeValue,
-        barcodeFormat: item.inventoryProductBarcodeFormat,
-        barcodeSymbology: item.inventoryProductBarcodeSymbology,
-        supplierSku: item.inventoryProductSupplierSku,
-        otherCodes: item.inventoryProductOtherCodes,
-      } : null,
+      seededProduct,
+      barcodeValue: seededProduct?.barcodeValue || null,
+      supplierSku: seededProduct?.supplierSku || seededProduct?.printedTitle || null,
       images,
       primaryThumbnail: images[0]?.thumbnailPath || null,
     };

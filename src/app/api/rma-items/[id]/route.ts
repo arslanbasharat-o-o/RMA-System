@@ -15,7 +15,7 @@ import {
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
-import { eq, asc, desc, and, inArray, lte } from "drizzle-orm";
+import { eq, asc, desc, and, inArray, lte, or, ilike } from "drizzle-orm";
 
 export async function GET(
   req: NextRequest,
@@ -131,21 +131,52 @@ export async function GET(
     return { ...candidate, candidateTitle: typeof title === "string" ? title : candidate.candidateTitle };
   });
 
+  let seededProduct = item.seededDisplayProductId ? {
+    id: item.seededDisplayProductId,
+    manufacturer: item.inventoryProductManufacturer,
+    modelName: item.inventoryProductModelName,
+    variantName: item.inventoryProductVariantName,
+    printedTitle: item.inventoryProductPrintedTitle,
+    barcodeValue: item.inventoryProductBarcodeValue,
+    barcodeFormat: item.inventoryProductBarcodeFormat,
+    barcodeSymbology: item.inventoryProductBarcodeSymbology,
+    supplierSku: item.inventoryProductSupplierSku,
+    otherCodes: item.inventoryProductOtherCodes,
+  } : null;
+
+  if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly)) {
+    const candidateQuery = (item.predictedModel || item.predictedDisplayAssembly || "").trim();
+    const [matchedSeed] = await db
+      .select()
+      .from(seededDisplayProducts)
+      .where(or(
+        ilike(seededDisplayProducts.modelName, candidateQuery),
+        ilike(seededDisplayProducts.printedTitle, candidateQuery)
+      ))
+      .limit(1);
+
+    if (matchedSeed) {
+      seededProduct = {
+        id: matchedSeed.id,
+        manufacturer: matchedSeed.manufacturer,
+        modelName: matchedSeed.modelName,
+        variantName: matchedSeed.variantName,
+        printedTitle: matchedSeed.printedTitle,
+        barcodeValue: matchedSeed.barcodeValue,
+        barcodeFormat: matchedSeed.barcodeFormat,
+        barcodeSymbology: matchedSeed.barcodeSymbology,
+        supplierSku: matchedSeed.supplierSku,
+        otherCodes: matchedSeed.otherCodes,
+      };
+    }
+  }
+
   return NextResponse.json({
     item: {
       ...item,
-      seededProduct: item.seededDisplayProductId ? {
-        id: item.seededDisplayProductId,
-        manufacturer: item.inventoryProductManufacturer,
-        modelName: item.inventoryProductModelName,
-        variantName: item.inventoryProductVariantName,
-        printedTitle: item.inventoryProductPrintedTitle,
-        barcodeValue: item.inventoryProductBarcodeValue,
-        barcodeFormat: item.inventoryProductBarcodeFormat,
-        barcodeSymbology: item.inventoryProductBarcodeSymbology,
-        supplierSku: item.inventoryProductSupplierSku,
-        otherCodes: item.inventoryProductOtherCodes,
-      } : null,
+      seededProduct,
+      barcodeValue: seededProduct?.barcodeValue || null,
+      supplierSku: seededProduct?.supplierSku || seededProduct?.printedTitle || null,
       modelSource: getManualModelOverride(reviews)?.predictedModel === item.predictedModel ? "manual" : "recognition",
     },
     images,
