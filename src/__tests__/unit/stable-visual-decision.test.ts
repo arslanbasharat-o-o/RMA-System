@@ -126,6 +126,7 @@ describe("stable decisions for an identical uploaded image", () => {
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "evidence-consensus-2026-10-18" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v5" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v6" })).toBe(false);
+    expect(isCurrentVisualDecisionPolicy({ decisionPolicy: "source-corroboration-2026-10-19-v7" })).toBe(false);
     expect(isCurrentVisualDecisionPolicy(null)).toBe(false);
   });
 

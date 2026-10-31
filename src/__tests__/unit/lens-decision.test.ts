@@ -3,6 +3,7 @@ import {
   cleanRawCandidateTitle,
   cleanVisualCandidatesHeuristic,
   cleanVisualCandidatesWithOpenAi,
+  evaluateCleanerResponse,
 } from "@/lib/recognition/lens/decision";
 import { VisualCandidate } from "@/lib/recognition/lens/types";
 
@@ -203,6 +204,25 @@ describe("Google Lens Visual Candidate Cleaner & OpenAI Decision Engine", () => 
       expect(decision.displayName).toBe("Unidentified Apple Display");
       expect(decision.confidence).toBeLessThanOrEqual(0.45);
       expect(decision.reasoning).toBeDefined();
+    });
+    it("preserves upstream suggestedModel when cleaner response is malformed or null", () => {
+      const baseEvidence = {
+        manufacturer: "Apple",
+        model: null,
+        suggestedModel: "iPhone 13",
+        displayName: "Apple iPhone 13 Display",
+        confidence: 0.45,
+        cleanedCandidates: [],
+        reasoning: "Search evidence favored iPhone 13",
+      };
+
+      const result = evaluateCleanerResponse(null, baseEvidence, []);
+      expect(result.decisionStatus).toBe("abstained");
+      expect(result.model).toBeNull();
+      expect(result.suggestedModel).toBe("iPhone 13");
+      expect(result.displayName).toBe("Apple iPhone 13 Display");
+      expect(result.confidence).toBe(0.35);
+      expect(result.reasoning).toContain("Malformed cleaner response");
     });
   });
 });
