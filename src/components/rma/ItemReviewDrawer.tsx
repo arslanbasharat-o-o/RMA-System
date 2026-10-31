@@ -360,6 +360,10 @@ export function ItemReviewDrawer({
           {/* Featured Photo Viewer - Full resolution display */}
           {currentImage ? (
             <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs text-neutral-500 font-medium">
+                <span>Captured Photos ({images?.length || 1})</span>
+                <span className="text-[11px] text-neutral-400">Click photo to zoom</span>
+              </div>
               <div
                 onClick={() => setZoomedImage(`/api/images/${currentImage.id}`)}
                 className="group relative w-full h-80 sm:h-96 md:h-[400px] rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-900/95 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
@@ -629,7 +633,7 @@ export function ItemReviewDrawer({
           {/* Verification & Manual Overrides */}
           <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Model & Vendor Verification
+              Verify or Correct: Model & Vendor
             </h4>
 
             {/* Model Inputs */}
