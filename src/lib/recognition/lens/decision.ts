@@ -480,7 +480,7 @@ Return JSON with:
           },
         ],
         response_format: { type: "json_object" },
-        max_completion_tokens: 350,
+        max_completion_tokens: 2048,
       },
       {
         signal: context.signal
@@ -514,9 +514,12 @@ Return JSON with:
     return {
       ...evidence,
       model: null,
-      suggestedModel: null,
+      suggestedModel: evidence.suggestedModel || null,
       rejectedModel: null,
       decisionStatus: "provider_error",
+      displayName: evidence.suggestedModel
+        ? `${evidence.manufacturer || "Apple"} ${evidence.suggestedModel} Display`
+        : (evidence.displayName || "Unidentified Display"),
       confidence: 0.35,
       reasoning: "Photo corroboration was unavailable due to a provider error. Source suggestions require operator review.",
     };
@@ -534,10 +537,12 @@ export function evaluateCleanerResponse(
     return {
       ...evidence,
       model: null,
-      suggestedModel: null,
+      suggestedModel: evidence.suggestedModel || null,
       rejectedModel: null,
       decisionStatus: "abstained",
-      displayName: "Unidentified Display",
+      displayName: evidence.suggestedModel
+        ? `${evidence.manufacturer || "Apple"} ${evidence.suggestedModel} Display`
+        : (evidence.displayName || "Unidentified Display"),
       confidence: 0.35,
       reasoning: "Malformed cleaner response; operator review required.",
       telemetry,

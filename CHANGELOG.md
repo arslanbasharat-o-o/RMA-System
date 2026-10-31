@@ -4,6 +4,14 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.5.2] - 2026-10-31
+
+### Fixed
+- **Policy Invalidation & Stale Snapshot Purge**: Bumped `VISUAL_DECISION_POLICY` to `source-corroboration-2026-10-31-v8`. Prevents historical pre-v0.5.0 image decisions (which contained obsolete heuristic models such as false iPhone 8 Plus attributions) from being blindly reused as `same-image-evidence` during subsequent scans of identical image checksums.
+- **Reasoning Model Completion Token Budget**: Increased `max_completion_tokens` from 350 to 2048 in `cleanVisualCandidatesWithOpenAi`. Eliminates output truncation and "Malformed cleaner response" errors when using reasoning models (such as `gpt-5.6-terra`) where internal reasoning tokens consume completion tokens before JSON serialization.
+- **Cleaner Fallback Suggestion Preservation**: Updated `evaluateCleanerResponse` and provider error handlers to preserve upstream `evidence.suggestedModel` (e.g. iPhone 13 from Google Lens consensus) instead of nulling it out to "Unidentified Display" when an AI cleaner fails or abstains.
+- **Forced Retry Cache Bypass**: Updated `processRmaItem` in `src/lib/queue/processor.ts` so that when `options.force` is active, fresh recognition results always take precedence over historical snapshots even when the fresh model decision is provisional.
+
 ## [0.5.1] - 2026-10-31
 
 ### Fixed
