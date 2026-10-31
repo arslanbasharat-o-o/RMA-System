@@ -218,6 +218,18 @@ export const rmaItems = pgTable(
     predictedDisplayAssembly: text("predicted_display_assembly"),
     catalogDisplayId: uuid("catalog_display_id"),
     seededDisplayProductId: uuid("seeded_display_product_id").references(() => seededDisplayProducts.id, { onDelete: "set null" }),
+    inventoryMatchStatus: text("inventory_match_status", {
+      enum: [
+        "not_evaluated",
+        "processing",
+        "matched",
+        "no_verified_match",
+        "review_required",
+        "error",
+      ],
+    })
+      .notNull()
+      .default("not_evaluated"),
     inventoryMatchConfidence: real("inventory_match_confidence"),
     inventoryMatchEvidence: jsonb("inventory_match_evidence").$type<{
       matchingCues: string[];

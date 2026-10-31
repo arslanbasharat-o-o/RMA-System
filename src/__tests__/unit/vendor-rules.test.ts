@@ -146,4 +146,40 @@ describe("VendorRuleMatcher", () => {
     expect(res.vendorName).toBeNull();
     expect(res.evidenceNotes.some((n) => n.includes("Conflicting vendor markings detected"))).toBe(true);
   });
+
+  it("should match multiple vendor codes (TXP09, TXP08, TXP10) automatically without manual rules", () => {
+    const txpVendor: VendorData = {
+      id: "v-txp",
+      name: "TXP",
+      code: "TXP09",
+      aliases: ["TXP08", "TXP10"],
+    };
+    const autoMatcher = new VendorRuleMatcher([], [txpVendor], []);
+
+    // Primary code TXP09
+    const res1 = autoMatcher.matchTokens(["TXP09"]);
+    expect(res1.vendorName).toBe("TXP");
+    expect(res1.matchStatus).toBe("exact_match");
+
+    // Additional stock code TXP08
+    const res2 = autoMatcher.matchTokens(["TXP08"]);
+    expect(res2.vendorName).toBe("TXP");
+    expect(res2.matchStatus).toBe("exact_match");
+
+    // Additional stock code TXP10
+    const res3 = autoMatcher.matchTokens(["TXP10"]);
+    expect(res3.vendorName).toBe("TXP");
+    expect(res3.matchStatus).toBe("exact_match");
+
+    // Hyphenated and spaced stamp tokens (TXP-09, TXP 09)
+    const resHyphen = autoMatcher.matchTokens(["TXP-09"]);
+    expect(resHyphen.vendorName).toBe("TXP");
+
+    const resSpace = autoMatcher.matchTokens(["TXP 09"]);
+    expect(resSpace.vendorName).toBe("TXP");
+
+    // Sub-word inside longer text (QC PASS TXP09)
+    const resCompound = autoMatcher.matchTokens(["WARRANTY VOID IF REMOVED TXP09 2024"]);
+    expect(resCompound.vendorName).toBe("TXP");
+  });
 });

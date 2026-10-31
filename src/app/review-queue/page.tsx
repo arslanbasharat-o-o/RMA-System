@@ -21,8 +21,8 @@ import { toast } from "sonner";
 import {
   CardSpotlight,
   StatusText,
-  CopyBadge,
 } from "@/components/premium";
+import { BarcodeVisual } from "@/components/ui/barcode-visual";
 
 function parseReviewNotes(rawNotes?: string | null): string[] {
   if (!rawNotes || !rawNotes.trim()) return [];
@@ -313,42 +313,26 @@ export default function ReviewQueuePage() {
                       );
                     })()}
 
-                    {/* Matched Codes */}
-                    {currentItem.matchedCodesSummary && (
-                      <div className="p-2.5 rounded-lg bg-neutral-50 dark:bg-zinc-900 border border-neutral-200/60 dark:border-zinc-800 flex items-center justify-between text-xs">
-                        <span className="text-neutral-500 font-medium">Matched Codes:</span>
-                        <CopyBadge value={currentItem.matchedCodesSummary} />
-                      </div>
-                    )}
-                    {currentItem.inventoryMatchEvidence && (
-                      <div className="p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/30 border border-sky-200/80 dark:border-sky-900/70 text-xs text-sky-900 dark:text-sky-200 space-y-1">
-                        <span className="text-[10px] font-semibold uppercase tracking-wider block">
-                          Seeded Reference Comparison
+                    {/* Visual Barcode Graphic & Identifiers */}
+                    {(currentItem.barcodeValue || currentItem.supplierSku) ? (
+                      <div className="pt-3 border-t border-neutral-100 dark:border-zinc-800 space-y-1.5">
+                        <span className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider block">
+                          Visual Barcode & Identifiers
                         </span>
-                        {typeof currentItem.inventoryMatchConfidence === "number" && (
-                          <p>Confidence: {Math.round(currentItem.inventoryMatchConfidence * 100)}%</p>
-                        )}
-                        {currentItem.inventoryMatchEvidence.matchingCues?.length > 0 && (
-                          <p>Matching cues: {currentItem.inventoryMatchEvidence.matchingCues.join("; ")}</p>
-                        )}
-                        {currentItem.inventoryMatchEvidence.conflictingCues?.length > 0 && (
-                          <p>Conflicting cues: {currentItem.inventoryMatchEvidence.conflictingCues.join("; ")}</p>
-                        )}
-                        {currentItem.inventoryMatchEvidence.unresolvedAlternatives?.length > 0 && (
-                          <p>Unresolved alternatives: {currentItem.inventoryMatchEvidence.unresolvedAlternatives.join("; ")}</p>
-                        )}
+                        <div className="p-3 rounded-lg bg-neutral-50 dark:bg-zinc-900 border border-neutral-200/60 dark:border-zinc-800 flex flex-col items-center justify-center">
+                          <BarcodeVisual
+                            value={currentItem.barcodeValue || currentItem.supplierSku}
+                            height={44}
+                            showText={true}
+                          />
+                          {currentItem.supplierSku && (
+                            <span className="text-[11px] font-mono text-neutral-500 dark:text-neutral-400 mt-1.5">
+                              SKU: <strong className="text-neutral-800 dark:text-neutral-200">{currentItem.supplierSku}</strong>
+                            </span>
+                          )}
+                        </div>
                       </div>
-                    )}
-
-                    {/* Extracted Markings */}
-                    <div className="p-3 rounded-lg bg-neutral-50/80 dark:bg-zinc-900/60 border border-neutral-200/60 dark:border-zinc-800 text-xs font-mono text-neutral-600 dark:text-neutral-400 space-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-neutral-400 block">
-                        Extracted Markings:
-                      </span>
-                      <p className="text-neutral-800 dark:text-neutral-200 font-mono text-xs break-all">
-                        {currentItem.extractedTextSummary || "No markings detected"}
-                      </p>
-                    </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -400,21 +384,15 @@ export default function ReviewQueuePage() {
 
                   <div className="space-y-4">
                     {/* Primary Accept Action */}
-                    <div className="p-4 rounded-xl border border-emerald-300 dark:border-emerald-800/60 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent space-y-3">
-                      <div>
-                        <span className="font-bold text-xs text-emerald-950 dark:text-emerald-200 block">
-                          Approve Model Match
-                        </span>
-                      </div>
-
+                    <div>
                       <Button
                         variant="primary"
                         size="md"
                         loading={actionLoading}
                         onClick={() => handleAction("accept_suggestion")}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold text-xs justify-center shadow-xs cursor-pointer"
+                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white dark:bg-emerald-600 dark:text-white font-semibold text-sm h-10 justify-center shadow-xs cursor-pointer active:scale-[0.98]"
                       >
-                        <Check className="h-4 w-4 mr-1.5 shrink-0" />
+                        <Check className="h-4 w-4 mr-2 shrink-0" />
                         <span>Approve Match (Press Y)</span>
                       </Button>
                     </div>

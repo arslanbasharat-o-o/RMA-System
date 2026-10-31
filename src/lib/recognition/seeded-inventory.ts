@@ -2,6 +2,7 @@ import type {
   OpenAiVisionOcrService,
   VerifiedDisplayComparisonResult,
 } from "@/lib/recognition/openai/vision";
+import type { OpenAiCallTelemetry, OpenAiTokenUsage } from "@/lib/recognition/openai/telemetry";
 
 export interface SeededInventoryProduct {
   id: string;
@@ -22,8 +23,21 @@ export interface SeededInventoryReference {
   imageType?: string;
 }
 
+export interface SeededInventoryTelemetry {
+  discovery?: OpenAiCallTelemetry;
+  final?: OpenAiCallTelemetry;
+  totalCostUsd: number;
+  usage: OpenAiTokenUsage;
+}
+
+export interface MatchSeededInventoryOptions {
+  discoveryModel?: string;
+  finalModel?: string;
+  promptCachingOrder?: "prefix" | "legacy";
+}
+
 export type SeededInventoryMatch = {
-  status: "accepted" | "ambiguous" | "miss" | "error";
+  status: "accepted" | "ambiguous" | "miss" | "error" | "unavailable";
   product: SeededInventoryProduct | null;
   confidence: number;
   matchingCues: string[];
@@ -31,6 +45,7 @@ export type SeededInventoryMatch = {
   unresolvedAlternatives: string[];
   supportingReferenceIds: string[];
   error?: string;
+  telemetry?: SeededInventoryTelemetry;
 };
 
 type Comparator = Pick<OpenAiVisionOcrService, "compareToVerifiedExamples">;
@@ -54,10 +69,41 @@ function toComparisonReference(reference: SeededInventoryReference) {
   };
 }
 
+function buildTelemetry(
+  discovery?: VerifiedDisplayComparisonResult,
+  finalComparison?: VerifiedDisplayComparisonResult
+): SeededInventoryTelemetry | undefined {
+  if (!discovery?.telemetry && !finalComparison?.telemetry) return undefined;
+
+  const promptTokens = (discovery?.telemetry?.usage.promptTokens ?? 0) + (finalComparison?.telemetry?.usage.promptTokens ?? 0);
+  const cachedPromptTokens = (discovery?.telemetry?.usage.cachedPromptTokens ?? 0) + (finalComparison?.telemetry?.usage.cachedPromptTokens ?? 0);
+  const cacheWriteTokens = (discovery?.telemetry?.usage.cacheWriteTokens ?? 0) + (finalComparison?.telemetry?.usage.cacheWriteTokens ?? 0);
+  const completionTokens = (discovery?.telemetry?.usage.completionTokens ?? 0) + (finalComparison?.telemetry?.usage.completionTokens ?? 0);
+  const reasoningTokens = (discovery?.telemetry?.usage.reasoningTokens ?? 0) + (finalComparison?.telemetry?.usage.reasoningTokens ?? 0);
+  const totalTokens = promptTokens + completionTokens;
+  const totalCostUsd = Number(((discovery?.telemetry?.cost.totalCostUsd ?? 0) + (finalComparison?.telemetry?.cost.totalCostUsd ?? 0)).toFixed(8));
+
+  return {
+    discovery: discovery?.telemetry,
+    final: finalComparison?.telemetry,
+    totalCostUsd,
+    usage: {
+      promptTokens,
+      cachedPromptTokens,
+      cacheWriteTokens,
+      completionTokens,
+      reasoningTokens,
+      totalTokens,
+      isUsageMissing: false,
+    },
+  };
+}
+
 function result(
   status: SeededInventoryMatch["status"],
   comparison: Partial<VerifiedDisplayComparisonResult> = {},
-  product: SeededInventoryProduct | null = null
+  product: SeededInventoryProduct | null = null,
+  telemetry?: SeededInventoryTelemetry
 ): SeededInventoryMatch {
   return {
     status,
@@ -68,6 +114,7 @@ function result(
     unresolvedAlternatives: comparison.unresolvedAlternatives || [],
     supportingReferenceIds: comparison.supportingReferenceItemIds || [],
     ...(comparison.error ? { error: comparison.error } : {}),
+    ...(telemetry ? { telemetry } : {}),
   };
 }
 
@@ -79,11 +126,53 @@ function result(
 export async function matchSeededInventoryProduct(
   comparator: Comparator,
   targetImages: Array<{ imageBuffer: Buffer; imageType: string }>,
-  references: SeededInventoryReference[]
+  references: SeededInventoryReference[],
+  options?: MatchSeededInventoryOptions
 ): Promise<SeededInventoryMatch> {
   const products = uniqueProducts(references);
-  if (!targetImages.length || references.length < 2 || products.length < 2) {
-    return result("miss");
+  if (!targetImages.length) {
+    return result("unavailable", { error: "No target display images available for comparison" });
+  }
+  if (!references.length || !products.length) {
+    return result("unavailable", {
+      error: "No active inventory references available for comparison",
+    });
+  }
+
+  // Safe policy for sparse reference coverage:
+  // When catalog contains only a single product, evaluate the target image against it.
+  // Because single-reference coverage lacks comparison against competing alternatives,
+  // do not automatically accept it with full confidence; instead, preserve a provisional candidate
+  // for human review rather than declaring a catalog miss.
+  if (products.length === 1) {
+    const singleProduct = products[0];
+    const candidateReferences = references.filter((r) => r.product.id === singleProduct.id).slice(0, 3);
+    const discovery = await comparator.compareToVerifiedExamples(
+      targetImages,
+      candidateReferences.map(toComparisonReference),
+      [],
+      {
+        mode: "discovery",
+        identityLevel: "product_variant",
+        model: options?.discoveryModel,
+        promptCachingOrder: options?.promptCachingOrder,
+      }
+    );
+    const telemetry = buildTelemetry(discovery);
+    if (discovery.error) return result("error", discovery, null, telemetry);
+
+    if (discovery.selectedCatalogDisplayId === singleProduct.id) {
+      return {
+        ...result("ambiguous", discovery, singleProduct, telemetry),
+        confidence: Math.min(discovery.confidence, 0.70),
+        matchingCues: discovery.matchingCues,
+        conflictingCues: discovery.conflictingCues,
+        unresolvedAlternatives: [singleProduct.id],
+      };
+    }
+
+    const ambiguous = discovery.conflictingCues.length > 0 || discovery.unresolvedAlternatives.length > 0;
+    return result(ambiguous ? "ambiguous" : "miss", discovery, null, telemetry);
   }
 
   const representatives = products.map((product) =>
@@ -93,15 +182,32 @@ export async function matchSeededInventoryProduct(
     targetImages,
     representatives.map(toComparisonReference),
     [],
-    { mode: "discovery", identityLevel: "product_variant" }
+    {
+      mode: "discovery",
+      identityLevel: "product_variant",
+      model: options?.discoveryModel,
+      promptCachingOrder: options?.promptCachingOrder,
+    }
   );
-  if (discovery.error) return result("error", discovery);
+  if (discovery.error) return result("error", discovery, null, buildTelemetry(discovery));
   if (!discovery.selectedCatalogDisplayId) {
-    return result(discovery.confidence >= 0.65 ? "ambiguous" : "miss", discovery);
+    return result(
+      discovery.confidence >= 0.65 ? "ambiguous" : "miss",
+      discovery,
+      null,
+      buildTelemetry(discovery)
+    );
   }
 
   const firstSelection = products.find((product) => product.id === discovery.selectedCatalogDisplayId);
-  if (!firstSelection) return result("error", { ...discovery, error: "The inventory matcher returned an unknown product ID." });
+  if (!firstSelection) {
+    return result(
+      "error",
+      { ...discovery, error: "The inventory matcher returned an unknown product ID." },
+      null,
+      buildTelemetry(discovery)
+    );
+  }
 
   const sameModelAlternatives = products.filter((product) =>
     product.id !== firstSelection.id &&
@@ -126,14 +232,20 @@ export async function matchSeededInventoryProduct(
     targetImages,
     boundedReferences.map(toComparisonReference),
     [],
-    { mode: "final", identityLevel: "product_variant" }
+    {
+      mode: "final",
+      identityLevel: "product_variant",
+      model: options?.finalModel,
+      promptCachingOrder: options?.promptCachingOrder,
+    }
   );
-  if (finalComparison.error) return result("error", finalComparison);
+  const combinedTelemetry = buildTelemetry(discovery, finalComparison);
+  if (finalComparison.error) return result("error", finalComparison, null, combinedTelemetry);
 
   const selectedProduct = products.find((product) => product.id === finalComparison.selectedCatalogDisplayId) || null;
   if (!selectedProduct) {
     const ambiguous = finalComparison.conflictingCues.length > 0 || finalComparison.unresolvedAlternatives.length > 0;
-    return result(ambiguous ? "ambiguous" : "miss", finalComparison);
+    return result(ambiguous ? "ambiguous" : "miss", finalComparison, null, combinedTelemetry);
   }
 
   // Filter out any conflicting cues that explicitly describe why other rejected
@@ -175,7 +287,107 @@ export async function matchSeededInventoryProduct(
     finalComparison.unresolvedAlternatives.length === 0 &&
     finalComparison.supportingReferenceItemIds.length > 0;
 
-  return result(accepted ? "accepted" : "ambiguous", finalComparison, accepted ? selectedProduct : null);
+  return result(accepted ? "accepted" : "ambiguous", finalComparison, accepted ? selectedProduct : null, combinedTelemetry);
+}
+
+export type InventoryMatchStatus =
+  | "not_evaluated"
+  | "processing"
+  | "matched"
+  | "no_verified_match"
+  | "review_required"
+  | "error";
+
+export const VALID_INVENTORY_MATCH_STATUSES: ReadonlySet<string> = new Set([
+  "not_evaluated",
+  "processing",
+  "matched",
+  "no_verified_match",
+  "review_required",
+  "error",
+]);
+
+export function deriveInventoryMatchStatus(item: {
+  status?: string | null;
+  inventoryMatchStatus?: string | null;
+  seededDisplayProductId?: string | null;
+  inventoryMatchConfidence?: number | null;
+  inventoryMatchEvidence?: {
+    matchingCues?: string[];
+    conflictingCues?: string[];
+    unresolvedAlternatives?: string[];
+  } | null;
+  verifiedByUserId?: string | null;
+}): InventoryMatchStatus {
+  const persisted = item.inventoryMatchStatus;
+
+  // 1. If an explicit status was persisted, validate and enforce domain constraints
+  if (persisted && typeof persisted === "string") {
+    if (!VALID_INVENTORY_MATCH_STATUSES.has(persisted)) {
+      // Invalid persisted status must NOT be blindly returned through type assertion
+      return "review_required";
+    }
+
+    if (persisted === "matched") {
+      // A matched screen must have an attached product ID
+      if (!item.seededDisplayProductId) {
+        return "review_required";
+      }
+      // A matched screen must not have contradictory cues or unresolved alternatives
+      if (
+        (item.inventoryMatchEvidence?.conflictingCues && item.inventoryMatchEvidence.conflictingCues.length > 0) ||
+        (item.inventoryMatchEvidence?.unresolvedAlternatives && item.inventoryMatchEvidence.unresolvedAlternatives.length > 0)
+      ) {
+        return "review_required";
+      }
+      return "matched";
+    }
+
+    if (persisted === "no_verified_match") {
+      // Contradiction: if a seeded product ID is attached, it cannot be 'no_verified_match'
+      if (item.seededDisplayProductId) {
+        return "review_required";
+      }
+      return "no_verified_match";
+    }
+
+    if (persisted === "processing") return "processing";
+    if (persisted === "review_required") return "review_required";
+    if (persisted === "error") return "error";
+    // If explicitly 'not_evaluated', fall through to lifecycle state checks below
+  }
+
+  // 2. Lifecycle state fallbacks (for un-backfilled legacy records or active job transitions)
+  if (item.status === "processing" || item.status === "queued") {
+    return "processing";
+  }
+  if (item.status === "failed") {
+    return "error";
+  }
+
+  // If a seeded product ID exists on an un-backfilled legacy record:
+  if (item.seededDisplayProductId) {
+    // Only positive multi-cue physical proof justifies automatic 'matched' inference
+    // on un-backfilled records. Generic RMA 'verified' status only confirms device model,
+    // so records without physical proof remain 'review_required'.
+    const hasPhysicalProof =
+      typeof item.inventoryMatchConfidence === "number" &&
+      item.inventoryMatchConfidence >= 0.90 &&
+      Array.isArray(item.inventoryMatchEvidence?.matchingCues) &&
+      item.inventoryMatchEvidence.matchingCues.length >= 2 &&
+      (!item.inventoryMatchEvidence.conflictingCues || item.inventoryMatchEvidence.conflictingCues.length === 0) &&
+      (!item.inventoryMatchEvidence.unresolvedAlternatives || item.inventoryMatchEvidence.unresolvedAlternatives.length === 0);
+
+    if (hasPhysicalProof) {
+      return "matched";
+    }
+    // Lacking positive physical proof: do NOT auto-infer 'matched' from generic RMA status!
+    return "review_required";
+  }
+
+  // A generic RMA status (verified, suggested_match, review_required) does NOT imply an inventory comparison miss!
+  // Without completed comparison evidence, unlinked items remain 'not_evaluated'.
+  return "not_evaluated";
 }
 
 /**

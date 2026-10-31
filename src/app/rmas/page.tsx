@@ -39,6 +39,7 @@ export default function RmaListPage() {
   const [loading, setLoading] = useState(true);
 
   const listRequest = useRef<AbortController | null>(null);
+  const isInitial = useRef(true);
 
   const fetchRmas = async () => {
     listRequest.current?.abort();
@@ -71,6 +72,11 @@ export default function RmaListPage() {
   };
 
   useEffect(() => {
+    if (isInitial.current) {
+      isInitial.current = false;
+      fetchRmas();
+      return;
+    }
     const timer = setTimeout(() => {
       fetchRmas();
     }, 250);
@@ -166,7 +172,12 @@ export default function RmaListPage() {
                   className="p-4 rounded-xl bg-white dark:bg-[#121215] border border-neutral-200/90 dark:border-neutral-800 shadow-xs space-y-3"
                 >
                   <div className="flex items-center justify-between">
-                    <CopyBadge value={rma.rmaNumber} />
+                    <Link
+                      href={`/rmas/${rma.id}`}
+                      className="font-mono font-bold text-sm text-neutral-900 dark:text-neutral-100 hover:underline"
+                    >
+                      {rma.rmaNumber}
+                    </Link>
                     <StatusText
                       variant={getStatusVariant(rma.status)}
                     >
@@ -253,7 +264,12 @@ export default function RmaListPage() {
                       className="hover:bg-neutral-50/60 dark:hover:bg-zinc-800/40 transition-colors group"
                     >
                       <td className="px-5 py-3">
-                        <CopyBadge value={rma.rmaNumber} />
+                        <Link
+                          href={`/rmas/${rma.id}`}
+                          className="font-mono font-bold text-neutral-900 dark:text-neutral-100 hover:underline"
+                        >
+                          {rma.rmaNumber}
+                        </Link>
                       </td>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2">

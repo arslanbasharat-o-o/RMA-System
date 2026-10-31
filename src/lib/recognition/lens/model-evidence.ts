@@ -67,7 +67,11 @@ export function appleVisualEvidence(
 ): AppleVisualEvidenceResult | null {
   const overviewEvidence = aiOverviewModelEvidence(aiOverview);
   const ocrTextCombined = (ocrHints || []).join(" ").toUpperCase();
-  const isOledTechnology = /\b(?:HARD|OLED|AMOLED|AL1[2-6])\b/.test(ocrTextCombined);
+  // Affirmative physical cues: OLED technology is physically incompatible with legacy iPhone LCDs.
+  // Broad '821-' flex cable prefixes and arbitrary stamps (413022, M308) must NOT invalidate legacy models,
+  // as Apple used 821-xxxx part numbers across all legacy iPhones (e.g. 821-01050-A for iPhone 8 Plus).
+  const isOledTechnology = /\b(?:HARD|SOFT|OLED|AMOLED)\b/.test(ocrTextCombined);
+  const isModernAftermarketMarking = /\b(?:AL1[2-6])\b/.test(ocrTextCombined);
   const isLegacyLcdModel = (name: string) => /^iPhone\s*(?:[5678](?:s)?|SE)\b/i.test(name);
   const otherDevice = /\b(?:galaxy|samsung|pixel|google|oneplus|one\s+plus|xiaomi|redmi|poco|oppo|realme|vivo|huawei|honor|motorola|nokia|sony|xperia|lg|zte|tcl)\b/i;
   const displayListing = /\b(?:screen|display|lcd|oled|amoled|digitizer|touch\s*screen|panel|assembly|replacement)\b/i;
@@ -76,10 +80,72 @@ export function appleVisualEvidence(
     .filter((candidate) => Number.isFinite(candidate.rank) && candidate.rank > 0)
     .sort((a, b) => a.rank - b.rank)
     .slice(0, 30);
+
+  // Refactored consensus stage: consider only independent, eligible evidence.
+  // One duplicated source must never become multiple independent votes.
+  // Compatibility and multi-model listings must not be treated as clean single-model corroboration.
+  const modernSources = new Set<string>();
+  const legacySources = new Set<string>();
+  const topCandidates = rankedCandidates.slice(0, 20);
+
+  for (const c of topCandidates) {
+    if (accessory.test(c.title) || otherDevice.test(c.title)) continue;
+    const ms = extractAppleModels(c.title);
+    // Compatibility and multi-model listings must not be treated as clean single-model corroboration
+    if (ms.length !== 1) continue;
+    if (/\b(?:compatib(?:le|ility)|fits?|works?\s+with)\b/i.test(c.title)) continue;
+
+    const source = independentSource(c.sourceUrl, c.sourceName);
+    if (!source) continue;
+
+    const m = ms[0];
+    if (/^iPhone\s*(?:X[RS]?|1[0-9])\b/i.test(m)) {
+      modernSources.add(source);
+    } else if (isLegacyLcdModel(m)) {
+      legacySources.add(source);
+    }
+  }
+
+  const modernCandidateCount = modernSources.size;
+  const legacyCandidateCount = legacySources.size;
+
+  // Consensus requires clear preponderance of independent sources:
+  // - At least 3 independent modern sources
+  // - Modern outnumbers legacy by at least 2:1
+  // - Legacy is an isolated outlier (at most 1)
+  const hasModernConsensus =
+    modernCandidateCount >= 3 &&
+    modernCandidateCount >= legacyCandidateCount * 2 &&
+    legacyCandidateCount <= 1;
+
+  const hasLegacyConsensus =
+    legacyCandidateCount >= 3 &&
+    legacyCandidateCount >= modernCandidateCount * 2 &&
+    modernCandidateCount <= 1;
+
+  // Conflict exists when both modern and legacy independent sources are present without a consensus winner
+  const hasListingConflict =
+    modernCandidateCount > 0 &&
+    legacyCandidateCount > 0 &&
+    !hasModernConsensus &&
+    !hasLegacyConsensus;
+
+  // Direct physical proof requires affirmative physical markings (e.g. OLED technology or modern aftermarket codes)
+  const hasPhysicalOledProof = isOledTechnology || isModernAftermarketMarking;
+
+  const isLegacyInvalidated = (modelName: string) => {
+    if (!isLegacyLcdModel(modelName)) return false;
+    // Physical OLED characteristics conclusively invalidate legacy LCDs
+    if (hasPhysicalOledProof) return true;
+    // Genuine multi-candidate modern consensus from independent sources invalidates legacy
+    if (hasModernConsensus) return true;
+    return false;
+  };
+
   const firstSpecific = rankedCandidates.find((candidate) => extractAppleModels(candidate.title).length || otherDevice.test(candidate.title));
   if (firstSpecific && !extractAppleModels(firstSpecific.title).length) return null;
 
-  const scores = new Map<string, { score: number; sources: Set<string> }>();
+  const scores = new Map<string, { score: number; sources: Set<string>; displaySources: number }>();
   const seenSourcesByModel = new Map<string, Set<string>>();
   const attributableModels = new Set<string>();
   let mixedListings = 0;
@@ -104,35 +170,31 @@ export function appleVisualEvidence(
       accessoryListings += 1;
       continue;
     }
-    if (!displayListing.test(candidate.title)) {
-      irrelevantListings += 1;
-      continue;
-    }
-    // If physical markings confirm OLED technology (e.g. HARD or SOFT OLED),
-    // legacy LCD-only models (iPhone 6/7/8) cannot be the matching display assembly.
-    if (isOledTechnology && isLegacyLcdModel(models[0])) {
+    // If physical markings confirm OLED/modern flex codes or candidate consensus indicates modern all-screen device,
+    // legacy LCD-only models (iPhone 5/6/7/8/SE) cannot be the matching display assembly.
+    if (isLegacyInvalidated(models[0])) {
       irrelevantListings += 1;
       continue;
     }
 
+    const isDisplay = displayListing.test(candidate.title);
+    const weight = isDisplay ? 1.0 : 0.45;
+
     const source = independentSource(candidate.sourceUrl, candidate.sourceName);
     if (!source) {
-      // Titles alone are not independent sources. Keep these results in review
-      // when neither a publisher URL nor a publisher label is attributable.
       unattributedListings += 1;
       continue;
     }
-    // Keep variant disagreements even when one publisher has multiple cards.
-    // Deduplication may reduce votes; it must not erase contrary evidence.
     attributableModels.add(models[0]);
     const seenSources = seenSourcesByModel.get(models[0]) || new Set<string>();
     if (seenSources.has(source)) continue;
     seenSources.add(source);
     seenSourcesByModel.set(models[0], seenSources);
 
-    const entry = scores.get(models[0]) || { score: 0, sources: new Set<string>() };
-    entry.score += 1 / Math.log2(candidate.rank + 1);
+    const entry = scores.get(models[0]) || { score: 0, sources: new Set<string>(), displaySources: 0 };
+    entry.score += weight / Math.log2(candidate.rank + 1);
     entry.sources.add(source);
+    if (isDisplay) entry.displaySources += 1;
     scores.set(models[0], entry);
     corroboratedListings += 1;
   }
@@ -171,7 +233,17 @@ export function appleVisualEvidence(
     };
   }
   const ratio = runner ? winner[1].score / runner[1].score : Number.POSITIVE_INFINITY;
-  const decisive = winner[1].sources.size >= 3 && ratio >= 1.8;
+  const hasDisplayEvidence = winner[1].displaySources >= 1;
+  const decisive = hasDisplayEvidence && winner[1].sources.size >= 3 && ratio >= 1.8;
+
+  if (!hasDisplayEvidence && winner[1].sources.size >= 3 && ratio >= 1.8) {
+    return {
+      model: null,
+      suggestedModel: winner[0],
+      confidence: 0.65,
+      reasoning: `Visual search listings strongly support device model ${winner[0]} (${winner[1].sources.size} independent sources), but listings are complete devices rather than replacement display assemblies (${detail}). Operator confirmation is recommended.`,
+    };
+  }
   if (overviewEvidence.ambiguous) {
     return {
       model: null,
@@ -188,6 +260,16 @@ export function appleVisualEvidence(
       reasoning: `Independent listings favor ${winner[0]}, but the specific Google AI Overview names ${overviewEvidence.specificModel}. The evidence conflicts, so manual review is required (${detail}).`,
     };
   }
+
+  if (hasListingConflict && !hasPhysicalOledProof) {
+    return {
+      model: null,
+      suggestedModel: winner[0],
+      confidence: 0.45,
+      reasoning: `Candidate listings present conflicting modern vs. legacy evidence without resolving physical cues (${detail}). Operator review is required.`,
+    };
+  }
+
   if (!decisive && runner) {
     return {
       model: null,

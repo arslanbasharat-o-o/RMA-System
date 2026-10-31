@@ -43,7 +43,7 @@ import { modalOverlayVariants, drawerSlideVariants } from "@/lib/motion/variants
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { StatusTransition } from "@/components/motion/StatusTransition";
 import { hasModelSuggestion } from "@/lib/model-result";
-import { CopyBadge } from "@/components/premium";
+import { BarcodeVisual } from "@/components/ui/barcode-visual";
 
 export function ItemReviewDrawer({
   itemId,
@@ -237,14 +237,40 @@ export function ItemReviewDrawer({
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
   const currentImage = (images && images.find((i: any) => i.id === activeImageId)) || images?.[0];
 
-  const selectedCandidate = candidates?.find((c: any) => c.id === selectedCandidateId);
-  const matchedCandidate = selectedCandidate || candidates?.find((c: any) =>
-    (customModel && c.candidateTitle?.toLowerCase().includes(customModel.toLowerCase().trim())) ||
-    (customModel && c.parsedModel?.toLowerCase() === customModel.toLowerCase().trim())
+  // A generic RMA 'verified' status only confirms the device model, NOT warehouse stock.
+  // Product identity is operator-confirmed ONLY when explicitly confirmed via review action
+  // or verified by multi-cue physical evidence.
+  const isOperatorProductConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    item?.status === "verified" &&
+    reviewHistory?.some((r: any) =>
+      r.actionType === "confirm_inventory" ||
+      r.action_type === "confirm_inventory" ||
+      r.newState?.action === "confirm_inventory" ||
+      r.new_state?.action === "confirm_inventory" ||
+      Boolean(r.newState?.confirmedProductId || r.new_state?.confirmedProductId)
+    )
+  );
+  const isPhysicalProductConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    (item?.inventoryMatchConfidence ?? 0) >= 0.90 &&
+    (item?.inventoryMatchEvidence?.matchingCues?.length ?? 0) >= 2
+  );
+  const isStockConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    Boolean(item?.seededProduct || item?.seededDisplayProductId) &&
+    (isOperatorProductConfirmed || isPhysicalProductConfirmed)
   );
 
-  const activeBarcode = matchedCandidate?.barcodeValue || item?.barcodeValue || item?.seededProduct?.barcodeValue || null;
-  const activeSku = matchedCandidate?.supplierSku || item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null;
+  // Sku and Barcode are warehouse inventory attributes. They must NEVER be displayed from
+  // search candidates merely because the device model matched.
+  const activeBarcode = isStockConfirmed ? (item?.barcodeValue || item?.seededProduct?.barcodeValue || null) : null;
+  const activeSku = isStockConfirmed
+    ? (item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null)
+    : null;
+  const suggestedSku = (!isStockConfirmed && item?.seededProduct)
+    ? (item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -331,25 +357,25 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {/* Featured Photo Viewer */}
+          {/* Featured Photo Viewer - Full resolution display */}
           {currentImage ? (
             <div className="space-y-2">
               <div
-                onClick={() => setZoomedImage(`/api/images/${currentImage.id}?size=preview`)}
-                className="group relative w-full h-64 sm:h-72 rounded-xl border border-neutral-200/80 dark:border-neutral-800 bg-neutral-100 dark:bg-neutral-900/60 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
-                title="Click to zoom image"
+                onClick={() => setZoomedImage(`/api/images/${currentImage.id}`)}
+                className="group relative w-full h-80 sm:h-96 md:h-[400px] rounded-xl border border-neutral-200/90 dark:border-neutral-800 bg-neutral-900/95 overflow-hidden flex items-center justify-center cursor-zoom-in transition-all"
+                title="Click to zoom full-resolution image"
               >
                 <img
-                  src={`/api/images/${currentImage.id}?size=preview`}
+                  src={`/api/images/${currentImage.id}`}
                   alt={currentImage.originalFilename || "Display photograph"}
                   className="max-h-full max-w-full object-contain transition-transform duration-200 ease-out group-hover:scale-[1.02]"
                 />
-                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-black/70 text-white backdrop-blur-xs">
+                <span className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider bg-black/75 text-white backdrop-blur-xs">
                   {currentImage.imageType || "Photo"}
                 </span>
-                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1 px-2 py-1 rounded bg-black/70 text-[11px] text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                <div className="absolute bottom-2.5 right-2.5 flex items-center gap-1.5 px-2.5 py-1 rounded bg-black/75 text-xs text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                   <ZoomIn className="h-3.5 w-3.5" />
-                  <span>Zoom</span>
+                  <span>Full Res Zoom</span>
                 </div>
               </div>
 
@@ -387,7 +413,7 @@ export function ItemReviewDrawer({
             </div>
           )}
 
-          {/* Clean Display Details: No nested boxes or CSS capsules */}
+          {/* Clean Display Details */}
           <div className="space-y-3 pt-2">
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -409,34 +435,107 @@ export function ItemReviewDrawer({
                 <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
                   Unidentified
                 </span>
-              ) : null}
+              ) : (
+                <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                  Identified
+                </span>
+              )}
             </div>
 
+            {/* Visual Barcode Graphic */}
+            {activeBarcode && (
+              <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider mb-1.5">
+                  Barcode (UPC/EAN)
+                </span>
+                <div className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-center">
+                  <BarcodeVisual value={activeBarcode} height={44} showText={true} />
+                </div>
+              </div>
+            )}
+
             {/* Clean Key-Value Row */}
-            <div className="grid grid-cols-2 gap-x-4 gap-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-2 border-t border-neutral-100 dark:border-neutral-800 text-xs">
               <div>
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
-                  Barcode (UPC)
+                  Product SKU
                 </span>
-                {activeBarcode ? (
-                  <div className="mt-0.5">
-                    <CopyBadge
-                      value={activeBarcode}
-                      label={activeBarcode}
-                      className="font-mono text-xs font-bold"
-                    />
-                  </div>
+                {isStockConfirmed ? (
+                  <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 block truncate">
+                    {activeSku}
+                  </span>
+                ) : suggestedSku ? (
+                  <span className="font-mono text-xs text-amber-600 dark:text-amber-400 mt-0.5 block truncate" title="Suggested SKU awaiting operator confirmation">
+                    {suggestedSku} (Suggested)
+                  </span>
                 ) : (
-                  <span className="text-neutral-400 font-mono text-xs mt-0.5 block">—</span>
+                  <span className="font-mono text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 block truncate">
+                    —
+                  </span>
                 )}
               </div>
 
               <div>
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
-                  Product SKU
+                  Inventory Match
                 </span>
-                <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 block truncate">
-                  {activeSku || "—"}
+                <span className="font-medium text-xs mt-0.5 block">
+                  {isStockConfirmed ? (
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                      Warehouse Stock ({item?.seededProduct?.variantName || item?.inventoryProductVariantName || "Confirmed"}) — Confirmed
+                    </span>
+                  ) : (item?.inventoryMatchStatus === "matched" || item?.seededProduct) ? (
+                    <span className="inline-flex flex-col gap-1">
+                      <span className="text-amber-700 dark:text-amber-400 font-semibold inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Warehouse Stock Suggestion ({item?.seededProduct?.variantName || item?.inventoryProductVariantName || "Matched"}) — Awaiting Review
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCorrection("confirm_inventory")}
+                        className="self-start text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 underline cursor-pointer"
+                      >
+                        Confirm this product stock
+                      </button>
+                    </span>
+                  ) : item?.inventoryMatchStatus === "processing" ? (
+                    <span className="text-blue-600 dark:text-blue-400 font-medium inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                      Evaluating inventory...
+                    </span>
+                  ) : item?.inventoryMatchStatus === "review_required" ? (
+                    item?.inventoryMatchEvidence?.unresolvedAlternatives && item?.inventoryMatchEvidence?.unresolvedAlternatives.length > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Ambiguous inventory candidates — Review required
+                      </span>
+                    ) : item?.inventoryMatchEvidence?.notes?.some((n: string) => /incomplete|insufficient|unavailable/i.test(n)) ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Inventory comparison incomplete — Review required
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Inventory match uncertain — Review required
+                      </span>
+                    )
+                  ) : item?.inventoryMatchStatus === "error" ? (
+                    <span className="text-rose-600 dark:text-rose-400 font-medium inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+                      Inventory evaluation error
+                    </span>
+                  ) : item?.inventoryMatchStatus === "no_verified_match" ? (
+                    <span className="text-neutral-500 dark:text-neutral-400 inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-neutral-400" />
+                      No verified inventory match
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400 dark:text-neutral-500">
+                      Not evaluated
+                    </span>
+                  )}
                 </span>
               </div>
 
@@ -445,21 +544,29 @@ export function ItemReviewDrawer({
                   Vendor
                 </span>
                 <span className="font-medium text-neutral-800 dark:text-neutral-200 mt-0.5 block">
-                  {item?.identifiedVendorName || "Unidentified"}
-                  {item?.identifiedVendorVariantName && (
-                    <span className="text-neutral-400 ml-1">({item.identifiedVendorVariantName})</span>
+                  {item?.identifiedVendorName ? (
+                    <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+                      {item.identifiedVendorName}
+                      {item.identifiedVendorVariantName && (
+                        <span className="text-neutral-500 dark:text-neutral-400 font-normal ml-1">
+                          ({item.identifiedVendorVariantName})
+                        </span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400 dark:text-neutral-500">Unidentified</span>
                   )}
                 </span>
               </div>
 
               {item?.extractedTextSummary && (
-                <div>
+                <div className="col-span-2 pt-1">
                   <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
-                    Markings
+                    Extracted Markings & Stamps
                   </span>
-                  <span className="font-mono text-[11px] text-neutral-800 dark:text-neutral-200 truncate mt-0.5 block">
+                  <div className="mt-1 p-2 rounded-lg bg-neutral-50 dark:bg-neutral-900 border border-neutral-200/70 dark:border-neutral-800 font-mono text-[11px] text-neutral-800 dark:text-neutral-200 break-words">
                     {item.extractedTextSummary}
-                  </span>
+                  </div>
                 </div>
               )}
             </div>
@@ -522,7 +629,7 @@ export function ItemReviewDrawer({
           {/* Verification & Manual Overrides */}
           <div className="space-y-3 pt-2 border-t border-neutral-100 dark:border-neutral-800">
             <h4 className="text-xs font-semibold uppercase tracking-wider text-neutral-400 dark:text-neutral-500">
-              Verify or Correct Model
+              Model & Vendor Verification
             </h4>
 
             {/* Model Inputs */}
@@ -566,10 +673,10 @@ export function ItemReviewDrawer({
                   setSelectedVariantId("");
                 }}
               >
-                <option value="">-- Unidentified Vendor --</option>
+                <option value="">Unidentified Vendor</option>
                 {vendorList.map((v) => (
                   <option key={v.id} value={v.id}>
-                    {v.name}
+                    {v.name} ({v.code})
                   </option>
                 ))}
               </Select>
@@ -585,10 +692,10 @@ export function ItemReviewDrawer({
                   value={selectedVariantId}
                   onChange={(e) => { editing.current = true; setSelectedVariantId(e.target.value); }}
                 >
-                  <option value="">-- None / Standard --</option>
+                  <option value="">Standard / Default</option>
                   {currentVendor.variants.map((va: any) => (
                     <option key={va.id} value={va.id}>
-                      {va.name}
+                      {va.name} ({va.code})
                     </option>
                   ))}
                 </Select>

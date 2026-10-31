@@ -15,14 +15,13 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { PageLoading } from "@/components/ui/loading-message";
+import { LoadingMessage } from "@/components/ui/loading-message";
 import { AnimatedNumber } from "@/components/motion/AnimatedNumber";
 import { toast } from "sonner";
 import { useLiveRefresh } from "@/lib/hooks/useLiveRefresh";
 import { hasModelSuggestion } from "@/lib/model-result";
 import {
   CardSpotlight,
-  CopyBadge,
   StatusText,
   ShimmerButton,
 } from "@/components/premium";
@@ -190,20 +189,6 @@ export default function RmaDetailPage({
     }
   };
 
-  if (!data && refreshError) {
-    return (
-      <AppShell>
-        <div role="alert" className="space-y-3 p-4">
-          <p>Connection interrupted. Reconnecting to this RMA automatically…</p>
-        </div>
-      </AppShell>
-    );
-  }
-
-  if (loading && !data) {
-    return <PageLoading label="Loading RMA details…" />;
-  }
-
   const rmaShipmentStatus =
     rma?.status === "completed"
       ? "completed"
@@ -215,7 +200,16 @@ export default function RmaDetailPage({
 
   return (
     <AppShell>
-      <div className="space-y-6">
+      {!data && refreshError ? (
+        <div role="alert" className="space-y-3 p-4">
+          <p>Connection interrupted. Reconnecting to this RMA automatically…</p>
+        </div>
+      ) : loading && !data ? (
+        <div className="flex min-h-[45vh] items-center justify-center px-4">
+          <LoadingMessage label="Loading RMA details…" />
+        </div>
+      ) : (
+        <div className="space-y-6">
         {refreshError && (
           <div
             role="alert"
@@ -268,7 +262,9 @@ export default function RmaDetailPage({
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
-                <h1><CopyBadge value={rma?.rmaNumber || ""} className="text-base sm:text-lg font-bold py-1 px-3" /></h1>
+                <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50 font-mono">
+                  {rma?.rmaNumber}
+                </h1>
                 <StatusText
                   variant={
                     rmaShipmentStatus === "completed"
@@ -277,10 +273,8 @@ export default function RmaDetailPage({
                       ? "neutral"
                       : "info"
                   }
-                  showIcon={false}
-                  className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 font-semibold"
                 >
-                  Shipment: {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
+                  {rmaShipmentStatus.charAt(0).toUpperCase() + rmaShipmentStatus.slice(1)}
                 </StatusText>
               </div>
 
@@ -780,6 +774,7 @@ export default function RmaDetailPage({
           )}
         </AnimatePresence>
       </div>
+    )}
     </AppShell>
   );
 }

@@ -4,6 +4,28 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-31
+
+### Added
+- **Explicit 6-State Inventory Match State Machine**: Added domain-constrained `inventory_match_status` (`not_evaluated`, `processing`, `matched`, `no_verified_match`, `review_required`, `error`) across `rma_items` schema, migrations, API route handlers, background worker persistence, and operator UI.
+- **8 Product Display States in Review Drawer**: Revamped `ItemReviewDrawer.tsx` to distinguish identified models, automated suggestions awaiting confirmation (amber), operator-confirmed warehouse stock (emerald), evaluation in progress (blue pulse), incomplete comparisons (amber), ambiguous candidates, completed no-matches (neutral), and provider errors (rose).
+- **Manual Inventory Confirmation Action**: Added `confirm_inventory` endpoint action in `/api/rma-items/[id]/review`, allowing operators to review automated warehouse suggestions and certify them into confirmed stock with audit logging.
+- **Deterministic Vision Cleaner Decision Interface**: Extracted `evaluateCleanerResponse` with Contradiction Guard, ensuring cleaner responses marked `rejected: true` or containing contradictory reasoning are never promoted into accepted model suggestions even if the model string matches.
+- **Preponderance Consensus Engine**: Replaced single-result `.some()` checks with multi-candidate consensus rules ($\ge 3$ listings, $\ge 2:1$ ratio, $\le 1$ outlier) in `model-evidence.ts` and `decision.ts`.
+- **E2E Integration Lifecycle Suite**: Added `src/__tests__/integration/recognition-lifecycle-e2e.test.ts` verifying real background worker pipeline persistence with mock inventory match adapters, without manual database update shortcuts.
+- **AI Cost Telemetry & Cache Optimization**: Added token-level usage accounting, cache hit/write reconciliation, and deterministic prompt caching headers.
+
+### Changed
+- **Historical Inventory Backfill Policy**: Refactored `src/db/migrate.ts` to require positive verification (operator confirmation or physical comparison $\ge 0.90$ confidence, $\ge 2$ cues, 0 conflicts) before setting `matched`. Demotes unverified legacy associations to `review_required` without data deletion.
+- **Matcher Prerequisites & Incomplete Handling**: In `seeded-inventory.ts` and `processor.ts`, comparisons with < 2 reference samples or empty target images return `status: "unavailable"` and map to `review_required` instead of falsely mislabeling displays as external.
+- **Hardware Flex-Code Guards**: Removed generic Apple `821-` flex prefixes and arbitrary lot stamps (`413022`, `M308`) from modern iPhone guards; legacy iPhones (e.g. iPhone 8 Plus) are preserved unless affirmative OLED cues (`HARD`, `SOFT`, `OLED`, `AMOLED`) or multi-candidate modern consensus are present.
+- **Stale Worker Revision Gating**: Hardened `updateItemForRevision` in `processor.ts` so background jobs matching older revisions cannot overwrite newer operator review actions.
+
+### Fixed
+- **Unsafe Inventory Status Inference**: Replaced naive ternary fallbacks (`item.seededDisplayProductId ? "matched" : "not_in_inventory"`) with `deriveInventoryMatchStatus` validating against strict domain constraints.
+- **Eliminated False Warehouse SKU/Barcode Fabrication**: Prohibited API handlers from attaching warehouse inventory SKUs and UPC/EAN barcodes to uncataloged external screens merely based on model name strings.
+
+
 ## [0.4.11] - 2026-10-30
 
 ### Added

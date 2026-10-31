@@ -21,20 +21,19 @@ export function CardSpotlight({
   ...props
 }: CardSpotlightProps) {
   const divRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const overlayRef = useRef<HTMLDivElement>(null);
   const [opacity, setOpacity] = useState(0);
   const { reducedMotion } = useMotionPreference();
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (reducedMotion || !divRef.current) return;
+      if (reducedMotion || !overlayRef.current || !divRef.current) return;
       const rect = divRef.current.getBoundingClientRect();
-      setPosition({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top,
-      });
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      overlayRef.current.style.background = `radial-gradient(${spotlightSize}px circle at ${x}px ${y}px, ${spotlightColor}, transparent 70%)`;
     },
-    [reducedMotion]
+    [reducedMotion, spotlightSize, spotlightColor]
   );
 
   const handleMouseEnter = useCallback(() => {
@@ -57,13 +56,14 @@ export function CardSpotlight({
       )}
       {...props}
     >
-      {/* Clean Radial cursor spotlight */}
+      {/* High-performance radial cursor spotlight without React re-renders */}
       <div
+        ref={overlayRef}
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 rounded-[inherit] transition-opacity duration-300 z-0 overflow-hidden"
         style={{
           opacity,
-          background: `radial-gradient(${spotlightSize}px circle at ${position.x}px ${position.y}px, ${spotlightColor}, transparent 70%)`,
+          background: `radial-gradient(${spotlightSize}px circle at 0px 0px, ${spotlightColor}, transparent 70%)`,
         }}
       />
 

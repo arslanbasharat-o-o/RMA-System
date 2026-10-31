@@ -112,11 +112,11 @@ export class LocalStorageProvider implements StorageProvider {
         .webp({ quality: 80 })
         .toFile(fullThumbPath);
 
-      // Generate webp preview (max 1280px dimension)
+      // Generate high-resolution webp preview (max 2560px dimension, high-fidelity)
       await sharp(buffer)
         .rotate()
-        .resize(1280, 1280, { fit: "inside", withoutEnlargement: true })
-        .webp({ quality: 85 })
+        .resize(2560, 2560, { fit: "inside", withoutEnlargement: true })
+        .webp({ quality: 95, effort: 6 })
         .toFile(fullPreviewPath);
     } catch (err) {
       // Clean up any partially written files on error

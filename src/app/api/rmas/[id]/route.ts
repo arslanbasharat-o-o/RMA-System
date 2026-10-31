@@ -12,9 +12,9 @@ import {
   seededDisplayProducts,
 } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
+import { deriveInventoryMatchStatus } from "@/lib/recognition/seeded-inventory";
 import { eq, asc, inArray } from "drizzle-orm";
 import { z } from "zod";
-import { matchSeededProductByText } from "@/lib/recognition/seeded-inventory";
 
 const UpdateRmaSchema = z.object({
   status: z
@@ -80,6 +80,7 @@ export async function GET(
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
       catalogDisplayId: rmaItems.catalogDisplayId,
       seededDisplayProductId: rmaItems.seededDisplayProductId,
+      inventoryMatchStatus: rmaItems.inventoryMatchStatus,
       inventoryMatchConfidence: rmaItems.inventoryMatchConfidence,
       inventoryMatchEvidence: rmaItems.inventoryMatchEvidence,
       inventoryProductManufacturer: seededDisplayProducts.manufacturer,
@@ -134,19 +135,15 @@ export async function GET(
     imagesByItemId.set(img.rmaItemId, list);
   }
 
-  // Fallback lookup: if seededDisplayProductId was not linked but predictedModel exists, resolve barcode & SKU
-  const needsFallback = items.filter(
-    (i) => !i.seededDisplayProductId && (i.predictedModel || i.predictedDisplayAssembly)
-  );
-  let allSeeds: Array<typeof seededDisplayProducts.$inferSelect> = [];
-  if (needsFallback.length > 0) {
-    allSeeds = await db.select().from(seededDisplayProducts);
-  }
-
   const itemsWithImages = items.map((item) => {
     const images = imagesByItemId.get(item.id) || [];
-    let seededProduct = item.seededDisplayProductId ? {
-      id: item.seededDisplayProductId,
+    const inventoryMatchStatus = deriveInventoryMatchStatus(item);
+    const isVerifiedMatch = inventoryMatchStatus === "matched" &&
+      Boolean(item.seededDisplayProductId) &&
+      Boolean(item.inventoryProductManufacturer);
+
+    const seededProduct = isVerifiedMatch ? {
+      id: item.seededDisplayProductId!,
       manufacturer: item.inventoryProductManufacturer,
       modelName: item.inventoryProductModelName,
       variantName: item.inventoryProductVariantName,
@@ -158,31 +155,12 @@ export async function GET(
       otherCodes: item.inventoryProductOtherCodes,
     } : null;
 
-    if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly) && allSeeds.length > 0) {
-      const match =
-        matchSeededProductByText(item.predictedDisplayAssembly, allSeeds) ||
-        matchSeededProductByText(item.predictedModel, allSeeds);
-      if (match) {
-        seededProduct = {
-          id: match.id,
-          manufacturer: match.manufacturer,
-          modelName: match.modelName,
-          variantName: match.variantName,
-          printedTitle: match.printedTitle,
-          barcodeValue: match.barcodeValue,
-          barcodeFormat: match.barcodeFormat,
-          barcodeSymbology: match.barcodeSymbology,
-          supplierSku: match.supplierSku,
-          otherCodes: match.otherCodes,
-        };
-      }
-    }
-
     return {
       ...item,
       seededProduct,
       barcodeValue: seededProduct?.barcodeValue || null,
       supplierSku: seededProduct?.supplierSku || seededProduct?.printedTitle || null,
+      inventoryMatchStatus,
       images,
       primaryThumbnail: images[0]?.thumbnailPath || null,
     };

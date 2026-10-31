@@ -23,6 +23,7 @@ import {
   CopyBadge,
   ShimmerButton,
 } from "@/components/premium";
+import { BarcodeVisual } from "@/components/ui/barcode-visual";
 
 interface SeededReference {
   id: string;
@@ -299,7 +300,7 @@ export default function DisplayCatalogPage() {
               word="Display Inventory Catalog"
               data-testid="display-catalog-title"
               duration={0.24}
-              className="text-left text-xl sm:text-2xl font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
+              className="text-left text-xl sm:text-2xl md:text-2xl md:leading-8 font-bold tracking-tight text-neutral-900 dark:text-neutral-50"
             />
           </div>
 
@@ -462,8 +463,10 @@ export default function DisplayCatalogPage() {
                                 className="h-10 w-8 rounded overflow-hidden border border-neutral-200 dark:border-neutral-700 bg-neutral-100 dark:bg-neutral-800 shrink-0 hover:ring-2 hover:ring-indigo-500/50 transition-all cursor-pointer"
                               >
                                 <img
-                                  src={`/api/images/${primaryRef.id}`}
+                                  src={`/api/images/${primaryRef.id}?size=thumb`}
                                   alt={primaryRef.sourceDisplayId}
+                                  loading="lazy"
+                                  decoding="async"
                                   className="h-full w-full object-cover"
                                   onError={(e) => {
                                     (e.target as HTMLElement).style.display = "none";
@@ -643,19 +646,16 @@ export default function DisplayCatalogPage() {
                   </div>
 
                   <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">
-                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block">
-                      Barcode (UPC)
+                    <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 tracking-wider block mb-1">
+                      Visual Barcode & UPC
                     </span>
-                    <div className="mt-0.5">
-                      {selectedProduct.barcodeValue ? (
-                        <CopyBadge
-                          value={selectedProduct.barcodeValue}
-                          label={selectedProduct.barcodeValue}
-                        />
-                      ) : (
-                        <span className="text-neutral-400 font-mono">—</span>
-                      )}
-                    </div>
+                    {selectedProduct.barcodeValue ? (
+                      <div className="p-2.5 rounded-lg bg-white dark:bg-neutral-900 border border-neutral-200/80 dark:border-neutral-800 flex items-center justify-center">
+                        <BarcodeVisual value={selectedProduct.barcodeValue} height={42} showText={true} />
+                      </div>
+                    ) : (
+                      <span className="text-neutral-400 font-mono text-xs">—</span>
+                    )}
                   </div>
 
                   <div className="pt-2 border-t border-neutral-100 dark:border-neutral-800">

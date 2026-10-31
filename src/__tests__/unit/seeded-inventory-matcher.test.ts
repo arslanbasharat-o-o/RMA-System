@@ -125,16 +125,34 @@ describe("seeded inventory product matching", () => {
     expect(providerError.error).toBe("provider offline");
   });
 
-  it("does not call the vision service when there are too few catalog products", async () => {
+  it("does not call the vision service when there are no catalog products", async () => {
     const compareToVerifiedExamples = vi.fn();
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
+      []
+    );
+
+    expect(match.status).toBe("unavailable");
+    expect(match.error).toContain("No active inventory references");
+    expect(compareToVerifiedExamples).not.toHaveBeenCalled();
+  });
+
+  it("evaluates a single product catalog under sparse coverage policy and preserves provisional candidate for review", async () => {
+    const compareToVerifiedExamples = vi.fn().mockResolvedValueOnce(comparison());
     const match = await matchSeededInventoryProduct(
       { compareToVerifiedExamples },
       [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
       references.slice(0, 1)
     );
 
-    expect(match.status).toBe("miss");
-    expect(compareToVerifiedExamples).not.toHaveBeenCalled();
+    // Single-product catalog must NOT be declared unavailable or miss
+    expect(match.status).not.toBe("unavailable");
+    expect(match.status).not.toBe("miss");
+    // Preserved as provisional candidate for review with capped confidence
+    expect(match.product?.id).toBe("product-a");
+    expect(match.confidence).toBeLessThanOrEqual(0.70);
+    expect(compareToVerifiedExamples).toHaveBeenCalledTimes(1);
   });
 
   it("P2: verifies processor explicitly treats primary photos as back for seeded matcher", async () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { vendors, vendorVariants, vendorRecognitionRules } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
+import { syncVendorRecognitionRules } from "@/lib/recognition/rules/sync";
 import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -74,6 +75,9 @@ export async function POST(req: NextRequest) {
       .insert(vendors)
       .values(parsed.data)
       .returning();
+
+    // Automatically synchronize recognition rules on the system side
+    await syncVendorRecognitionRules(newVendor.id);
 
     return NextResponse.json({ success: true, vendor: newVendor });
   } catch (error) {

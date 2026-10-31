@@ -14,20 +14,29 @@ import {
   seededDisplayProducts,
   seededDisplayReferences,
 } from "@/db/schema";
-import { and, asc, desc, eq, inArray, isNotNull, ne } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import { storage } from "@/lib/storage";
 import {
   DEFAULT_DISPLAY_INSPECTION_PROMPT,
   getVisualRecognitionProvider,
   VisualIdentificationResult,
 } from "@/lib/recognition/lens";
-import { OpenAiVisionOcrService, type VerifiedDisplayReference } from "@/lib/recognition/openai";
+import {
+  OpenAiVisionOcrService,
+  resolveOpenAiDiscoveryModel,
+  resolveOpenAiFinalModel,
+  type VerifiedDisplayReference,
+} from "@/lib/recognition/openai";
 import { compareVerifiedLibrary, type VerifiedLibraryComparison } from "@/lib/recognition/openai/verified-library";
 import {
   matchSeededInventoryProduct,
   type SeededInventoryMatch,
   type SeededInventoryReference,
 } from "@/lib/recognition/seeded-inventory";
+import {
+  computeSeededComparisonFingerprint,
+  reconstructMatchFromPriorResponse,
+} from "@/lib/recognition/recognition-cache";
 import { selectDisplayImagesForOcr } from "@/lib/recognition/openai/preprocessor";
 import { cleanRawCandidateTitle } from "@/lib/recognition/lens/cleaner-utils";
 import { independentSource } from "@/lib/recognition/lens/model-evidence";
@@ -62,11 +71,37 @@ export interface ProcessItemOptions {
   revision?: number;
 }
 
+type InventoryMatcherOverride = (
+  itemId: string,
+  images: Array<typeof itemImages.$inferSelect>
+) => Promise<SeededInventoryMatch | null> | SeededInventoryMatch | null;
+
+let testInventoryMatcherOverride: InventoryMatcherOverride | null = null;
+
+/**
+ * Isolated dependency injection for testing.
+ * Protected by a strict environment check at the override boundary.
+ */
+export function setInventoryMatcherForTesting(matcher: InventoryMatcherOverride | null): void {
+  if (process.env.NODE_ENV !== "test") {
+    throw new Error("setInventoryMatcherForTesting is strictly restricted to test environments (NODE_ENV === 'test').");
+  }
+  testInventoryMatcherOverride = matcher;
+}
+
 async function matchSeededInventory(
   itemId: string,
   revision: number,
-  images: Array<typeof itemImages.$inferSelect>
+  images: Array<typeof itemImages.$inferSelect>,
+  options?: ProcessItemOptions
 ): Promise<SeededInventoryMatch | null> {
+  // Test seam boundary check: strictly prevent activation in production
+  if (testInventoryMatcherOverride) {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("Inventory matcher test override cannot activate outside NODE_ENV === 'test'.");
+    }
+    return testInventoryMatcherOverride(itemId, images);
+  }
   const primaryBack = images.find((image) => image.imageType === "back") ||
     images.find((image) => image.imageType === "primary") ||
     images.find((image) => image.imageType === "front") ||
@@ -100,7 +135,18 @@ async function matchSeededInventory(
     .where(and(eq(seededDisplayProducts.isActive, true), eq(seededDisplayReferences.isMatchable, true)))
     .orderBy(asc(seededDisplayProducts.modelName), asc(seededDisplayProducts.variantName), asc(seededDisplayReferences.sourceDisplayId));
 
-  if (rows.length < 2) return { status: "miss", product: null, confidence: 0, matchingCues: [], conflictingCues: [], unresolvedAlternatives: [], supportingReferenceIds: [] };
+  if (rows.length === 0) {
+    return {
+      status: "unavailable",
+      product: null,
+      confidence: 0,
+      matchingCues: [],
+      conflictingCues: [],
+      unresolvedAlternatives: [],
+      supportingReferenceIds: [],
+      error: "No active inventory references available for comparison",
+    };
+  }
 
   let configuredModel = process.env.OPENAI_REFERENCE_MODEL || process.env.OPENAI_VISION_MODEL;
   if (!configuredModel) {
@@ -111,6 +157,11 @@ async function matchSeededInventory(
       // Use the provider default when the optional setting is absent.
     }
   }
+
+  const discoveryModel = resolveOpenAiDiscoveryModel(configuredModel);
+  const finalModel = resolveOpenAiFinalModel(configuredModel);
+  const promptCachingEnabled = process.env.OPENAI_PROMPT_CACHE_ENABLED !== "false";
+  const promptCachingOrder = promptCachingEnabled ? ((process.env.OPENAI_PROMPT_CACHE_ORDER as "prefix" | "legacy") || "prefix") : "legacy";
 
   const references: SeededInventoryReference[] = await Promise.all(rows.map(async (row) => ({
     product: {
@@ -134,12 +185,72 @@ async function matchSeededInventory(
     imageBuffer: await storage.getImageBuffer(image.storagePath),
   })));
 
+  const cacheFingerprint = computeSeededComparisonFingerprint({
+    rmaItemId: itemId,
+    targetImages: targetImageRows.map((img) => ({
+      imageType: img.imageType === "primary" ? "back" : img.imageType,
+      checksumSha256: img.checksumSha256,
+    })),
+    references,
+    discoveryModel,
+    finalModel,
+    promptCachingOrder,
+  });
+
+  let comparison: SeededInventoryMatch | null = null;
+  let reusedRunId: string | null = null;
+
+  // Safe recognition result reuse: strictly disabled by default until verified in production.
+  // Only activates when ENABLE_SEEDED_RESULT_CACHE === "true" and options?.force is not set.
+  const enableSeededResultCache = process.env.ENABLE_SEEDED_RESULT_CACHE === "true";
+  if (enableSeededResultCache && !options?.force) {
+    try {
+      const [priorRun] = await db
+        .select({
+          id: recognitionRuns.id,
+          rawResponse: recognitionRuns.rawResponse,
+        })
+        .from(recognitionRuns)
+        .where(
+          and(
+            eq(recognitionRuns.pipelineType, "inventory_catalog"),
+            eq(recognitionRuns.status, "completed"),
+            sql`${recognitionRuns.rawRequest}->>'cacheFingerprint' = ${cacheFingerprint}`
+          )
+        )
+        .orderBy(desc(recognitionRuns.createdAt))
+        .limit(1);
+
+      if (priorRun?.rawResponse && typeof priorRun.rawResponse === "object") {
+        const reconstructed = reconstructMatchFromPriorResponse(
+          priorRun.rawResponse as Record<string, unknown>,
+          references,
+          priorRun.id
+        );
+        if (reconstructed) {
+          comparison = reconstructed;
+          reusedRunId = priorRun.id;
+        }
+      }
+    } catch {
+      // On cache lookup failure, gracefully fall through to fresh execution
+    }
+  }
+
   const startedAt = Date.now();
-  const comparison = await matchSeededInventoryProduct(
-    new OpenAiVisionOcrService(undefined, configuredModel, 120000),
-    targetImages,
-    references
-  );
+  if (!comparison) {
+    comparison = await matchSeededInventoryProduct(
+      new OpenAiVisionOcrService(undefined, finalModel, 120000),
+      targetImages,
+      references,
+      {
+        discoveryModel,
+        finalModel,
+        promptCachingOrder,
+      }
+    );
+  }
+
   await db.insert(recognitionRuns).values({
     rmaItemId: itemId,
     recognitionRevision: revision,
@@ -151,6 +262,10 @@ async function matchSeededInventory(
       sourceDisplayIds: rows.map((row) => row.sourceDisplayId),
       productIds: [...new Set(rows.map((row) => row.productId))],
       decisionPolicy: "exact-product-variant-v1",
+      cacheFingerprint,
+      discoveryModel,
+      finalModel,
+      promptCachingOrder,
     },
     rawResponse: {
       status: comparison.status,
@@ -160,8 +275,11 @@ async function matchSeededInventory(
       conflictingCues: comparison.conflictingCues,
       unresolvedAlternatives: comparison.unresolvedAlternatives,
       supportingReferenceIds: comparison.supportingReferenceIds,
+      telemetry: comparison.telemetry || null,
+      usage: comparison.telemetry?.usage || null,
+      reusedFromRunId: reusedRunId,
     },
-    durationMs: Date.now() - startedAt,
+    durationMs: reusedRunId ? 0 : Date.now() - startedAt,
     errorMessage: comparison.error || null,
   });
   return comparison;
@@ -381,19 +499,20 @@ export async function findVerifiedModelByPartNumbers(
 
     if (!matchesByModel.size) return null;
 
-    let best: { manufacturer: string; model: string; matchedPartNumber: string; verifiedCount: number } | null = null;
-    for (const entry of matchesByModel.values()) {
-      if (!best || entry.itemIds.size > best.verifiedCount) {
-        best = {
-          manufacturer: entry.manufacturer,
-          model: entry.model,
-          matchedPartNumber: entry.matchedPartNumber,
-          verifiedCount: entry.itemIds.size,
-        };
-      }
+    // CONFLICT GUARD: If multiple distinct models share the part number,
+    // it is ambiguous and cannot be automatically attributed.
+    if (matchesByModel.size > 1) {
+      console.warn(`[Processor] Part number match is ambiguous across multiple models: ${[...matchesByModel.keys()].join(", ")}`);
+      return null;
     }
 
-    return best;
+    const [entry] = [...matchesByModel.values()];
+    return {
+      manufacturer: entry.manufacturer,
+      model: entry.model,
+      matchedPartNumber: entry.matchedPartNumber,
+      verifiedCount: entry.itemIds.size,
+    };
   } catch (error) {
     console.warn("[Processor] Error querying verified part numbers:", error);
     return null;
@@ -985,6 +1104,17 @@ export async function processRmaItem(
   itemId: string,
   options?: ProcessItemOptions
 ): Promise<void> {
+  // Test seam guard: strictly prevent mock overrides outside test environment
+  if (options && "mockInventoryMatch" in (options as Record<string, unknown>)) {
+    if (process.env.NODE_ENV !== "test") {
+      throw new Error("mockInventoryMatch test seam is disabled in production runtime.");
+    }
+    const mock = (options as Record<string, unknown>).mockInventoryMatch as SeededInventoryMatch | null;
+    if (mock !== undefined) {
+      testInventoryMatcherOverride = () => mock;
+    }
+  }
+
   const pipeline = options?.pipeline || "all";
   console.log(`[Processor] Processing RMA item ${itemId} (pipeline: ${pipeline})...`);
 
@@ -1035,6 +1165,7 @@ export async function processRmaItem(
       status: "processing",
       visualStatus: shouldRunVisual ? "pending" : item.visualStatus,
       vendorOcrStatus: shouldRunOcr ? "pending" : item.vendorOcrStatus,
+      inventoryMatchStatus: shouldRunVisual ? "processing" : item.inventoryMatchStatus,
       seededDisplayProductId: shouldRunVisual ? null : item.seededDisplayProductId,
       inventoryMatchConfidence: shouldRunVisual ? null : item.inventoryMatchConfidence,
       inventoryMatchEvidence: shouldRunVisual ? null : item.inventoryMatchEvidence,
@@ -1042,7 +1173,7 @@ export async function processRmaItem(
     });
 
   const inventoryMatchPromise: Promise<SeededInventoryMatch | null> = shouldRunVisual
-    ? matchSeededInventory(itemId, revision, images).catch((error: unknown) => ({
+    ? matchSeededInventory(itemId, revision, images, options).catch((error: unknown) => ({
         status: "error" as const,
         product: null,
         confidence: 0,
@@ -1193,6 +1324,8 @@ export async function processRmaItem(
               rawResponse: visualResult.error ? visualResult.rawResponse : {
                 ...visualResult.rawResponse,
                 stableDecision: snapshotVisualDecision(visualResult),
+                telemetry: visualResult.cleanDecision?.telemetry || null,
+                usage: visualResult.cleanDecision?.telemetry?.usage || null,
               },
               durationMs: visualResult.durationMs,
               errorMessage: visualResult.error || null,
@@ -1329,7 +1462,11 @@ export async function processRmaItem(
               providerName: res.model,
               status: res.error ? "failed" : "completed",
               rawRequest: { filename: img.originalFilename, imageType: img.imageType },
-              rawResponse: res.rawResponse || {},
+              rawResponse: {
+                ...(res.rawResponse || {}),
+                telemetry: res.telemetry || null,
+                usage: res.telemetry?.usage || null,
+              },
               durationMs: res.durationMs,
               errorMessage: res.error || null,
             })
@@ -1480,7 +1617,10 @@ export async function processRmaItem(
         modelName: verifiedPartMatch.model,
         normalizedIdentifier: `${verifiedPartMatch.manufacturer} ${verifiedPartMatch.model}`.toLowerCase(),
         displayTechnology: null,
-        confidenceScore: 0.99,
+        // A single historical observation is provisional (0.65) and stays in review.
+        // Multiple independent verified items provide stronger corroboration (0.80-0.85).
+        // Authoritative catalog references carry 0.95+.
+        confidenceScore: verifiedPartMatch.verifiedCount >= 3 ? 0.85 : verifiedPartMatch.verifiedCount >= 2 ? 0.80 : 0.65,
         matchType: "part_number",
         matchedPartNumber: verifiedPartMatch.matchedPartNumber,
         verifiedExampleCount: verifiedPartMatch.verifiedCount,
@@ -1616,6 +1756,8 @@ export async function processRmaItem(
             searchedCatalogIds: verifiedComparison.searchedCatalogIds,
             discoveryBatches: verifiedComparison.discoveryBatches,
             timings: verifiedComparison.timings,
+            telemetry: verifiedComparison.telemetry || null,
+            usage: verifiedComparison.telemetry?.usage || null,
           },
           durationMs: verifiedComparison.durationMs,
           errorMessage: verifiedComparison.error || null,
@@ -1909,6 +2051,32 @@ export async function processRmaItem(
     inventoryMatchEvidence = null;
   }
 
+  // Explicit inventory match status derivation based on actual outcome and evidence validation
+  let inventoryMatchStatus: "not_evaluated" | "processing" | "matched" | "no_verified_match" | "review_required" | "error" = "not_evaluated";
+
+  if (!shouldRunVisual) {
+    inventoryMatchStatus = item.inventoryMatchStatus || "not_evaluated";
+  } else if (inventoryMatch?.status === "error") {
+    inventoryMatchStatus = "error";
+  } else if (seededDisplayProductId && activeSeededProduct) {
+    inventoryMatchStatus = "matched";
+  } else if (
+    inventoryMatch?.status === "ambiguous" ||
+    inventoryMatch?.status === "unavailable" ||
+    (inventoryMatch?.unresolvedAlternatives && inventoryMatch.unresolvedAlternatives.length > 0) ||
+    (inventoryMatch?.conflictingCues && inventoryMatch.conflictingCues.length > 0) ||
+    verifiedPartNumberConflicts.length > 0
+  ) {
+    inventoryMatchStatus = "review_required";
+  } else if (inventoryMatch?.status === "miss" || inventoryMatch?.status === "accepted") {
+    // Inventory comparison ran to completion but found no verified warehouse match
+    inventoryMatchStatus = "no_verified_match";
+  } else if (finalItemStatus === "failed") {
+    inventoryMatchStatus = "error";
+  } else {
+    inventoryMatchStatus = "not_evaluated";
+  }
+
   if (manualModel) {
     // Validate catalogDisplayId against allCatalog so we never attempt to insert an orphaned foreign key
     if (manualModel.catalogDisplayId && !allCatalog.some((c) => c.id === manualModel.catalogDisplayId)) {
@@ -1965,6 +2133,7 @@ export async function processRmaItem(
       extractedTextSummary: unified.extractedTextSummary,
       matchedCodesSummary: unified.matchedCodesSummary,
       reviewNotes: cleanReviewNotesList.join(" | "),
+      inventoryMatchStatus,
       seededDisplayProductId,
       inventoryMatchConfidence,
       inventoryMatchEvidence,

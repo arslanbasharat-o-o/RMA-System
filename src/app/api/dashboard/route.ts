@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { rmas, rmaItems, vendors, customers, returnReasons } from "@/db/schema";
+import { rmas, rmaItems, vendors, customers, returnReasons, seededDisplayProducts, displayCatalog } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { sql, desc, eq } from "drizzle-orm";
 
@@ -92,6 +92,11 @@ export async function GET(req: NextRequest) {
       predictedModel: rmaItems.predictedModel,
       predictedManufacturer: rmaItems.predictedManufacturer,
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
+      catalogDisplayId: rmaItems.catalogDisplayId,
+      seededDisplayProductId: rmaItems.seededDisplayProductId,
+      barcodeValue: seededDisplayProducts.barcodeValue,
+      supplierSku: seededDisplayProducts.supplierSku,
+      internalSku: displayCatalog.internalSku,
       identifiedVendorId: rmaItems.identifiedVendorId,
       identifiedVendorName: vendors.name,
       matchStatus: rmaItems.matchStatus,
@@ -101,12 +106,13 @@ export async function GET(req: NextRequest) {
       reviewNotes: rmaItems.reviewNotes,
       inventoryMatchConfidence: rmaItems.inventoryMatchConfidence,
       inventoryMatchEvidence: rmaItems.inventoryMatchEvidence,
-      seededDisplayProductId: rmaItems.seededDisplayProductId,
       primaryImageId: sql<string | null>`(SELECT id FROM item_images WHERE item_images.rma_item_id = ${rmaItems.id} ORDER BY sort_order ASC LIMIT 1)`,
       createdAt: rmaItems.createdAt,
     })
     .from(rmaItems)
     .leftJoin(vendors, eq(rmaItems.identifiedVendorId, vendors.id))
+    .leftJoin(seededDisplayProducts, eq(rmaItems.seededDisplayProductId, seededDisplayProducts.id))
+    .leftJoin(displayCatalog, eq(rmaItems.catalogDisplayId, displayCatalog.id))
     .where(
       sql`${rmaItems.status} in ('suggested_match', 'review_required', 'failed')`
     )

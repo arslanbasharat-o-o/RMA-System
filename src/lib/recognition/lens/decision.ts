@@ -1,14 +1,21 @@
 import OpenAI from "openai";
 import type { VisualCandidate } from "./types";
+import type { OpenAiCallTelemetry } from "../openai/telemetry";
+import { calculateTokenCost, extractUsageFromResponse } from "../openai/cost";
+
+export type DecisionStatus = "accepted" | "provisional" | "rejected" | "abstained" | "provider_error";
 
 export interface CleanDisplayDecision {
   manufacturer: string | null;
   model: string | null;
   suggestedModel?: string | null;
+  rejectedModel?: string | null;
+  decisionStatus?: DecisionStatus;
   displayName: string;
   confidence: number;
   cleanedCandidates: string[];
   reasoning: string;
+  telemetry?: OpenAiCallTelemetry;
 }
 
 export interface DecisionContext {
@@ -290,52 +297,97 @@ function otherDeviceModel(title: string): string | null {
   return null;
 }
 
-function isModelSupportedByEvidence(
+/**
+ * Normalizes model names across manufacturers to avoid false substring corroboration.
+ * Explicitly separates:
+ * - iPhone 13 vs iPhone 13 mini vs iPhone 13 Pro vs iPhone 13 Pro Max
+ * - Galaxy S22 vs Galaxy S22+ vs Galaxy S22 Ultra
+ * - Galaxy Note 20 vs Galaxy Note 20 Ultra
+ */
+export function normalizeModelName(manufacturer: string, model: string): string {
+  if (!model) return "";
+  const normMfg = (manufacturer || "").trim().toLowerCase();
+  let m = model.trim().toLowerCase();
+  if (normMfg && m.startsWith(`${normMfg} `)) {
+    m = m.slice(normMfg.length).trim();
+  }
+  // Strip common manufacturer prefixes even if manufacturer parameter was omitted
+  m = m.replace(/^(?:apple|samsung|google|oneplus|one\s+plus|motorola|xiaomi|huawei|sony|lg)\s+/i, "").trim();
+
+  // Apple normalization
+  if (normMfg === "apple" || m.startsWith("iphone") || m.startsWith("ipad") || m.startsWith("macbook") || m.startsWith("apple watch")) {
+    if (!m.startsWith("iphone") && /^\d/.test(m)) {
+      m = `iphone ${m}`;
+    }
+    m = m.replace(/\s+/g, " ")
+      .replace(/\bpro\s*max\b/gi, "pro max")
+      .replace(/\bplus\b/gi, "plus")
+      .replace(/\bmini\b/gi, "mini");
+    return m;
+  }
+
+  // Samsung normalization
+  if (normMfg === "samsung" || m.startsWith("galaxy")) {
+    if (!m.startsWith("galaxy") && /^(?:s|note|a|z)\d+/i.test(m)) {
+      m = `galaxy ${m}`;
+    }
+    m = m.replace(/\s+/g, " ")
+      .replace(/\+/g, " plus")
+      .replace(/\bultra\b/gi, "ultra")
+      .replace(/\bfe\b/gi, "fe");
+    return m;
+  }
+
+  return m.replace(/\s+/g, " ");
+}
+
+export function modelsMatchExactly(modelA: string, modelB: string, manufacturer = ""): boolean {
+  if (!modelA || !modelB) return false;
+  const normA = normalizeModelName(manufacturer, modelA);
+  const normB = normalizeModelName(manufacturer, modelB);
+  if (normA === normB) return true;
+
+  const keyA = normA.replace(/[^a-z0-9]/g, "");
+  const keyB = normB.replace(/[^a-z0-9]/g, "");
+  return Boolean(keyA && keyB && keyA === keyB);
+}
+
+export function isModelSupportedByEvidence(
   manufacturer: string,
   model: string,
   candidates: VisualCandidate[],
   context?: DecisionContext
 ): boolean {
-  const normMfg = manufacturer.trim().toLowerCase();
-  let normModel = model.trim().toLowerCase();
-  if (normMfg && normModel.startsWith(`${normMfg} `)) {
-    normModel = normModel.slice(normMfg.length).trim();
-  }
+  if (!model || !candidates.length) return false;
 
-  // Extract core keywords/tokens from model name (e.g., "16 pro", "note 20 ultra", "s23")
-  const modelTokens = normModel.replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter(Boolean);
-  if (modelTokens.length === 0) return false;
-
-  // Check candidates
+  // 1. Check candidates with exact model matching (no substring false-positives)
   for (const candidate of candidates) {
-    const titleLower = candidate.title.toLowerCase();
-    if (titleLower.includes(normModel)) {
-      return true;
-    }
     const appleModels = extractAppleModels(candidate.title);
     for (const am of appleModels) {
-      if (identityKey(manufacturer, am) === identityKey(manufacturer, model)) {
+      if (modelsMatchExactly(model, am, "apple")) {
         return true;
       }
     }
     const otherModel = otherDeviceModel(candidate.title);
-    if (otherModel && identityKey(manufacturer, otherModel) === identityKey(manufacturer, model)) {
-      return true;
-    }
-    if (modelTokens.length >= 2 && modelTokens.every((token) => titleLower.includes(token))) {
+    if (otherModel && modelsMatchExactly(model, otherModel, manufacturer)) {
       return true;
     }
   }
 
-  // Check OCR context if available
+  // 2. Check OCR context if available
   const ocrStrings = [
     ...(context?.partNumbers || []),
     ...(context?.ocrText || []),
   ];
   for (const str of ocrStrings) {
-    const strLower = str.toLowerCase();
-    if (strLower.includes(normModel)) return true;
-    if (modelTokens.length >= 2 && modelTokens.every((token) => strLower.includes(token))) {
+    const appleModels = extractAppleModels(str);
+    for (const am of appleModels) {
+      if (modelsMatchExactly(model, am, "apple")) {
+        return true;
+      }
+    }
+    const otherModel = otherDeviceModel(str);
+    if (otherModel && modelsMatchExactly(model, otherModel, manufacturer)) {
       return true;
     }
   }
@@ -356,10 +408,12 @@ export async function cleanVisualCandidatesWithOpenAi(
   }
 
   try {
+    const startTime = Date.now();
+    const cleanerModel = process.env.OPENAI_VISION_MODEL || process.env.OPENAI_CLEANER_MODEL || "gpt-4o";
     const client = new OpenAI({ apiKey, timeout: 15000, maxRetries: 1 });
     const completion = await client.chat.completions.create(
       {
-        model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_CLEANER_MODEL || "gpt-4o",
+        model: cleanerModel,
         messages: [
           {
             role: "system",
@@ -397,8 +451,11 @@ Return JSON with:
                       ...(context?.ocrText || []),
                     ];
                     const isLegacy = (m?: string | null) => m && /^iPhone\s*(?:[5678]|SE)\b/i.test(m);
-                    const hasModernOrOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
-                    return isLegacy(evidence.model || evidence.suggestedModel) && hasModernOrOled
+                    // Affirmative OLED physical markers physically invalidate legacy LCDs.
+                    // Web-listing consensus is search evidence, not direct physical proof, so physical inspection
+                    // must inspect the photo rather than having legacy candidates erased.
+                    const hasPhysicalOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
+                    return isLegacy(evidence.model || evidence.suggestedModel) && hasPhysicalOled
                       ? null
                       : (evidence.model || evidence.suggestedModel);
                   })(),
@@ -432,86 +489,188 @@ Return JSON with:
       }
     );
 
-    const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content || "null");
-    const check = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
-    const checkMfr = typeof check.manufacturer === "string" ? check.manufacturer.trim() : null;
-    let checkModel = typeof check.model === "string" ? check.model.trim() : null;
-    if (checkMfr && checkModel && checkModel.toLowerCase().startsWith(checkMfr.toLowerCase())) {
-      checkModel = checkModel.slice(checkMfr.length).trim();
-    }
-    if (checkMfr?.toLowerCase() === "apple" && checkModel && !checkModel.toLowerCase().startsWith("iphone") && /^\d/.test(checkModel)) {
-      checkModel = `iPhone ${checkModel}`;
-    }
-
-    const checkKey = checkMfr && checkModel ? identityKey(checkMfr, checkModel) : null;
-    const evidenceKey = evidence.manufacturer && evidence.model ? identityKey(evidence.manufacturer, evidence.model) : null;
-
-    // 1. Corroborated exact match with an already confident heuristic model
-    if (
-      checkKey &&
-      evidenceKey &&
-      checkKey === evidenceKey &&
-      evidence.model &&
-      evidence.confidence >= 0.85
-    ) {
-      return evidence;
-    }
-
-    // 2. Check if AI's suggested model has support in candidate listings or OCR,
-    // OR if source evidence was inconclusive / low-confidence (< 0.85) so physical inspection takes precedence for suggestion.
-    const isSupported = checkMfr && checkModel
-      ? isModelSupportedByEvidence(checkMfr, checkModel, candidates, context)
-      : false;
-
-    // Physical inspection guides the operator suggestion when:
-    // a) The model is corroborated by at least one candidate or OCR marking, OR
-    // b) Source evidence was uncertain/weak (evidence.confidence < 0.85 or no heuristic model), meaning web listings were noisy.
-    const canAdoptAiSuggestion = Boolean(checkMfr && checkModel && (isSupported || !evidence.model || evidence.confidence < 0.85));
-
-    if (canAdoptAiSuggestion && checkMfr && checkModel) {
-      const displayModel = checkModel;
-      const displayName = `${checkMfr} ${displayModel} Display`;
-      const aiReasoning = typeof check.reasoning === "string" && check.reasoning.trim()
-        ? check.reasoning.trim().slice(0, 1000)
-        : `AI vision identified ${checkMfr} ${displayModel} from physical display characteristics.`;
-
-      // Trust boundary: If source evidence was split or inconclusive, AI alone
-      // cannot certify an unreviewed model as definitive (model remains null,
-      // confidence 0.45), but AI guides the suggestedModel and displayName for operator review.
-      return {
-        ...evidence,
-        manufacturer: checkMfr,
-        model: null,
-        suggestedModel: displayModel,
-        displayName,
-        confidence: 0.45,
-        reasoning: aiReasoning,
-      };
-    }
-
-    // 3. AI suggested a model with no basis in candidate listings or OCR (e.g. hallucinating iPhone 8
-    // when all candidate listings are iPhone 15 Pro Max). Reject the hallucination and require review.
-    return {
-      ...evidence,
-      model: null,
-      suggestedModel: evidence.suggestedModel || evidence.model,
-      confidence: 0.45,
-      reasoning: `The photograph did not corroborate the exact model suggested by source evidence. ${
-        typeof check.reasoning === "string" && check.reasoning.trim()
-          ? check.reasoning.trim().slice(0, 900)
-          : "Operator review is required."
-      }`,
+    const usage = extractUsageFromResponse(completion.usage);
+    const cost = calculateTokenCost(completion.model || cleanerModel, usage);
+    const telemetry: OpenAiCallTelemetry = {
+      provider: "openai",
+      requestedModel: cleanerModel,
+      actualModel: completion.model || cleanerModel,
+      stage: "lens_cleaner",
+      callId: completion.id,
+      responseId: completion.id,
+      usage,
+      cost,
+      durationMs: Date.now() - startTime,
+      attemptNumber: 1,
+      status: "success",
+      timestamp: new Date().toISOString(),
     };
+
+    const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content || "null");
+    return evaluateCleanerResponse(parsed, evidence, candidates, context, telemetry);
   } catch {
     // Corroboration failure must not silently certify an unchecked image.
+    // Provider errors do not count as model rejection or positive evidence.
     return {
       ...evidence,
       model: null,
-      suggestedModel: evidence.suggestedModel || evidence.model,
-      confidence: 0.45,
-      reasoning: "Photo corroboration was unavailable. Source suggestions are retained for operator review.",
+      suggestedModel: null,
+      rejectedModel: null,
+      decisionStatus: "provider_error",
+      confidence: 0.35,
+      reasoning: "Photo corroboration was unavailable due to a provider error. Source suggestions require operator review.",
     };
   }
+}
+
+export function evaluateCleanerResponse(
+  parsed: unknown,
+  evidence: CleanDisplayDecision,
+  candidates: VisualCandidate[] = [],
+  context?: DecisionContext,
+  telemetry?: OpenAiCallTelemetry
+): CleanDisplayDecision {
+  if (!parsed || typeof parsed !== "object") {
+    return {
+      ...evidence,
+      model: null,
+      suggestedModel: null,
+      rejectedModel: null,
+      decisionStatus: "abstained",
+      displayName: "Unidentified Display",
+      confidence: 0.35,
+      reasoning: "Malformed cleaner response; operator review required.",
+      telemetry,
+    };
+  }
+
+  const check = parsed as Record<string, unknown>;
+  const checkMfr = typeof check.manufacturer === "string" ? check.manufacturer.trim() : null;
+  let checkModel = typeof check.model === "string" ? check.model.trim() : null;
+  if (checkMfr && checkModel && checkModel.toLowerCase().startsWith(checkMfr.toLowerCase())) {
+    checkModel = checkModel.slice(checkMfr.length).trim();
+  }
+  if (checkMfr?.toLowerCase() === "apple" && checkModel && !checkModel.toLowerCase().startsWith("iphone") && /^\d/.test(checkModel)) {
+    checkModel = `iPhone ${checkModel}`;
+  }
+
+  const checkReasoning = typeof check.reasoning === "string" ? check.reasoning.trim() : "";
+  const candidateModel = evidence.model || evidence.suggestedModel;
+  const candidateMfg = evidence.manufacturer || checkMfr || "";
+  const checkKey = checkMfr && checkModel ? identityKey(checkMfr, checkModel) : null;
+  const candidateKey = candidateMfg && candidateModel ? identityKey(candidateMfg, candidateModel) : null;
+  const evidenceKey = evidence.manufacturer && evidence.model ? identityKey(evidence.manufacturer, evidence.model) : null;
+
+  // Use the centralized, variant-safe model comparator for both confirmed and provisional candidates
+  const matchesCandidate = Boolean(
+    candidateModel && checkModel && (
+      (checkKey && candidateKey && checkKey === candidateKey) ||
+      modelsMatchExactly(checkModel, candidateModel, candidateMfg)
+    )
+  );
+
+  // STEP A: Establish whether the cleaner explicitly rejects the upstream candidate BEFORE acceptance evaluation
+  const explicitRejectionFlag = check.rejected === true || Boolean(check.rejection);
+  const reasoningContradiction = /\b(?:reject(?:ed|s)?|incompatible|contradicts|cannot be an? (?:iphone|galaxy)|is not an? (?:iphone|galaxy)|definitely not|not an? (?:iphone|galaxy))\b/i.test(checkReasoning);
+  const isExplicitRejection = explicitRejectionFlag || reasoningContradiction;
+
+  // Contradiction Guard: If cleaner returned check.model matching candidate BUT ALSO set rejected: true
+  // or contradictory reasoning, this contradictory response must NEVER bypass rejection!
+  if (isExplicitRejection && matchesCandidate) {
+    return {
+      ...evidence,
+      model: null,
+      suggestedModel: null,
+      rejectedModel: candidateModel,
+      decisionStatus: "rejected",
+      displayName: "Unidentified Display",
+      confidence: 0.20,
+      reasoning: `Cleaner response rejected candidate despite mentioning model: ${checkReasoning.slice(0, 900)}`,
+      telemetry,
+    };
+  }
+
+  // Rejection Handling: Distinguish outright rejection from proposing a different replacement model
+  if (isExplicitRejection) {
+    const isReplacementProposed = Boolean(checkMfr && checkModel && !matchesCandidate);
+    return {
+      ...evidence,
+      manufacturer: isReplacementProposed ? checkMfr : evidence.manufacturer,
+      model: null,
+      suggestedModel: isReplacementProposed ? checkModel : null,
+      rejectedModel: candidateModel,
+      decisionStatus: "rejected",
+      displayName: isReplacementProposed ? `${checkMfr} ${checkModel} Display` : "Unidentified Display",
+      confidence: isReplacementProposed ? 0.40 : 0.20,
+      reasoning: `The photograph did not corroborate the candidate ${candidateModel || "model"} suggested by source evidence. ${
+        checkReasoning ? checkReasoning.slice(0, 900) : "Operator review is required."
+      }`,
+      telemetry,
+    };
+  }
+
+  // STEP B: ONLY AFTER REJECTION IS RULED OUT, evaluate candidate acceptance
+  if (
+    checkKey &&
+    evidenceKey &&
+    checkKey === evidenceKey &&
+    evidence.model &&
+    evidence.confidence >= 0.85
+  ) {
+    return {
+      ...evidence,
+      decisionStatus: "accepted",
+      telemetry,
+    };
+  }
+
+  // STEP C: Check if AI's suggested model has support in candidate listings or OCR,
+  // OR if source evidence was inconclusive / low-confidence (< 0.85) so physical inspection takes precedence for suggestion.
+  const isSupported = checkMfr && checkModel
+    ? isModelSupportedByEvidence(checkMfr, checkModel, candidates, context)
+    : false;
+
+  // Physical inspection guides the operator suggestion when:
+  // a) The model is corroborated by at least one candidate or OCR marking, OR
+  // b) Source evidence was uncertain/weak (evidence.confidence < 0.85 or no heuristic model), meaning web listings were noisy.
+  const canAdoptAiSuggestion = Boolean(checkMfr && checkModel && (isSupported || !evidence.model || evidence.confidence < 0.85));
+
+  if (canAdoptAiSuggestion && checkMfr && checkModel) {
+    const displayModel = checkModel;
+    const displayName = `${checkMfr} ${displayModel} Display`;
+    const aiReasoning = checkReasoning
+      ? checkReasoning.slice(0, 1000)
+      : `AI vision identified ${checkMfr} ${displayModel} from physical display characteristics.`;
+
+    // Trust boundary: If source evidence was split or inconclusive, AI alone
+    // cannot certify an unreviewed model as definitive (model remains null,
+    // confidence 0.45), but AI guides the suggestedModel and displayName for operator review.
+    return {
+      ...evidence,
+      manufacturer: checkMfr,
+      model: null,
+      suggestedModel: displayModel,
+      displayName,
+      confidence: 0.45,
+      reasoning: aiReasoning,
+      decisionStatus: "provisional",
+      telemetry,
+    };
+  }
+
+  // STEP D: Abstention: The AI cleaner abstained (model: null or inconclusive without explicit rejection).
+  // An abstention does NOT count as model rejection, nor does it certify the unverified model.
+  return {
+    ...evidence,
+    model: null,
+    suggestedModel: null,
+    rejectedModel: null,
+    decisionStatus: "abstained",
+    displayName: "Unidentified Display",
+    confidence: 0.35,
+    reasoning: checkReasoning || "Visual AI abstained from identification; photo resolution or viewing angle was inconclusive. Operator review is required.",
+    telemetry,
+  };
 }
 
 function identityKey(manufacturer: unknown, model: unknown): string {
