@@ -4,7 +4,26 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
-## [0.5.2] - 2026-10-31
+## [0.5.3] - 2026-10-31
+
+### Added
+- **Mandatory Front & Back Camera Intake Workflow**: Formalized display intake business rules requiring both Front and Back photographs before recognition submission.
+  - Front view: Mandatory (reveals bezel symmetry, screen notch, Dynamic Island, and top speaker opening).
+  - Back view: Mandatory (reveals shield plate, flex cable routing, connectors, and inspection stamps).
+  - Flex cable close-up: Optional (enhances OCR and part-number identification when present).
+  - Additional photographs: Optional (captures stamps, stickers, barcodes, and macro details).
+- **Camera Intake UI Validation**: Updated `CameraScanner.tsx` with explicit angle badges ("Front (Required)", "Back (Required)", "Flex (Optional)", "Additional (Optional)"), real-time saved indicators, dynamic validation status messages, and progression locks preventing advancement or completion until both required angles are saved.
+- **Backend Recognition Image Role Guard**: Implemented `validateDisplayImagesForRecognition` in `src/lib/recognition/camera-validation.ts`. Enforced across `/api/rma-items/[id]/upload` and `/api/rma-items/[id]/recognition`, preventing API bypass attempts and rejecting duplicate references masquerading as separate roles.
+- **17-Scenario Camera Validation Suite**: Added comprehensive test coverage in `src/__tests__/unit/camera-validation-scenarios.test.ts` verifying all 17 capture, upload, bypass, and recovery requirements.
+
+### Changed
+- **Multi-Image Vision Analysis**: Extended `cleanVisualCandidatesWithOpenAi` in `src/lib/recognition/lens/decision.ts` to accept all uploaded display perspectives (Front, Back, Flex close-up) with descriptive angle prompts, giving vision models complete ground-truth physical evidence.
+- **Visual Recognition Image Priority**: Updated `src/lib/queue/processor.ts` to prioritize the Back view for Google Lens visual identification, ensuring structural flex connectors, shield plates, and hardware markings drive search queries instead of featureless front glass.
+- **Vision Cleaner Timeout Extension**: Increased OpenAI visual cleaner timeout from 12s to 45s, matching `LENS_TIMEOUT_MS` and preventing premature `AbortError` timeouts during reasoning model passes (`gpt-5.6-terra`).
+- **Warehouse Variant Model Consensus**: Updated `src/lib/queue/processor.ts` so when seeded inventory comparison is ambiguous between warehouse SKU variants (e.g., Hard OLED vs AM) of the same phone model, the shared consensus device model is extracted and assigned with `review_required` status rather than discarded.
+
+### Fixed
+- **Assembly String Leakage on Provider Error**: In `src/lib/recognition/synthesizer.ts`, guarded `safeDetectedAssembly` to suppress uncorroborated candidate names when `isProviderError` or `isCleanerAbstained` is true.
 
 ### Fixed
 - **Policy Invalidation & Stale Snapshot Purge**: Bumped `VISUAL_DECISION_POLICY` to `source-corroboration-2026-10-31-v8`. Prevents historical pre-v0.5.0 image decisions (which contained obsolete heuristic models such as false iPhone 8 Plus attributions) from being blindly reused as `same-image-evidence` during subsequent scans of identical image checksums.

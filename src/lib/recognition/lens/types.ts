@@ -31,6 +31,9 @@ export interface DisplayVisualRecognitionContext {
   filename?: string;
   noCache?: boolean;
   prompt?: string;
+  additionalImages?: Array<{ buffer: Buffer; mimeType?: string; imageType?: string; filename?: string }>;
+  ocrText?: string[];
+  partNumbers?: string[];
 }
 
 export interface DisplayVisualRecognitionProvider {

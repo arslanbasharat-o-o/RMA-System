@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { validateImageMagicBytes } from "@/lib/storage/validation";
 import { enqueueRmaItem } from "@/lib/queue";
+import { validateDisplayImagesForRecognition } from "@/lib/recognition/camera-validation";
 import { eq, desc } from "drizzle-orm";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic"];
@@ -101,16 +102,25 @@ export async function POST(
     if (existingImage) {
       // A previous request may have stored the image but failed before the
       // durable queue transaction committed. In that case the item remains
-      // upload-ready, so an identical retry must also retry queue publication.
+      // upload-ready, so an identical retry must also retry queue publication
+      // provided required display perspectives (Front + Back) are satisfied.
       if (item.status === "pending_upload" || item.status === "uploaded") {
-        await enqueueRmaItem(itemId);
-        return NextResponse.json({
-          success: true,
-          image: existingImage,
-          itemStatus: "queued",
-          deduplicated: true,
-          message: "Image was already attached and recognition has been queued.",
-        });
+        const allImages = await db
+          .select()
+          .from(itemImages)
+          .where(eq(itemImages.rmaItemId, itemId));
+
+        const validation = validateDisplayImagesForRecognition(allImages);
+        if (validation.valid) {
+          await enqueueRmaItem(itemId);
+          return NextResponse.json({
+            success: true,
+            image: existingImage,
+            itemStatus: "queued",
+            deduplicated: true,
+            message: "Image was already attached and recognition has been queued.",
+          });
+        }
       }
 
       return NextResponse.json({
@@ -158,16 +168,45 @@ export async function POST(
       })
       .returning();
 
-    // enqueueRmaItem atomically marks the item queued and publishes the job.
-    // Leave the item upload-ready until that transaction commits so retries
-    // can recover if the queue is temporarily unavailable.
-    await enqueueRmaItem(itemId);
+    // Query all images for this display item to verify mandatory roles (Front + Back)
+    const allImages = await db
+      .select()
+      .from(itemImages)
+      .where(eq(itemImages.rmaItemId, itemId));
 
+    const validation = validateDisplayImagesForRecognition(allImages);
+
+    if (validation.valid) {
+      // Both Front and Back are present and distinct: enqueue recognition
+      await enqueueRmaItem(itemId);
+      return NextResponse.json({
+        success: true,
+        image: savedImage,
+        itemStatus: "queued",
+        validation: {
+          ready: true,
+          hasFront: validation.hasFront,
+          hasBack: validation.hasBack,
+          hasFlex: validation.hasFlex,
+          missingRoles: [],
+        },
+        message: "Display images verified and queued for recognition.",
+      });
+    }
+
+    // Still missing Front or Back: keep item in pending_upload, do not start recognition yet
     return NextResponse.json({
       success: true,
       image: savedImage,
-      itemStatus: "queued",
-      message: "Image uploaded and queued for recognition.",
+      itemStatus: "pending_upload",
+      validation: {
+        ready: false,
+        hasFront: validation.hasFront,
+        hasBack: validation.hasBack,
+        hasFlex: validation.hasFlex,
+        missingRoles: validation.missingRoles,
+      },
+      message: validation.error,
     });
   } catch (error: unknown) {
     const errorMsg = error instanceof Error ? error.message : String(error);

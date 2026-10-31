@@ -454,5 +454,54 @@ describe("Unified Synthesizer", () => {
     const cofMatch = matchDisplayToCatalog(visualResultWithCof, multiVariantCatalog, []);
     expect(cofMatch).toBeNull();
   });
+
+  it("does not leak detectedDisplayAssembly into predictedDisplayAssembly when decisionStatus is provider_error", () => {
+    const visualResult: VisualIdentificationResult = {
+      provider: "lens",
+      candidates: [{ title: "Apple iPhone XS Max Replacement Screen", rank: 1 }],
+      detectedDisplayAssembly: "Apple iPhone XS Max Display",
+      cleanDecision: {
+        manufacturer: "Apple",
+        model: null,
+        suggestedModel: "iPhone XS Max",
+        displayName: "Apple iPhone XS Max Display",
+        confidence: 0.35,
+        cleanedCandidates: ["Apple iPhone XS Max"],
+        reasoning: "Photo corroboration was unavailable due to a provider error.",
+        decisionStatus: "provider_error",
+      },
+      durationMs: 45,
+      rawResponse: {},
+    };
+
+    const emptyOcr: OcrStructuredOutput = {
+      raw_text: [],
+      detected_codes: [],
+      part_numbers: [],
+      vendor_markings: [],
+      technology_markings: [],
+      possible_vendor_aliases: [],
+      unreadable_regions: [],
+      extraction_notes: [],
+    };
+
+    const vendorMatch: VendorMatchResult = {
+      vendorId: null,
+      vendorName: null,
+      vendorVariantId: null,
+      vendorVariantName: null,
+      matchedRuleId: null,
+      matchedPattern: null,
+      confidenceScore: 0,
+      matchStatus: "unknown",
+      evidenceNotes: [],
+      candidateAlternatives: [],
+    };
+
+    const unified = synthesizeRecognition(null, vendorMatch, emptyOcr, visualResult);
+    expect(unified.predictedModel).toBeNull();
+    // Must NOT leak "Apple iPhone XS Max Display" when provider had an error!
+    expect(unified.predictedDisplayAssembly).toBe("Unidentified Apple Display");
+  });
 });
 

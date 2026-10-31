@@ -49,13 +49,20 @@ test("scanner shows a completed display result while intake can continue", async
       matchStatus: "ambiguous",
     }] : [] } });
   });
+  let uploadCount = 0;
   await page.route("**/api/rma-items/test-item/upload", async (route) => {
     uploaded = true;
-    await route.fulfill({ json: { success: true, image: { id: "saved-first-display" } } });
+    uploadCount++;
+    const body = route.request().postDataBuffer()?.toString() || "";
+    const typeMatch = body.match(/name="imageType"\r\n\r\n([^\r]+)/);
+    const imageType = typeMatch ? typeMatch[1] : (uploadCount === 1 ? "primary" : "back");
+    await route.fulfill({ json: { success: true, image: { id: `saved-display-${uploadCount}`, imageType } } });
   });
   await page.goto("/rmas/test-rma/capture");
   await expect(page.locator("video")).toBeVisible();
   await page.getByRole("button", { name: "Capture front photo" }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Capture back photo" }).click();
   await expect(page.getByText("iPhone 14 Plus")).toBeVisible();
   await expect(page.getByText("Needs review")).toBeVisible();
   await expect(page.getByRole("button", { name: "Next display" })).toBeEnabled();
@@ -226,7 +233,9 @@ test("a wrong saved photo can be removed and replaced on the same display", asyn
   await expect(page.getByText("Display 1", { exact: true })).toBeVisible();
   expect(deleted).toHaveLength(1);
   await page.getByRole("button", { name: "Capture front photo" }).click();
-  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(1);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.getByRole("button", { name: "Capture back photo" }).click();
+  await expect(page.getByLabel("Photo saved", { exact: true })).toHaveCount(2);
   await expect(page.getByRole("button", { name: "Next display" })).toBeEnabled();
 });
 

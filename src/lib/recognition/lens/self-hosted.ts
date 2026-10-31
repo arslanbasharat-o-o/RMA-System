@@ -312,7 +312,7 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
         }
       }
 
-      const result = await this.toIdentificationResult(payload, startTime, uploadBuffer, uploadMime, controller.signal);
+      const result = await this.toIdentificationResult(payload, startTime, uploadBuffer, uploadMime, controller.signal, context);
       if (controller.signal.aborted) throw new Error("Recognition deadline exceeded");
       clearTimeout(timeout);
       return result;
@@ -520,7 +520,8 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
     startTime: number,
     imageBuffer?: Buffer,
     uploadMime?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    context?: DisplayVisualRecognitionContext
   ): Promise<VisualIdentificationResult> {
     const visualPayload = getVisualPayload(payload);
     const matches = Array.isArray(visualPayload.visual_matches) ? visualPayload.visual_matches : [];
@@ -546,6 +547,9 @@ export class SelfHostedLensProvider implements DisplayVisualRecognitionProvider 
       imageBuffer,
       mimeType: uploadMime,
       signal,
+      additionalImages: context?.additionalImages,
+      ocrText: context?.ocrText,
+      partNumbers: context?.partNumbers,
     });
 
     const normalizedManufacturer = cleanDecision.manufacturer || undefined;

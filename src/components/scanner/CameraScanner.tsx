@@ -9,7 +9,7 @@ interface CapturedPhoto {
   id: string;
   blob: Blob;
   previewUrl: string;
-  imageType: "primary" | "back" | "flex_cable" | "stamp_closeup";
+  imageType: "primary" | "front" | "back" | "flex_cable" | "stamp_closeup";
   status: "uploading" | "saved" | "error" | "removing";
   error?: string;
   serverImageId?: string;
@@ -27,10 +27,10 @@ interface LiveRecognitionItem {
 }
 
 const angles = [
-  { type: "primary", label: "Front", hint: "Keep the camera notch at the top and fit the full display in frame." },
-  { type: "back", label: "Back", hint: "Turn the display over. Keep the connectors near the bottom and in focus." },
-  { type: "flex_cable", label: "Flex", hint: "Fill the frame with the flex cable and keep its printed code in focus." },
-  { type: "stamp_closeup", label: "Label", hint: "Move closer to the stamp or sticker. Avoid glare." },
+  { type: "primary", label: "Front", badge: "Required", required: true, hint: "Keep the camera notch at the top and fit the full display in frame (Required)." },
+  { type: "back", label: "Back", badge: "Required", required: true, hint: "Turn the display over. Keep the connectors near the bottom and in focus (Required)." },
+  { type: "flex_cable", label: "Flex", badge: "Optional", required: false, hint: "Fill the frame with the flex cable and keep its printed code in focus (Optional)." },
+  { type: "stamp_closeup", label: "Additional", badge: "Optional", required: false, hint: "Move closer to the stamp, label, or barcode (Optional)." },
 ] as const;
 
 export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
@@ -70,7 +70,10 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
   const removing = photos.some((photo) => photo.status === "removing");
   const busy = saving || removing;
   const failed = photos.some((photo) => photo.status === "error");
-  const canAdvance = photos.length > 0 && !busy && !failed;
+  const hasFront = photos.some((photo) => (photo.imageType === "primary" || photo.imageType === "front") && photo.status === "saved");
+  const hasBack = photos.some((photo) => photo.imageType === "back" && photo.status === "saved");
+  const hasFlex = photos.some((photo) => photo.imageType === "flex_cable" && photo.status === "saved");
+  const canAdvance = hasFront && hasBack && !busy && !failed;
   const selectedAngle = angles.find((entry) => entry.type === angle)!;
 
   const { refreshNow: refreshRecognition, refreshError: recognitionRefreshError } = useLiveRefresh(
@@ -311,6 +314,14 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
 
   const finish = () => {
     if (busy || failed) return;
+    if (photos.length > 0 && (!hasFront || !hasBack)) {
+      setIntakeError(
+        !hasFront
+          ? `Display ${displayNumber} is missing the required Front photo. Both Front and Back are mandatory before finishing.`
+          : `Display ${displayNumber} is missing the required Back photo. Both Front and Back are mandatory before finishing.`
+      );
+      return;
+    }
     stopTracks();
     onComplete?.();
   };
@@ -323,7 +334,7 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
           <p className="text-xs font-mono text-neutral-400">{rmaNumber}</p>
           <h1 className="truncate text-sm font-semibold sm:text-base">{customerName}</h1>
         </div>
-        <button type="button" onClick={finish} disabled={busy || failed} className={`${buttonStyle} bg-neutral-800 hover:bg-neutral-700`}>
+        <button type="button" onClick={finish} disabled={busy || failed || (photos.length > 0 && (!hasFront || !hasBack))} className={`${buttonStyle} bg-neutral-800 hover:bg-neutral-700`}>
           <Check className="size-4" /> Finish <span className="sr-only">intake</span>
         </button>
       </header>
@@ -360,20 +371,55 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
             <ScanLine className="mb-4 size-6 text-neutral-400" />
             <h2 className="font-semibold">Capture each display</h2>
             <ol className="mt-4 space-y-4 text-sm text-neutral-400">
-              <li><span className="block font-medium text-white">1. Front</span>Keep the camera notch at the top.</li>
-              <li><span className="block font-medium text-white">2. Back</span>Photograph the whole display and connectors.</li>
-              <li><span className="block font-medium text-white">3. Flex</span>Add a close-up of the flex cable and code.</li>
-              <li><span className="block font-medium text-white">4. Label, if needed</span>Add a close-up of stamps or stickers.</li>
+              <li>
+                <span className="flex items-center justify-between font-medium text-white">
+                  1. Front <span className="text-[11px] font-semibold text-amber-400">Required</span>
+                </span>
+                Keep the camera notch at the top and fit full display in frame.
+              </li>
+              <li>
+                <span className="flex items-center justify-between font-medium text-white">
+                  2. Back <span className="text-[11px] font-semibold text-amber-400">Required</span>
+                </span>
+                Photograph the whole display and connectors.
+              </li>
+              <li>
+                <span className="flex items-center justify-between font-medium text-white">
+                  3. Flex <span className="text-[11px] text-neutral-400">Optional</span>
+                </span>
+                Add a close-up of the flex cable and code.
+              </li>
+              <li>
+                <span className="flex items-center justify-between font-medium text-white">
+                  4. Additional <span className="text-[11px] text-neutral-400">Optional</span>
+                </span>
+                Add a close-up of stamps or stickers.
+              </li>
             </ol>
-            <p className="mt-6 border-t border-neutral-800 pt-4 text-xs leading-relaxed text-neutral-500">Use even lighting and avoid reflections. You can also drag photos into the viewfinder.</p>
+            <p className="mt-6 border-t border-neutral-800 pt-4 text-xs leading-relaxed text-neutral-500">
+              Both Front and Back photos are mandatory for recognition. Flex is optional. Use even lighting and avoid reflections.
+            </p>
           </aside>
         </div>
 
         <footer className="max-h-[65dvh] shrink-0 overflow-y-auto overscroll-contain border-t border-neutral-800 bg-neutral-900 px-4 pt-3 pb-[max(12px,env(safe-area-inset-bottom))] sm:px-5">
           <div className="mx-auto max-w-3xl">
-            <div className="flex gap-1 rounded-xl bg-neutral-950 p-1" role="group" aria-label="Photo angle">
-              {angles.map((entry) => <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} disabled={busy} aria-pressed={angle === entry.type}
-                className={`min-h-10 flex-1 rounded-lg text-sm font-medium focus-visible:outline-2 focus-visible:outline-white ${angle === entry.type ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}>{entry.label}</button>)}
+            <div className="flex gap-1.5 rounded-xl bg-neutral-950 p-1" role="group" aria-label="Photo angle">
+              {angles.map((entry) => {
+                const isSaved = photos.some((photo) => (photo.imageType === entry.type || (entry.type === "primary" && photo.imageType === "front")) && photo.status === "saved");
+                return (
+                  <button key={entry.type} type="button" onClick={() => setAngle(entry.type)} disabled={busy} aria-pressed={angle === entry.type}
+                    className={`flex min-h-11 flex-1 flex-col items-center justify-center rounded-lg px-2 py-1 text-xs font-medium focus-visible:outline-2 focus-visible:outline-white ${angle === entry.type ? "bg-neutral-700 text-white" : "text-neutral-400 hover:text-white"}`}>
+                    <span className="inline-flex items-center gap-1">
+                      {entry.label}
+                      {isSaved && <Check className="size-3 text-emerald-400" />}
+                    </span>
+                    <span aria-hidden="true" className={`text-[10px] ${entry.required ? (isSaved ? "text-emerald-400 font-semibold" : "text-amber-400 font-semibold") : "text-neutral-500"}`}>
+                      {entry.badge}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
             <p className="mt-2 text-center text-xs leading-5 text-neutral-400">{selectedAngle.hint}</p>
             <div className="mt-2 grid grid-cols-3 items-center justify-items-center">
@@ -402,10 +448,28 @@ export function CameraScanner({ rmaId, rmaNumber, customerName, onComplete }: {
                   </button>
                 </div>)}
               </div>
-              <button type="button" onClick={nextDisplay} disabled={!canAdvance} className={`${buttonStyle} shrink-0 bg-white text-neutral-950 hover:bg-neutral-200`}>Next display <ArrowRight className="size-4" /></button>
+              <button type="button" onClick={nextDisplay} disabled={!canAdvance} title={!hasFront || !hasBack ? "Both front and back photos are required before advancing" : undefined} className={`${buttonStyle} shrink-0 bg-white text-neutral-950 hover:bg-neutral-200`}>Next display <ArrowRight className="size-4" /></button>
             </div>}
             <div role="status" aria-live="polite" className="mt-2 text-center text-xs text-neutral-400">
-              {removing ? "Removing photo…" : saving ? "Saving photos — keep this page open." : failed ? <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span> : photos.length > 0 ? `${photos.length} ${photos.length === 1 ? "photo" : "photos"} saved. Add another angle or continue.` : "Capture a photo or choose one from your device."}
+              {removing ? (
+                "Removing photo…"
+              ) : saving ? (
+                "Saving photos — keep this page open."
+              ) : failed ? (
+                <span className="text-red-300">Upload failed. Tap a failed photo to retry before continuing.</span>
+              ) : photos.length > 0 ? (
+                !hasFront ? (
+                  <span className="text-amber-300">Front photo is required to complete this display.</span>
+                ) : !hasBack ? (
+                  <span className="text-amber-300">Back photo is required to complete this display.</span>
+                ) : (
+                  <span className="text-emerald-300">
+                    Front and back photos saved. {hasFlex ? "Flex cable included." : "Add optional flex photo or tap Next display."}
+                  </span>
+                )
+              ) : (
+                "Capture a photo or choose one from your device. Front and Back are both required."
+              )}
             </div>
             {intakeError && <p role="alert" className="mt-2 flex items-center justify-center gap-2 text-xs text-red-300"><AlertCircle className="size-4" />{intakeError}</p>}
             {liveItems.length > 0 && <section aria-label="Live display results" aria-live="polite" className="mt-3 border-t border-neutral-800 pt-3">
