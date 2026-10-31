@@ -83,7 +83,7 @@ let testInventoryMatcherOverride: InventoryMatcherOverride | null = null;
  * Protected by a strict environment check at the override boundary.
  */
 export function setInventoryMatcherForTesting(matcher: InventoryMatcherOverride | null): void {
-  if (process.env.NODE_ENV !== "test") {
+  if (matcher !== null && process.env.NODE_ENV !== "test") {
     throw new Error("setInventoryMatcherForTesting is strictly restricted to test environments (NODE_ENV === 'test').");
   }
   testInventoryMatcherOverride = matcher;
@@ -98,6 +98,7 @@ async function matchSeededInventory(
   // Test seam boundary check: strictly prevent activation in production
   if (testInventoryMatcherOverride) {
     if (process.env.NODE_ENV !== "test") {
+      testInventoryMatcherOverride = null;
       throw new Error("Inventory matcher test override cannot activate outside NODE_ENV === 'test'.");
     }
     return testInventoryMatcherOverride(itemId, images);
@@ -1104,17 +1105,6 @@ export async function processRmaItem(
   itemId: string,
   options?: ProcessItemOptions
 ): Promise<void> {
-  // Test seam guard: strictly prevent mock overrides outside test environment
-  if (options && "mockInventoryMatch" in (options as Record<string, unknown>)) {
-    if (process.env.NODE_ENV !== "test") {
-      throw new Error("mockInventoryMatch test seam is disabled in production runtime.");
-    }
-    const mock = (options as Record<string, unknown>).mockInventoryMatch as SeededInventoryMatch | null;
-    if (mock !== undefined) {
-      testInventoryMatcherOverride = () => mock;
-    }
-  }
-
   const pipeline = options?.pipeline || "all";
   console.log(`[Processor] Processing RMA item ${itemId} (pipeline: ${pipeline})...`);
 

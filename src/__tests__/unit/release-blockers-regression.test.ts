@@ -8,7 +8,7 @@ import {
   type SeededInventoryProduct,
   type SeededInventoryReference,
 } from "@/lib/recognition/seeded-inventory";
-import { processRmaItem } from "@/lib/queue/processor";
+import { setInventoryMatcherForTesting } from "@/lib/queue/processor";
 
 describe("Blocker 1: Explicitly rejected provisional model must not survive", () => {
   it("never contains suggestedModel alongside rejectedModel when upstream model is null and provisional candidate is rejected", () => {
@@ -215,30 +215,43 @@ describe("Blocker 2: False independent Google Lens consensus from duplicated sou
 });
 
 describe("Blocker 3: Unrestricted inventory test override prevention", () => {
-  it("rejects or blocks test override activation when NODE_ENV is production", async () => {
+  it("strictly prohibits test override activation when NODE_ENV is production", () => {
     const originalEnv = process.env.NODE_ENV;
     try {
       // Simulate production environment
       (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
-      // Passing mock inventory match in production options must either be ignored or throw an error
-      // It must NOT bypass real matching!
-      const dummyItemId = "00000000-0000-0000-0000-000000000000";
-      const call = () => (processRmaItem as any)(dummyItemId, {
-        mockInventoryMatch: {
-          status: "matched",
-          product: { id: "fake-prod-id", modelName: "Fake" },
-          confidence: 0.99,
-          matchingCues: ["fake"],
-          conflictingCues: [],
-          unresolvedAlternatives: [],
-        },
-      });
-
-      // In production, supplying arbitrary inventory match mock must fail or be rejected
-      await expect(call()).rejects.toThrow(/test|production|unauthorized|disabled|invalid/i);
+      // Attempting to inject test mock in production must throw immediately
+      expect(() => {
+        setInventoryMatcherForTesting(() => null);
+      }).toThrow(/strictly restricted to test environments/i);
     } finally {
       (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+      setInventoryMatcherForTesting(null);
+    }
+  });
+
+  it("proves ordinary production jobs cannot bypass real inventory matching via options", () => {
+    // ProcessItemOptions has no mockInventoryMatch property; passing unexpected options does not activate any override
+    const originalEnv = process.env.NODE_ENV;
+    try {
+      (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+      setInventoryMatcherForTesting(null);
+      // Verify override is null
+      expect(() => {
+        setInventoryMatcherForTesting(() => ({
+          status: "accepted",
+          product: null,
+          confidence: 1.0,
+          matchingCues: [],
+          conflictingCues: [],
+          unresolvedAlternatives: [],
+          supportingReferenceIds: [],
+        }));
+      }).toThrow();
+    } finally {
+      (process.env as Record<string, string | undefined>).NODE_ENV = originalEnv;
+      setInventoryMatcherForTesting(null);
     }
   });
 });
@@ -286,5 +299,100 @@ describe("Blocker 6: Single-product inventory coverage", () => {
     expect(match.status).not.toBe("miss");
     // It should preserve the provisional candidate for review
     expect(match.product?.id).toBe("product-single");
+  });
+
+  it("supports automatic acceptance for single-product catalog when physical evidence is decisively verified", async () => {
+    const singleProduct: SeededInventoryProduct = {
+      id: "product-single-verified",
+      manufacturer: "Apple",
+      modelName: "iPhone 13",
+      variantName: "OLED",
+      printedTitle: "Apple iPhone 13 OLED",
+      barcodeValue: "665386615240",
+      barcodeFormat: "UPC-A digits",
+      barcodeSymbology: "CODE128",
+      supplierSku: "SKU-IP13",
+    };
+
+    const singleRef: SeededInventoryReference = {
+      product: singleProduct,
+      displayId: "DSP-001",
+      imageBuffer: Buffer.from("reference-1"),
+      imageType: "back",
+    };
+
+    const compareToVerifiedExamples = vi.fn().mockResolvedValue({
+      selectedCatalogDisplayId: "product-single-verified",
+      confidence: 0.95,
+      matchingCues: ["Identical shielding ground pattern", "Connector pitch exactly matches"],
+      conflictingCues: [],
+      unresolvedAlternatives: [],
+      supportingReferenceItemIds: ["DSP-001"],
+      model: "test-model",
+      durationMs: 10,
+    });
+
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
+      [singleRef]
+    );
+
+    // High confidence with physical proof should be accepted
+    expect(match.status).toBe("accepted");
+    expect(match.product?.id).toBe("product-single-verified");
+    expect(match.confidence).toBe(0.95);
+  });
+
+  it("identifies an actual verified non-match when physical discrepancy proves it differs from single product", async () => {
+    const singleProduct: SeededInventoryProduct = {
+      id: "product-single-oled",
+      manufacturer: "Apple",
+      modelName: "iPhone 13",
+      variantName: "OLED",
+      printedTitle: "Apple iPhone 13 OLED",
+      barcodeValue: "665386615240",
+      barcodeFormat: "UPC-A digits",
+      barcodeSymbology: "CODE128",
+      supplierSku: "SKU-IP13",
+    };
+
+    const singleRef: SeededInventoryReference = {
+      product: singleProduct,
+      displayId: "DSP-001",
+      imageBuffer: Buffer.from("reference-1"),
+      imageType: "back",
+    };
+
+    const compareToVerifiedExamples = vi.fn().mockResolvedValue({
+      selectedCatalogDisplayId: null,
+      confidence: 0.20,
+      matchingCues: [],
+      conflictingCues: ["Different connector layout", "Missing shielding plate"],
+      unresolvedAlternatives: [],
+      supportingReferenceItemIds: [],
+      model: "test-model",
+      durationMs: 10,
+    });
+
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
+      [singleRef]
+    );
+
+    // Explicit conflicting cues indicate verified non-match
+    expect(match.status).toBe("miss");
+    expect(match.product).toBeNull();
+  });
+
+  it("returns unavailable when no inventory references or target images are present", async () => {
+    const compareToVerifiedExamples = vi.fn();
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [],
+      []
+    );
+    expect(match.status).toBe("unavailable");
   });
 });

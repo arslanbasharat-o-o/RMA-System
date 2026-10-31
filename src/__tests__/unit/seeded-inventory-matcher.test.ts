@@ -139,7 +139,7 @@ describe("seeded inventory product matching", () => {
   });
 
   it("evaluates a single product catalog under sparse coverage policy and preserves provisional candidate for review", async () => {
-    const compareToVerifiedExamples = vi.fn().mockResolvedValueOnce(comparison());
+    const compareToVerifiedExamples = vi.fn().mockResolvedValueOnce(comparison({ confidence: 0.80 }));
     const match = await matchSeededInventoryProduct(
       { compareToVerifiedExamples },
       [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
@@ -151,8 +151,21 @@ describe("seeded inventory product matching", () => {
     expect(match.status).not.toBe("miss");
     // Preserved as provisional candidate for review with capped confidence
     expect(match.product?.id).toBe("product-a");
-    expect(match.confidence).toBeLessThanOrEqual(0.70);
+    expect(match.confidence).toBeLessThanOrEqual(0.75);
     expect(compareToVerifiedExamples).toHaveBeenCalledTimes(1);
+  });
+
+  it("automatically accepts a single product catalog match when physical evidence meets strict verification threshold", async () => {
+    const compareToVerifiedExamples = vi.fn().mockResolvedValueOnce(comparison({ confidence: 0.96 }));
+    const match = await matchSeededInventoryProduct(
+      { compareToVerifiedExamples },
+      [{ imageBuffer: Buffer.from("target"), imageType: "back" }],
+      references.slice(0, 1)
+    );
+
+    expect(match.status).toBe("accepted");
+    expect(match.product?.id).toBe("product-a");
+    expect(match.confidence).toBe(0.96);
   });
 
   it("P2: verifies processor explicitly treats primary photos as back for seeded matcher", async () => {

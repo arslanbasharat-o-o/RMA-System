@@ -185,10 +185,17 @@ export function appleVisualEvidence(
       unattributedListings += 1;
       continue;
     }
+
+    // Title signature deduplication: near-identical listings from the same source
+    // (e.g. syndicated retailer listings or duplicate scraped cards) must not count as independent votes
+    const titleSignature = `${source}:${candidate.title.toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 36)}`;
+    if (seenSourcesByModel.get(models[0])?.has(titleSignature)) continue;
+
     attributableModels.add(models[0]);
     const seenSources = seenSourcesByModel.get(models[0]) || new Set<string>();
     if (seenSources.has(source)) continue;
     seenSources.add(source);
+    seenSources.add(titleSignature);
     seenSourcesByModel.set(models[0], seenSources);
 
     const entry = scores.get(models[0]) || { score: 0, sources: new Set<string>(), displaySources: 0 };
@@ -305,13 +312,15 @@ export function appleVisualEvidence(
 }
 
 export function independentSource(sourceUrl?: string, sourceName?: string): string | undefined {
+  const KNOWN_PUBLISHERS = /(?:^|\.)(amazon|ebay|aliexpress|walmart|mobilesentrix|injuredgadgets|ifixit|parts4repair|mengtor|groupvertical)\b/i;
+
   if (sourceUrl) {
     try {
       const url = new URL(sourceUrl);
       if (url.protocol === "http:" || url.protocol === "https:") {
         const host = url.hostname.toLowerCase().replace(/^www\./, "");
         if (host && !/(?:^|\.)(?:google|googleusercontent|gstatic)\.com$/.test(host)) {
-          const publisher = host.match(/(?:^|\.)(amazon|ebay|aliexpress)\./)?.[1];
+          const publisher = host.match(KNOWN_PUBLISHERS)?.[1]?.toLowerCase();
           if (publisher) return publisher;
           const parts = host.split(".");
           return parts.slice(/\.(?:co\.uk|com\.au|co\.jp|co\.in)$/.test(host) ? -3 : -2).join(".");
@@ -326,6 +335,9 @@ export function independentSource(sourceUrl?: string, sourceName?: string): stri
   if (!label || /^google(?:\b|\.)/i.test(label) || /^(?:unknown|visual match)$/i.test(label)) {
     return undefined;
   }
+
+  const knownLabel = label.match(KNOWN_PUBLISHERS)?.[1]?.toLowerCase();
+  if (knownLabel) return knownLabel;
 
   // Collapse country-specific marketplace labels such as Amazon.com/Amazon.ae
   // so one publisher cannot count as multiple independent sources.
