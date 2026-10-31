@@ -555,16 +555,19 @@ export function evaluateCleanerResponse(
   }
 
   const checkReasoning = typeof check.reasoning === "string" ? check.reasoning.trim() : "";
-  const candidateModel = evidence.model || evidence.suggestedModel;
+  const candidateModel = evidence.model || evidence.suggestedModel || "";
   const candidateMfg = evidence.manufacturer || checkMfr || "";
   const checkKey = checkMfr && checkModel ? identityKey(checkMfr, checkModel) : null;
   const candidateKey = candidateMfg && candidateModel ? identityKey(candidateMfg, candidateModel) : null;
   const evidenceKey = evidence.manufacturer && evidence.model ? identityKey(evidence.manufacturer, evidence.model) : null;
 
-  // Use the centralized, variant-safe model comparator for both confirmed and provisional candidates
+  // Variant-safe comparison to determine if cleaner model refers to the same candidate
+  const normCandidate = candidateModel ? candidateModel.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
+  const normCheck = checkModel ? checkModel.toLowerCase().replace(/[^a-z0-9]/g, "") : "";
   const matchesCandidate = Boolean(
     candidateModel && checkModel && (
       (checkKey && candidateKey && checkKey === candidateKey) ||
+      (normCandidate && normCheck && (normCandidate === normCheck || normCandidate.includes(normCheck) || normCheck.includes(normCandidate))) ||
       modelsMatchExactly(checkModel, candidateModel, candidateMfg)
     )
   );
@@ -574,37 +577,25 @@ export function evaluateCleanerResponse(
   const reasoningContradiction = /\b(?:reject(?:ed|s)?|incompatible|contradicts|cannot be an? (?:iphone|galaxy)|is not an? (?:iphone|galaxy)|definitely not|not an? (?:iphone|galaxy))\b/i.test(checkReasoning);
   const isExplicitRejection = explicitRejectionFlag || reasoningContradiction;
 
-  // Contradiction Guard: If cleaner returned check.model matching candidate BUT ALSO set rejected: true
-  // or contradictory reasoning, this contradictory response must NEVER bypass rejection!
-  if (isExplicitRejection && matchesCandidate) {
-    return {
-      ...evidence,
-      model: null,
-      suggestedModel: null,
-      rejectedModel: candidateModel,
-      decisionStatus: "rejected",
-      displayName: "Unidentified Display",
-      confidence: 0.20,
-      reasoning: `Cleaner response rejected candidate despite mentioning model: ${checkReasoning.slice(0, 900)}`,
-      telemetry,
-    };
-  }
-
-  // Rejection Handling: Distinguish outright rejection from proposing a different replacement model
+  // BLOCKER 1 GUARD: If the cleaner explicitly rejected the candidate (e.g. rejected: true, or reasoning contradiction),
+  // the rejected candidate MUST NOT remain an active accepted or provisional suggestion under ANY circumstances.
+  // Rejection applies to both `model` and `suggestedModel`.
   if (isExplicitRejection) {
-    const isReplacementProposed = Boolean(checkMfr && checkModel && !matchesCandidate);
+    const isSameAsRejectedCandidate = matchesCandidate || !checkModel;
+    const isReplacementProposed = Boolean(checkMfr && checkModel && !isSameAsRejectedCandidate);
+
     return {
       ...evidence,
       manufacturer: isReplacementProposed ? checkMfr : evidence.manufacturer,
       model: null,
       suggestedModel: isReplacementProposed ? checkModel : null,
-      rejectedModel: candidateModel,
+      rejectedModel: candidateModel || checkModel || null,
       decisionStatus: "rejected",
       displayName: isReplacementProposed ? `${checkMfr} ${checkModel} Display` : "Unidentified Display",
       confidence: isReplacementProposed ? 0.40 : 0.20,
-      reasoning: `The photograph did not corroborate the candidate ${candidateModel || "model"} suggested by source evidence. ${
-        checkReasoning ? checkReasoning.slice(0, 900) : "Operator review is required."
-      }`,
+      reasoning: checkReasoning
+        ? `Cleaner response rejected candidate: ${checkReasoning.slice(0, 900)}`
+        : `The photograph did not corroborate the candidate ${candidateModel || "model"} suggested by source evidence. Operator review is required.`,
       telemetry,
     };
   }

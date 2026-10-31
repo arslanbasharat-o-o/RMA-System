@@ -4,6 +4,14 @@ Changes to the public source are recorded here.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-31
+
+### Fixed
+- **Provisional Model Rejection Guard (Blocker 1)**: Fixed `evaluateCleanerResponse` and downstream `synthesizer.ts` so when an AI cleaner explicitly rejects a candidate model (e.g. `rejected: true` or reasoning contradiction), the candidate model is strictly wiped from both `model` and `suggestedModel`. `displayName` falls back to `"Unidentified Display"` and cannot be resurrected through catalog fallback.
+- **Google Lens Evidence Deduplication (Blocker 2)**: Added title signature deduplication and normalized canonical publisher collapsing across key parts retailers (`ebay`, `amazon`, `aliexpress`, `walmart`, `mobilesentrix`, `injuredgadgets`, `ifixit`, `parts4repair`, `mengtor`, `groupvertical`). Separated device-only listings from display assemblies and require $\ge 2$ independent display-specific sources for model consensus.
+- **Production Seam Isolation (Blocker 3)**: Removed `mockInventoryMatch` option bypass from `processRmaItem`. Enforced strict `NODE_ENV === "test"` environment guard on `setInventoryMatcherForTesting`, ensuring ordinary production background jobs cannot bypass real physical inventory matching.
+- **Single-Product Catalog Matching (Blocker 6)**: Added distinct 4-way evaluation for sparse single-product catalog coverage: automatic acceptance on verified physical proof ($\ge 0.90$ confidence, $\ge 2$ cues, 0 conflicts), candidate preservation for operator review on moderate evidence, verified non-match (`status: "miss"`) on explicit physical discrepancy, and `unavailable` on empty reference inputs without misclassifying displays as external.
+
 ## [0.5.0] - 2026-10-31
 
 ### Added

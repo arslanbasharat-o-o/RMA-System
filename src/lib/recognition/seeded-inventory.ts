@@ -141,9 +141,11 @@ export async function matchSeededInventoryProduct(
 
   // Safe policy for sparse reference coverage:
   // When catalog contains only a single product, evaluate the target image against it.
-  // Because single-reference coverage lacks comparison against competing alternatives,
-  // do not automatically accept it with full confidence; instead, preserve a provisional candidate
-  // for human review rather than declaring a catalog miss.
+  // Distinguish:
+  // 1. Enough evidence for automatic acceptance: high confidence (>= 0.90), >= 2 matching cues, 0 conflicting cues, 0 unresolved alternatives
+  // 2. Insufficient evidence, requiring review: moderate confidence or candidate match requiring human review
+  // 3. Actual verified non-match: strong conflicting cues proving non-match (not merely insufficient coverage)
+  // 4. Evaluation unavailable or failed: handled above or on comparator error
   if (products.length === 1) {
     const singleProduct = products[0];
     const candidateReferences = references.filter((r) => r.product.id === singleProduct.id).slice(0, 3);
@@ -161,18 +163,46 @@ export async function matchSeededInventoryProduct(
     const telemetry = buildTelemetry(discovery);
     if (discovery.error) return result("error", discovery, null, telemetry);
 
-    if (discovery.selectedCatalogDisplayId === singleProduct.id) {
+    // Case 1: Enough evidence for automatic acceptance
+    const isSingleMatchAccepted =
+      discovery.selectedCatalogDisplayId === singleProduct.id &&
+      discovery.confidence >= 0.90 &&
+      discovery.matchingCues.length >= 2 &&
+      discovery.conflictingCues.length === 0 &&
+      discovery.unresolvedAlternatives.length === 0 &&
+      discovery.supportingReferenceItemIds.length > 0;
+
+    if (isSingleMatchAccepted) {
+      return result("accepted", discovery, singleProduct, telemetry);
+    }
+
+    // Case 2: Insufficient evidence, requiring review
+    // Candidate matches single product with moderate confidence or cues, but requires human confirmation
+    if (
+      discovery.selectedCatalogDisplayId === singleProduct.id ||
+      (discovery.confidence >= 0.50 && discovery.conflictingCues.length === 0)
+    ) {
       return {
         ...result("ambiguous", discovery, singleProduct, telemetry),
-        confidence: Math.min(discovery.confidence, 0.70),
+        confidence: Math.min(discovery.confidence, 0.75),
         matchingCues: discovery.matchingCues,
         conflictingCues: discovery.conflictingCues,
         unresolvedAlternatives: [singleProduct.id],
       };
     }
 
-    const ambiguous = discovery.conflictingCues.length > 0 || discovery.unresolvedAlternatives.length > 0;
-    return result(ambiguous ? "ambiguous" : "miss", discovery, null, telemetry);
+    // Case 3: Actual verified non-match
+    // Only declare a miss when physical discrepancy affirmatively proves it is not the single product
+    const hasDefiniteDiscrepancy =
+      discovery.conflictingCues.length >= 2 ||
+      (discovery.confidence <= 0.30 && discovery.conflictingCues.length > 0);
+
+    if (hasDefiniteDiscrepancy && discovery.selectedCatalogDisplayId !== singleProduct.id) {
+      return result("miss", discovery, null, telemetry);
+    }
+
+    // Case 4: Default when evidence is ambiguous/insufficient: require review rather than declaring a false miss
+    return result("ambiguous", discovery, null, telemetry);
   }
 
   const representatives = products.map((product) =>

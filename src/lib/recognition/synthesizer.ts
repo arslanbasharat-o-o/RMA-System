@@ -408,7 +408,7 @@ export function synthesizeRecognition(
 
   const predictedDisplayAssembly = acceptedDisplayMatch
     ? `${displayLabel}${cleanTech ? ` (${cleanTech})` : " Display"}`
-    : (visualResult?.cleanDecision?.displayName && !isUnidentifiedLabel(visualResult.cleanDecision.displayName)
+    : (!isCleanerRejected && !isCleanerAbstained && !isProviderError && visualResult?.cleanDecision?.displayName && !isUnidentifiedLabel(visualResult.cleanDecision.displayName)
        ? visualResult.cleanDecision.displayName
        : (safeDetectedAssembly
           ? safeDetectedAssembly
