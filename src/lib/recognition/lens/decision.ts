@@ -26,7 +26,9 @@ export interface DecisionContext {
   isMock?: boolean;
   imageBuffer?: Buffer | null;
   mimeType?: string | null;
+  imageType?: string | null;
   signal?: AbortSignal;
+  additionalImages?: Array<{ buffer: Buffer; mimeType?: string; imageType?: string }>;
 }
 
 function getMimeType(buffer: Buffer, declared?: string | null): string {
@@ -410,7 +412,78 @@ export async function cleanVisualCandidatesWithOpenAi(
   try {
     const startTime = Date.now();
     const cleanerModel = process.env.OPENAI_VISION_MODEL || process.env.OPENAI_CLEANER_MODEL || "gpt-4o";
-    const client = new OpenAI({ apiKey, timeout: 15000, maxRetries: 1 });
+    const timeoutMs = 45000;
+    const client = new OpenAI({ apiKey, timeout: timeoutMs, maxRetries: 1 });
+
+    const userContent: Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    > = [
+      {
+        type: "text",
+        text: JSON.stringify({
+          suggestedManufacturer: evidence.manufacturer,
+          suggestedModel: (() => {
+            const ocrHintsList = [
+              ...(context?.partNumbers || []),
+              ...(context?.ocrText || []),
+            ];
+            const isLegacy = (m?: string | null) => m && /^iPhone\s*(?:[5678]|SE)\b/i.test(m);
+            // Affirmative OLED physical markers physically invalidate legacy LCDs.
+            // Web-listing consensus is search evidence, not direct physical proof, so physical inspection
+            // must inspect the photo rather than having legacy candidates erased.
+            const hasPhysicalOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
+            return isLegacy(evidence.model || evidence.suggestedModel) && hasPhysicalOled
+              ? null
+              : (evidence.model || evidence.suggestedModel);
+          })(),
+          googleLensCandidates: candidates.slice(0, 20).map((c) => ({
+            title: c.title,
+            source: c.sourceUrl || c.sourceName,
+          })),
+          googleLensAiOverview: context?.aiOverview,
+          ocrHints: [
+            ...(context?.partNumbers || []),
+            ...(context?.ocrText || []),
+          ],
+        }),
+      },
+      {
+        type: "text",
+        text: `Primary Display Image (Perspective: ${context.imageType === "back" ? "Back view (shield plate, flex layout, stamps, connectors)" : context.imageType || "Primary view"}):`,
+      },
+      {
+        type: "image_url",
+        image_url: {
+          url: `data:${getMimeType(context.imageBuffer, context.mimeType)};base64,${context.imageBuffer.toString("base64")}`,
+        },
+      },
+    ];
+
+    if (context?.additionalImages && context.additionalImages.length > 0) {
+      for (const extra of context.additionalImages) {
+        if (extra?.buffer) {
+          const perspective = extra.imageType === "front" || extra.imageType === "primary"
+            ? "Front view (screen notch, Dynamic Island, top speaker opening, bezel symmetry)"
+            : extra.imageType === "back"
+            ? "Back view (shield plate, flex routing, connectors, stamps)"
+            : extra.imageType === "flex_cable"
+            ? "Flex cable macro close-up (printed part numbers, IC chips)"
+            : extra.imageType || "Additional perspective";
+          userContent.push({
+            type: "text",
+            text: `Additional Display Image (Perspective: ${perspective}):`,
+          });
+          userContent.push({
+            type: "image_url",
+            image_url: {
+              url: `data:${getMimeType(extra.buffer, extra.mimeType)};base64,${extra.buffer.toString("base64")}`,
+            },
+          });
+        }
+      }
+    }
+
     const completion = await client.chat.completions.create(
       {
         model: cleanerModel,
@@ -440,43 +513,7 @@ Return JSON with:
           },
           {
             role: "user",
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify({
-                  suggestedManufacturer: evidence.manufacturer,
-                  suggestedModel: (() => {
-                    const ocrHintsList = [
-                      ...(context?.partNumbers || []),
-                      ...(context?.ocrText || []),
-                    ];
-                    const isLegacy = (m?: string | null) => m && /^iPhone\s*(?:[5678]|SE)\b/i.test(m);
-                    // Affirmative OLED physical markers physically invalidate legacy LCDs.
-                    // Web-listing consensus is search evidence, not direct physical proof, so physical inspection
-                    // must inspect the photo rather than having legacy candidates erased.
-                    const hasPhysicalOled = ocrHintsList.some((h) => /\b(?:HARD|SOFT|OLED|AMOLED|AL1[2-6]|1[2-6]\s*Pro)\b/i.test(h));
-                    return isLegacy(evidence.model || evidence.suggestedModel) && hasPhysicalOled
-                      ? null
-                      : (evidence.model || evidence.suggestedModel);
-                  })(),
-                  googleLensCandidates: candidates.slice(0, 20).map((c) => ({
-                    title: c.title,
-                    source: c.sourceUrl || c.sourceName,
-                  })),
-                  googleLensAiOverview: context?.aiOverview,
-                  ocrHints: [
-                    ...(context?.partNumbers || []),
-                    ...(context?.ocrText || []),
-                  ],
-                }),
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: `data:${getMimeType(context.imageBuffer, context.mimeType)};base64,${context.imageBuffer.toString("base64")}`,
-                },
-              },
-            ],
+            content: userContent,
           },
         ],
         response_format: { type: "json_object" },
@@ -484,8 +521,8 @@ Return JSON with:
       },
       {
         signal: context.signal
-          ? AbortSignal.any([context.signal, AbortSignal.timeout(12000)])
-          : AbortSignal.timeout(12000),
+          ? AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       }
     );
 
@@ -508,7 +545,8 @@ Return JSON with:
 
     const parsed: unknown = JSON.parse(completion.choices[0]?.message?.content || "null");
     return evaluateCleanerResponse(parsed, evidence, candidates, context, telemetry);
-  } catch {
+  } catch (err: unknown) {
+    console.error("[cleanVisualCandidatesWithOpenAi] AI call failed:", err);
     // Corroboration failure must not silently certify an unchecked image.
     // Provider errors do not count as model rejection or positive evidence.
     return {

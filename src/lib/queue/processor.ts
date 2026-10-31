@@ -1145,7 +1145,12 @@ export async function processRmaItem(
     return;
   }
 
-  const primaryImage = images.find((img) => img.imageType === "primary" || img.imageType === "front") || images[0];
+  // For visual recognition via Google Lens: Prioritize the BACK view because it exhibits
+  // structural connectors, flex cable layout, part numbers, stamps, and shield plate geometry.
+  // Fall back to front view or the first available image if back is not present.
+  const backImage = images.find((img) => img.imageType === "back");
+  const frontImage = images.find((img) => img.imageType === "front" || img.imageType === "primary");
+  const primaryImage = backImage || frontImage || images[0];
 
   const shouldRunVisual = pipeline === "all" || pipeline === "visual";
   const shouldRunOcr = pipeline === "all" || pipeline === "vendor_ocr";
@@ -1278,12 +1283,30 @@ export async function processRmaItem(
             visualResult = visualResultFromSnapshot(established, "same-image-evidence");
           } else {
             const imageBuffer = await storage.getImageBuffer(primaryImage.storagePath);
+            const additionalImages: Array<{ buffer: Buffer; mimeType: string; imageType: string; filename: string }> = [];
+            for (const img of images) {
+              if (img.id !== primaryImage.id) {
+                try {
+                  const buf = await storage.getImageBuffer(img.storagePath);
+                  additionalImages.push({
+                    buffer: buf,
+                    mimeType: img.mimeType || "image/jpeg",
+                    imageType: img.imageType,
+                    filename: img.originalFilename || "",
+                  });
+                } catch {
+                  // Keep processing if one secondary image fails
+                }
+              }
+            }
+
             const lensProvider = getVisualRecognitionProvider(configuredLensProvider);
             const fresh = await lensProvider.identifyDisplay(imageBuffer, {
               filename: primaryImage.originalFilename,
               mimeType: primaryImage.mimeType,
               noCache: options?.force,
               prompt: process.env.LENS_SEARCH_PROMPT || DEFAULT_DISPLAY_INSPECTION_PROMPT,
+              additionalImages,
             });
             const reconciled = stableVisualDecision(previous, fresh.error ? undefined : snapshotVisualDecision(fresh));
             visualResult = reconciled?.manual
@@ -1882,12 +1905,58 @@ export async function processRmaItem(
       `Seeded inventory comparison matched ${inventoryMatch.product.printedTitle}, but extracted part number ${exactOcrPartNumberMatch?.matchedPartNumber} indicates ${exactOcrPartNumberMatch?.manufacturer} ${exactOcrPartNumberMatch?.modelName}. Seeded catalog UPC/EAN and SKU were withheld due to contradictory OCR model evidence.`
     );
   } else if (inventoryMatch && inventoryMatch.status !== "accepted") {
-    const reason = inventoryMatch.status === "error"
-      ? "The seeded catalog comparison was unavailable"
-      : inventoryMatch.status === "ambiguous"
-        ? "The seeded catalog could not distinguish the exact product variant"
-        : "No seeded catalog product matched the uploaded back photo";
-    unified.evidenceNotes.push(`${reason}; the existing model-identification flow was used and no seeded UPC/EAN or SKU was attached.`);
+    let agreedAltModel: { manufacturer: string; modelName: string; variants: string[] } | null = null;
+    if (inventoryMatch.status === "ambiguous" && inventoryMatch.unresolvedAlternatives?.length) {
+      try {
+        const altProducts = await db
+          .select({
+            id: seededDisplayProducts.id,
+            manufacturer: seededDisplayProducts.manufacturer,
+            modelName: seededDisplayProducts.modelName,
+            variantName: seededDisplayProducts.variantName,
+            printedTitle: seededDisplayProducts.printedTitle,
+          })
+          .from(seededDisplayProducts)
+          .where(inArray(seededDisplayProducts.id, inventoryMatch.unresolvedAlternatives));
+
+        const altModels = Array.from(new Set(altProducts.map((p) => p.modelName)));
+        const altMfgs = Array.from(new Set(altProducts.map((p) => p.manufacturer)));
+        if (altModels.length === 1 && altMfgs.length === 1) {
+          agreedAltModel = {
+            manufacturer: altMfgs[0],
+            modelName: altModels[0],
+            variants: altProducts.map((p) => p.variantName).filter(Boolean) as string[],
+          };
+        }
+      } catch {
+        // Fall through
+      }
+    }
+
+    if (agreedAltModel && !ocrContradictsSeededProduct) {
+      const modelCatalogItem = allCatalog.find((entry) =>
+        entry.manufacturer.toLowerCase() === agreedAltModel!.manufacturer.toLowerCase() &&
+        entry.modelName.toLowerCase().replace(/[^a-z0-9]/g, "") === agreedAltModel!.modelName.toLowerCase().replace(/[^a-z0-9]/g, "")
+      );
+      unified.predictedManufacturer = agreedAltModel.manufacturer;
+      unified.predictedModel = agreedAltModel.modelName;
+      const variantSuffix = agreedAltModel.variants.length > 0 ? ` (${agreedAltModel.variants.join(" / ")})` : "";
+      unified.predictedDisplayAssembly = `${agreedAltModel.manufacturer} ${agreedAltModel.modelName} Display${variantSuffix}`;
+      unified.catalogDisplayId = modelCatalogItem?.id || null;
+      unified.modelConfidenceScore = Math.max(unified.modelConfidenceScore, inventoryMatch.confidence || 0.85);
+      unified.overallMatchStatus = "ambiguous";
+      unified.itemStatus = "review_required";
+      unified.evidenceNotes.push(
+        `Inventory comparison matched model ${agreedAltModel.manufacturer} ${agreedAltModel.modelName} (confidence ${(inventoryMatch.confidence || 0.85).toFixed(2)}). Multiple inventory variants exist (${agreedAltModel.variants.join(" / ")}); operator confirmation of exact SKU variant is required.`
+      );
+    } else {
+      const reason = inventoryMatch.status === "error"
+        ? "The seeded catalog comparison was unavailable"
+        : inventoryMatch.status === "ambiguous"
+          ? "The seeded catalog could not distinguish the exact product variant"
+          : "No seeded catalog product matched the uploaded back photo";
+      unified.evidenceNotes.push(`${reason}; the existing model-identification flow was used and no seeded UPC/EAN or SKU was attached.`);
+    }
   }
 
   if (displayMatch?.verifiedExampleCount && displayMatch.matchedPartNumber) {

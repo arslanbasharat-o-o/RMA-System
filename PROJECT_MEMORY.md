@@ -75,6 +75,21 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
 ## Last verified
 
 - Date: 2026-10-31 (Asia/Karachi).
+- Production Release v0.5.2 Deployment & Service Health:
+  - Deployed release: `v0.5.2` active at `/opt/rma-system/releases/v0.5.2-81d941f` (commit `81d941f`).
+  - Active symlink: `/opt/rma-system/app` verified pointing to `/opt/rma-system/releases/v0.5.2-81d941f`.
+  - App and worker images: `ghcr.io/arslanbasharat-o-o/rma-system:0.5.2` and `ghcr.io/arslanbasharat-o-o/rma-system:worker-0.5.2` running and healthy.
+  - Lens API and worker: `ghcr.io/arslanbasharat-o-o/google-lens-api:1.0.22` and `ghcr.io/arslanbasharat-o-o/google-lens-scrapling-worker:1.0.22` running and healthy.
+  - Database schema migrations: applied idempotently with zero errors.
+  - `/api/health` returns HTTP 200 `{"status":"ok","database":"healthy","version":"0.5.2"}`.
+- Production Server Storage Optimization & Automated Pruning:
+  - Recovered 30 GB of disk space on production host (`/dev/sda1` dropped from 58 GB / 60% used down to 28 GB / 29% used, 69 GB available).
+  - Cleaned 21.47 GB of stale BuildKit build cache and 18 legacy local image tags from past 0.4.11/0.5.0 builds.
+  - Removed orphaned anonymous Docker volumes and obsolete release directories.
+  - Automated Cleanup Configuration: Configured daily cron jobs in `/etc/cron.d/`:
+    - `docker-builder-prune`: Runs daily at 03:23 UTC executing `docker builder prune -af --filter "until=48h"`.
+    - `docker-image-prune`: Runs daily at 05:14 UTC executing `docker image prune -af --filter "until=24h" && docker volume prune -f`.
+    - `rma-releases-prune`: Runs daily at 04:00 UTC keeping the 3 most recent release folders under `/opt/rma-system/releases/`.
 - Recognition Engine Integrity & Release Validation (Version 0.5.0):
   - Blocker 1 (Historical Inventory Backfill): Updated `src/db/migrate.ts` historical backfill logic. Idempotently sets `inventory_match_status = 'matched'` ONLY when backed by explicit operator verification (`status = 'verified' AND verified_by_user_id IS NOT NULL` or historical review action) OR positive physical comparison evidence (`confidence >= 0.90`, $\ge 2$ cues, 0 conflicts/unresolved). Demotes unverified historical links to `'review_required'`. Never deletes data and never overwrites explicit statuses. 4 migration unit tests passing (`src/__tests__/unit/migration-backfill.test.ts`).
   - Blocker 2 (Safe Inventory Status Inference): Rewrote `deriveInventoryMatchStatus` in `src/lib/recognition/seeded-inventory.ts`. Strictly validates against the 6-state domain set (`not_evaluated`, `processing`, `matched`, `no_verified_match`, `review_required`, `error`). Rejects corrupt or invalid string inputs into `review_required`. Does NOT infer `matched` from product ID alone or `no_verified_match` from general RMA status (`verified`, `suggested_match`).
@@ -120,3 +135,10 @@ The 2026-10-28 deployment had zero app and worker error lines during the ten-min
   - DEF-06 (Modern vs Legacy iPhone Safety Guards): Updated modern iPhone guards in `model-evidence.ts` and `decision.ts` to detect modern Apple flex codes (`821-`, `413022`, `M308`) and candidate consensus, rejecting incompatible legacy LCD models (iPhone 5/6/7/8) even when OCR lacks literal "HARD" or "OLED" words. Added baseline universal hardware reference in `src/db/migrate.ts` for iPhone 13 OEM flex cable `821-03180-A` without warehouse SKU assignment.
   - Part-Number Ground-Truth Confidence (Processor Guard): Updated `findVerifiedModelByPartNumbers` in `src/lib/queue/processor.ts` to abstain when multiple models match the same part number. Scaled confidence so single uncorroborated historical records are provisional (0.65) and require operator review rather than receiving near-certain 0.99.
   - Verified with 38 Vitest test files (298 unit/integration tests passing), TypeScript typecheck (0 errors), and ESLint (0 errors).
+
+- **v0.5.3 (2026-10-31)**:
+  - **Mandatory Front & Back Camera Intake Workflow**: Formalized display intake business rules requiring both Front and Back photographs before recognition submission. Flex cable close-up and additional photographs remain optional.
+  - **Camera Intake UI & Server Validation**: Implemented `validateDisplayImagesForRecognition` in `src/lib/recognition/camera-validation.ts`. Updated `CameraScanner.tsx` with explicit angle badges ("Front (Required)", "Back (Required)", "Flex (Optional)", "Additional (Optional)"), real-time saved indicators, dynamic validation status messages, and progression locks preventing advancement or completion until both required angles are saved.
+  - **Multi-Image Vision Corroboration**: Extended `cleanVisualCandidatesWithOpenAi` in `src/lib/recognition/lens/decision.ts` to accept all uploaded display perspectives (Front, Back, Flex close-up) with descriptive angle prompts, giving vision models complete ground-truth physical evidence. Prioritized Back view for Google Lens visual search.
+  - **Warehouse Variant Model Consensus**: When seeded inventory comparison is ambiguous between warehouse SKU variants (e.g., Hard OLED vs AM) of the same phone model, the shared consensus device model is extracted and assigned with `review_required` status rather than discarded.
+  - **Verified Coverage**: 42 Vitest test files (360 tests passing, 100%), 17 camera validation scenarios passing, Playwright E2E passing, Next.js build clean.

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { rmaItems } from "@/db/schema";
 
 const mocks = vi.hoisted(() => ({
   customer: vi.fn(), select: vi.fn(), transaction: vi.fn(), insert: vi.fn(), update: vi.fn(),
@@ -89,31 +90,38 @@ describe("Customer requirement protects intake before side effects", () => {
   it("retries queue publication when an image was saved but the first enqueue failed", async () => {
     mocks.customer.mockResolvedValue(true);
     const item = { id: "test-id", rmaId: "test-rma", status: "pending_upload" };
-    const existingImage = { id: "image-id", rmaItemId: "test-id" };
+    const existingFront = { id: "image-front", rmaItemId: "test-id", imageType: "front", fileSizeBytes: 8, checksumSha256: "front-chk" };
+    const existingBack = { id: "image-back", rmaItemId: "test-id", imageType: "back", fileSizeBytes: 8, checksumSha256: "checksum" };
     let imageAttached = false;
-    let selectCall = 0;
-    mocks.select.mockImplementation(() => {
-      selectCall += 1;
-      return {
-        from: () => selectCall === 3
-          ? { where: () => ({ orderBy: () => ({ limit: async () => [{ sortOrder: 0 }] }) }) }
-          : { where: async () => selectCall === 1 || selectCall === 4
-            ? [item]
-            : imageAttached ? [existingImage] : [] },
-      };
-    });
+    const makeQuery = (data: unknown[]) => {
+      const p = Promise.resolve(data);
+      return Object.assign(p, {
+        orderBy: () => ({
+          limit: async () => [{ sortOrder: 0 }],
+        }),
+      });
+    };
+    mocks.select.mockImplementation(() => ({
+      from: (table: unknown) => ({
+        where: () => {
+          if (table === rmaItems) return makeQuery([item]);
+          return makeQuery(imageAttached ? [existingBack, existingFront] : []);
+        },
+      }),
+    }));
     mocks.saveImage.mockResolvedValue({
       storagePath: "private/image.png", thumbnailPath: null, previewPath: null,
       originalFilename: "screen.png", mimeType: "image/png", fileSizeBytes: 8,
       checksumSha256: "checksum", width: 1, height: 1,
     });
     mocks.insert.mockReturnValue({
-      values: () => ({ returning: async () => { imageAttached = true; return [existingImage]; } }),
+      values: () => ({ returning: async () => { imageAttached = true; return [existingBack]; } }),
     });
 
     const makeRequest = () => {
       const form = new FormData();
       form.set("file", new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10])], { type: "image/png" }), "screen.png");
+      form.set("imageType", "back");
       return new NextRequest("http://localhost/api/test", { method: "POST", body: form });
     };
 

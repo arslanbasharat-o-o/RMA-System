@@ -1,9 +1,10 @@
 import { hasIntakeCustomer, CUSTOMER_REQUIRED } from "@/lib/intake-customer";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { rmaItems } from "@/db/schema";
+import { rmaItems, itemImages } from "@/db/schema";
 import { requireAuth } from "@/lib/auth/middleware";
 import { enqueueRmaItem } from "@/lib/queue";
+import { validateDisplayImagesForRecognition } from "@/lib/recognition/camera-validation";
 import { eq } from "drizzle-orm";
 import { z } from "zod";
 
@@ -38,6 +39,20 @@ export async function POST(
 
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid retry parameters" }, { status: 400 });
+  }
+
+  // Validate required photographs (Front + Back mandatory, Flex optional)
+  const images = await db
+    .select()
+    .from(itemImages)
+    .where(eq(itemImages.rmaItemId, itemId));
+
+  const validation = validateDisplayImagesForRecognition(images);
+  if (!validation.valid) {
+    return NextResponse.json(
+      { error: validation.error, missingRoles: validation.missingRoles },
+      { status: 400 }
+    );
   }
 
   await db

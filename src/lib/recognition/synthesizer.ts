@@ -402,7 +402,7 @@ export function synthesizeRecognition(
     (compactSlug(visualResult.detectedDisplayAssembly).includes(compactSlug(rejectedModel)) ||
      isCleanerRejected)
   );
-  const safeDetectedAssembly = !isAssemblyRejected && !isCleanerRejected && visualResult?.detectedDisplayAssembly && !isUnidentifiedLabel(visualResult.detectedDisplayAssembly)
+  const safeDetectedAssembly = !isAssemblyRejected && !isCleanerRejected && !isProviderError && !isCleanerAbstained && visualResult?.detectedDisplayAssembly && !isUnidentifiedLabel(visualResult.detectedDisplayAssembly)
     ? visualResult.detectedDisplayAssembly
     : null;
 
