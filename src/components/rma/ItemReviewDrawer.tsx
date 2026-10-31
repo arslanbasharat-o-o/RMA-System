@@ -237,14 +237,40 @@ export function ItemReviewDrawer({
   const currentVendor = vendorList.find((v) => v.id === selectedVendorId);
   const currentImage = (images && images.find((i: any) => i.id === activeImageId)) || images?.[0];
 
-  const selectedCandidate = candidates?.find((c: any) => c.id === selectedCandidateId);
-  const matchedCandidate = selectedCandidate || candidates?.find((c: any) =>
-    (customModel && c.candidateTitle?.toLowerCase().includes(customModel.toLowerCase().trim())) ||
-    (customModel && c.parsedModel?.toLowerCase() === customModel.toLowerCase().trim())
+  // A generic RMA 'verified' status only confirms the device model, NOT warehouse stock.
+  // Product identity is operator-confirmed ONLY when explicitly confirmed via review action
+  // or verified by multi-cue physical evidence.
+  const isOperatorProductConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    item?.status === "verified" &&
+    reviewHistory?.some((r: any) =>
+      r.actionType === "confirm_inventory" ||
+      r.action_type === "confirm_inventory" ||
+      r.newState?.action === "confirm_inventory" ||
+      r.new_state?.action === "confirm_inventory" ||
+      Boolean(r.newState?.confirmedProductId || r.new_state?.confirmedProductId)
+    )
+  );
+  const isPhysicalProductConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    (item?.inventoryMatchConfidence ?? 0) >= 0.90 &&
+    (item?.inventoryMatchEvidence?.matchingCues?.length ?? 0) >= 2
+  );
+  const isStockConfirmed = Boolean(
+    item?.inventoryMatchStatus === "matched" &&
+    Boolean(item?.seededProduct || item?.seededDisplayProductId) &&
+    (isOperatorProductConfirmed || isPhysicalProductConfirmed)
   );
 
-  const activeBarcode = matchedCandidate?.barcodeValue || item?.barcodeValue || item?.seededProduct?.barcodeValue || null;
-  const activeSku = matchedCandidate?.supplierSku || item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null;
+  // Sku and Barcode are warehouse inventory attributes. They must NEVER be displayed from
+  // search candidates merely because the device model matched.
+  const activeBarcode = isStockConfirmed ? (item?.barcodeValue || item?.seededProduct?.barcodeValue || null) : null;
+  const activeSku = isStockConfirmed
+    ? (item?.supplierSku || item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null)
+    : null;
+  const suggestedSku = (!isStockConfirmed && item?.seededProduct)
+    ? (item?.seededProduct?.supplierSku || item?.seededProduct?.printedTitle || null)
+    : null;
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
@@ -409,7 +435,11 @@ export function ItemReviewDrawer({
                 <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
                   Unidentified
                 </span>
-              ) : null}
+              ) : (
+                <span className="shrink-0 px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                  Identified
+                </span>
+              )}
             </div>
 
             {/* Visual Barcode Graphic */}
@@ -430,8 +460,82 @@ export function ItemReviewDrawer({
                 <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
                   Product SKU
                 </span>
-                <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 block truncate">
-                  {activeSku || "—"}
+                {isStockConfirmed ? (
+                  <span className="font-mono text-xs font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5 block truncate">
+                    {activeSku}
+                  </span>
+                ) : suggestedSku ? (
+                  <span className="font-mono text-xs text-amber-600 dark:text-amber-400 mt-0.5 block truncate" title="Suggested SKU awaiting operator confirmation">
+                    {suggestedSku} (Suggested)
+                  </span>
+                ) : (
+                  <span className="font-mono text-xs text-neutral-400 dark:text-neutral-500 mt-0.5 block truncate">
+                    —
+                  </span>
+                )}
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-semibold text-neutral-400 dark:text-neutral-500 block tracking-wider">
+                  Inventory Match
+                </span>
+                <span className="font-medium text-xs mt-0.5 block">
+                  {isStockConfirmed ? (
+                    <span className="text-emerald-700 dark:text-emerald-400 font-semibold inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                      Warehouse Stock ({item?.seededProduct?.variantName || item?.inventoryProductVariantName || "Confirmed"}) — Confirmed
+                    </span>
+                  ) : (item?.inventoryMatchStatus === "matched" || item?.seededProduct) ? (
+                    <span className="inline-flex flex-col gap-1">
+                      <span className="text-amber-700 dark:text-amber-400 font-semibold inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Warehouse Stock Suggestion ({item?.seededProduct?.variantName || item?.inventoryProductVariantName || "Matched"}) — Awaiting Review
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleApplyCorrection("confirm_inventory")}
+                        className="self-start text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 underline cursor-pointer"
+                      >
+                        Confirm this product stock
+                      </button>
+                    </span>
+                  ) : item?.inventoryMatchStatus === "processing" ? (
+                    <span className="text-blue-600 dark:text-blue-400 font-medium inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+                      Evaluating inventory...
+                    </span>
+                  ) : item?.inventoryMatchStatus === "review_required" ? (
+                    item?.inventoryMatchEvidence?.unresolvedAlternatives && item?.inventoryMatchEvidence?.unresolvedAlternatives.length > 0 ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Ambiguous inventory candidates — Review required
+                      </span>
+                    ) : item?.inventoryMatchEvidence?.notes?.some((n: string) => /incomplete|insufficient|unavailable/i.test(n)) ? (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Inventory comparison incomplete — Review required
+                      </span>
+                    ) : (
+                      <span className="text-amber-600 dark:text-amber-400 font-medium inline-flex items-center gap-1.5">
+                        <span className="inline-block w-2 h-2 rounded-full bg-amber-500" />
+                        Inventory match uncertain — Review required
+                      </span>
+                    )
+                  ) : item?.inventoryMatchStatus === "error" ? (
+                    <span className="text-rose-600 dark:text-rose-400 font-medium inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-rose-500" />
+                      Inventory evaluation error
+                    </span>
+                  ) : item?.inventoryMatchStatus === "no_verified_match" ? (
+                    <span className="text-neutral-500 dark:text-neutral-400 inline-flex items-center gap-1.5">
+                      <span className="inline-block w-2 h-2 rounded-full bg-neutral-400" />
+                      No verified inventory match
+                    </span>
+                  ) : (
+                    <span className="text-neutral-400 dark:text-neutral-500">
+                      Not evaluated
+                    </span>
+                  )}
                 </span>
               </div>
 

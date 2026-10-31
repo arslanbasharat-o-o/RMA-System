@@ -323,11 +323,34 @@ export function synthesizeRecognition(
   visualResult?: VisualIdentificationResult | null
 ): UnifiedIdentificationResult {
   const evidenceNotes: string[] = [];
-  const visualModelIsUsable = !visualResult?.cleanDecision || visualResult.cleanDecision.confidence >= 0.5;
-  // A low-confidence visual decision must not regain an identity through a
-  // catalog alias or through its model-bearing displayName. Exact part-number
-  // evidence remains authoritative and is checked for contradictions below.
+  const visualStatus = visualResult?.cleanDecision?.decisionStatus;
+  const isCleanerRejected = visualStatus === "rejected";
+  const isCleanerAbstained = visualStatus === "abstained";
+  const isProviderError = visualStatus === "provider_error";
+  const rejectedModel = visualResult?.cleanDecision?.rejectedModel;
+
+  const visualModelIsUsable = !visualResult?.cleanDecision || (
+    visualResult.cleanDecision.confidence >= 0.5 &&
+    !isCleanerRejected &&
+    !isCleanerAbstained &&
+    !isProviderError
+  );
+
+  // If a candidate model was explicitly rejected by physical inspection,
+  // it must NEVER be resurrected via catalog alias or visual candidate fallback.
+  const displayMatchIsRejected = Boolean(
+    isCleanerRejected && (
+      (rejectedModel && displayMatch && (
+        compactSlug(displayMatch.modelName) === compactSlug(rejectedModel)
+      )) ||
+      (displayMatch?.matchType !== "part_number" && rejectedModel)
+    )
+  );
+
+  // Exact part-number evidence remains authoritative and independently verified,
+  // allowing an independently verified model to be accepted even when a weaker provider has provider_error, abstained, or disagreed.
   const acceptedDisplayMatch = displayMatch &&
+    !displayMatchIsRejected &&
     (visualModelIsUsable || displayMatch.matchType === "part_number")
     ? displayMatch
     : null;
@@ -339,11 +362,12 @@ export function synthesizeRecognition(
     visualResult?.normalizedManufacturer ||
     null;
 
-  const visualCleanModel =
-    visualResult?.cleanDecision?.model ||
-    visualResult?.cleanDecision?.suggestedModel ||
-    visualResult?.normalizedModel ||
-    null;
+  const visualCleanModel = (isCleanerRejected || isCleanerAbstained || isProviderError)
+    ? null
+    : visualResult?.cleanDecision?.model ||
+      visualResult?.cleanDecision?.suggestedModel ||
+      (rejectedModel && visualResult?.normalizedModel === rejectedModel ? null : visualResult?.normalizedModel) ||
+      null;
 
   let rawModel = acceptedDisplayMatch?.modelName
     ? cleanCatalogModelName(acceptedDisplayMatch.modelName)
@@ -371,12 +395,23 @@ export function synthesizeRecognition(
 
   const cleanTech = sanitizeDisplayTechnology(predictedModel || catalogCleanName || "", acceptedDisplayMatch?.displayTechnology);
 
+  // If cleaner rejected the candidate model, never resurrect the rejected model via stale detectedDisplayAssembly
+  const isAssemblyRejected = Boolean(
+    rejectedModel &&
+    visualResult?.detectedDisplayAssembly &&
+    (compactSlug(visualResult.detectedDisplayAssembly).includes(compactSlug(rejectedModel)) ||
+     isCleanerRejected)
+  );
+  const safeDetectedAssembly = !isAssemblyRejected && !isCleanerRejected && visualResult?.detectedDisplayAssembly && !isUnidentifiedLabel(visualResult.detectedDisplayAssembly)
+    ? visualResult.detectedDisplayAssembly
+    : null;
+
   const predictedDisplayAssembly = acceptedDisplayMatch
     ? `${displayLabel}${cleanTech ? ` (${cleanTech})` : " Display"}`
     : (visualResult?.cleanDecision?.displayName && !isUnidentifiedLabel(visualResult.cleanDecision.displayName)
        ? visualResult.cleanDecision.displayName
-       : (visualResult?.detectedDisplayAssembly && !isUnidentifiedLabel(visualResult.detectedDisplayAssembly)
-          ? visualResult.detectedDisplayAssembly
+       : (safeDetectedAssembly
+          ? safeDetectedAssembly
           : (predictedManufacturer && predictedModel
              ? `${predictedManufacturer} ${predictedModel} Display`
              : predictedManufacturer === "Apple"
@@ -402,15 +437,20 @@ export function synthesizeRecognition(
   if (acceptedDisplayMatch && visualResult?.cleanDecision?.reasoning) {
     evidenceNotes.push(visualResult.cleanDecision.reasoning);
   }
+  if (rejectedModel) {
+    evidenceNotes.push(`Forensic note: Source candidate "${rejectedModel}" was rejected during physical inspection.`);
+  }
 
   // Vendor assignment
-  const identifiedVendorId = vendorMatch.vendorId;
-  const identifiedVendorName = vendorMatch.vendorName;
-  const identifiedVendorVariantId = vendorMatch.vendorVariantId;
-  const identifiedVendorVariantName = vendorMatch.vendorVariantName;
-  const vendorConfidenceScore = vendorMatch.confidenceScore;
+  const identifiedVendorId = vendorMatch?.vendorId || null;
+  const identifiedVendorName = vendorMatch?.vendorName || null;
+  const identifiedVendorVariantId = vendorMatch?.vendorVariantId || null;
+  const identifiedVendorVariantName = vendorMatch?.vendorVariantName || null;
+  const vendorConfidenceScore = vendorMatch?.confidenceScore ?? 0;
 
-  evidenceNotes.push(...vendorMatch.evidenceNotes);
+  if (vendorMatch?.evidenceNotes) {
+    evidenceNotes.push(...vendorMatch.evidenceNotes);
+  }
 
   // Check for contradiction or provider failure
   let hasContradiction = false;

@@ -12,8 +12,10 @@ const ReviewActionSchema = z.object({
     "change_vendor",
     "mark_unknown",
     "manual_verify",
+    "confirm_inventory",
   ]),
   catalogDisplayId: z.string().uuid().optional().nullable(),
+  confirmedProductId: z.string().uuid().optional().nullable(),
   predictedManufacturer: z.string().optional().nullable(),
   predictedModel: z.string().optional().nullable(),
   selectedCandidateTitle: z.string().optional().nullable(),
@@ -50,7 +52,7 @@ export async function POST(
     );
   }
 
-  const { action, catalogDisplayId, predictedManufacturer, predictedModel, vendorId, vendorVariantId, notes } = parsed.data;
+  const { action, catalogDisplayId, confirmedProductId, predictedManufacturer, predictedModel, vendorId, vendorVariantId, notes } = parsed.data;
 
   if (action === "accept_suggestion" &&
     (!(["suggested_match", "review_required"].includes(item.status)) ||
@@ -159,9 +161,22 @@ export async function POST(
       updatePayload.identifiedVendorId = vendorId;
       updatePayload.identifiedVendorVariantId = vendorVariantId || null;
     }
+  } else if (action === "confirm_inventory") {
+    const targetProductId = confirmedProductId || item.seededDisplayProductId;
+    if (!targetProductId) {
+      return NextResponse.json({ error: "No inventory product specified to confirm." }, { status: 400 });
+    }
+    updatePayload.status = "verified";
+    updatePayload.matchStatus = "manually_verified";
+    updatePayload.inventoryMatchStatus = "matched";
+    updatePayload.seededDisplayProductId = targetProductId;
+    updatePayload.verifiedByUserId = auth.user.userId;
+    updatePayload.verifiedAt = new Date();
+    if (notes) updatePayload.reviewNotes = notes;
   } else if (action === "mark_unknown") {
     updatePayload.status = "review_required";
     updatePayload.matchStatus = "unknown";
+    updatePayload.inventoryMatchStatus = "no_verified_match";
     updatePayload.predictedModel = null;
     updatePayload.predictedManufacturer = null;
     updatePayload.predictedDisplayAssembly = null;
@@ -193,7 +208,11 @@ export async function POST(
       userId: auth.user.userId,
       actionType: action,
       previousState,
-      newState: { ...updatePayload, recognitionRevision: "incremented" },
+      newState: {
+        ...updatePayload,
+        confirmedProductId: updatePayload.seededDisplayProductId || item.seededDisplayProductId,
+        recognitionRevision: "incremented",
+      },
       notes: notes || `Operator applied action: ${action}`,
     });
     return updated;

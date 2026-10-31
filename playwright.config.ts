@@ -1,12 +1,15 @@
 import { defineConfig, devices } from "@playwright/test";
+import fs from "fs";
+import path from "path";
+
+try {
+  (process as any).loadEnvFile(".env.local");
+} catch {}
 
 (process.env as any).NODE_ENV = "test";
 process.env.LENS_PROVIDER = "mock";
 
 const port = process.env.PLAYWRIGHT_PORT || "3000";
-
-import fs from "fs";
-import path from "path";
 
 // Detect installed browser engines to ensure `npx playwright test` does not crash
 const possibleCacheDirs = [
@@ -97,7 +100,9 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 120000,
     env: {
+      ...process.env,
       LENS_PROVIDER: "mock",
+      DATABASE_URL: process.env.DATABASE_URL || "",
     },
   },
 });

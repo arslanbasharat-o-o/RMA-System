@@ -15,8 +15,8 @@ import {
 import { requireAuth } from "@/lib/auth/middleware";
 import { storage } from "@/lib/storage";
 import { getManualModelOverride } from "@/lib/recognition/manual-model";
+import { deriveInventoryMatchStatus } from "@/lib/recognition/seeded-inventory";
 import { eq, asc, desc, and, inArray, lte } from "drizzle-orm";
-import { matchSeededProductByText } from "@/lib/recognition/seeded-inventory";
 
 export async function GET(
   req: NextRequest,
@@ -38,6 +38,7 @@ export async function GET(
       predictedDisplayAssembly: rmaItems.predictedDisplayAssembly,
       catalogDisplayId: rmaItems.catalogDisplayId,
       seededDisplayProductId: rmaItems.seededDisplayProductId,
+      inventoryMatchStatus: rmaItems.inventoryMatchStatus,
       inventoryMatchConfidence: rmaItems.inventoryMatchConfidence,
       inventoryMatchEvidence: rmaItems.inventoryMatchEvidence,
       inventoryProductManufacturer: seededDisplayProducts.manufacturer,
@@ -132,32 +133,13 @@ export async function GET(
     return { ...candidate, candidateTitle: typeof title === "string" ? title : candidate.candidateTitle };
   });
 
-  const allSeeds = await db
-    .select({
-      id: seededDisplayProducts.id,
-      manufacturer: seededDisplayProducts.manufacturer,
-      modelName: seededDisplayProducts.modelName,
-      variantName: seededDisplayProducts.variantName,
-      printedTitle: seededDisplayProducts.printedTitle,
-      barcodeValue: seededDisplayProducts.barcodeValue,
-      barcodeFormat: seededDisplayProducts.barcodeFormat,
-      barcodeSymbology: seededDisplayProducts.barcodeSymbology,
-      supplierSku: seededDisplayProducts.supplierSku,
-      otherCodes: seededDisplayProducts.otherCodes,
-    })
-    .from(seededDisplayProducts);
+  const inventoryMatchStatus = deriveInventoryMatchStatus(item);
+  const isVerifiedMatch = inventoryMatchStatus === "matched" &&
+    Boolean(item.seededDisplayProductId) &&
+    Boolean(item.inventoryProductManufacturer);
 
-  const enrichedCandidates = currentCandidates.map((candidate) => {
-    const matched = matchSeededProductByText(candidate.candidateTitle, allSeeds);
-    return {
-      ...candidate,
-      barcodeValue: matched?.barcodeValue || null,
-      supplierSku: matched?.supplierSku || matched?.printedTitle || null,
-    };
-  });
-
-  let seededProduct = item.seededDisplayProductId ? {
-    id: item.seededDisplayProductId,
+  const seededProduct = isVerifiedMatch ? {
+    id: item.seededDisplayProductId!,
     manufacturer: item.inventoryProductManufacturer,
     modelName: item.inventoryProductModelName,
     variantName: item.inventoryProductVariantName,
@@ -169,39 +151,19 @@ export async function GET(
     otherCodes: item.inventoryProductOtherCodes,
   } : null;
 
-  if (!seededProduct && (item.predictedModel || item.predictedDisplayAssembly) && allSeeds.length > 0) {
-    const matchedSeed =
-      matchSeededProductByText(item.predictedDisplayAssembly, allSeeds) ||
-      matchSeededProductByText(item.predictedModel, allSeeds);
-
-    if (matchedSeed) {
-      seededProduct = {
-        id: matchedSeed.id,
-        manufacturer: matchedSeed.manufacturer,
-        modelName: matchedSeed.modelName,
-        variantName: matchedSeed.variantName,
-        printedTitle: matchedSeed.printedTitle,
-        barcodeValue: matchedSeed.barcodeValue,
-        barcodeFormat: matchedSeed.barcodeFormat,
-        barcodeSymbology: matchedSeed.barcodeSymbology,
-        supplierSku: matchedSeed.supplierSku,
-        otherCodes: matchedSeed.otherCodes,
-      };
-    }
-  }
-
   return NextResponse.json({
     item: {
       ...item,
       seededProduct,
       barcodeValue: seededProduct?.barcodeValue || null,
       supplierSku: seededProduct?.supplierSku || seededProduct?.printedTitle || null,
+      inventoryMatchStatus,
       modelSource: getManualModelOverride(reviews)?.predictedModel === item.predictedModel ? "manual" : "recognition",
     },
     images,
     runs,
     ocrExtractions: extractions,
-    candidates: enrichedCandidates,
+    candidates: currentCandidates,
     reviewHistory: reviews,
   }, {
     headers: { "Cache-Control": "private, no-store, max-age=0, must-revalidate" },

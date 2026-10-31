@@ -1,8 +1,8 @@
 import { pool } from "./index";
 
-export async function runMigrations() {
+export async function runMigrations(customPool?: { connect: () => Promise<any> }) {
   console.log("Applying database schema migrations...");
-  const client = await pool.connect();
+  const client = await (customPool ? customPool.connect() : pool.connect());
 
   try {
     await client.query("BEGIN;");
@@ -369,6 +369,77 @@ export async function runMigrations() {
           ALTER TABLE rma_items ADD CONSTRAINT rma_items_vendor_variant_fk
             FOREIGN KEY (identified_vendor_variant_id) REFERENCES vendor_variants (id) ON DELETE SET NULL;
         END IF;
+
+        -- Additive column for Capability B: explicit inventory match status with check constraint
+        ALTER TABLE rma_items ADD COLUMN IF NOT EXISTS inventory_match_status TEXT NOT NULL DEFAULT 'not_evaluated';
+
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'rma_items_inventory_match_status_check'
+        ) THEN
+          ALTER TABLE rma_items ADD CONSTRAINT rma_items_inventory_match_status_check
+            CHECK (inventory_match_status IN ('not_evaluated', 'processing', 'matched', 'no_verified_match', 'review_required', 'error'));
+        END IF;
+
+        -- Safe historical backfill: ensure historical records are not misclassified.
+        -- A generic RMA 'verified' status only establishes device-model verification, NOT warehouse product confirmation.
+        -- We backfill to 'matched' ONLY with positive product-specific proof:
+        -- 1. Operator explicitly confirmed the exact product ID via a product confirmation review action, OR
+        -- 2. Positive physical comparison evidence (confidence >= 0.90, >= 2 matching cues, 0 conflicting, 0 unresolved).
+        UPDATE rma_items
+        SET inventory_match_status = 'matched'
+        WHERE inventory_match_status = 'not_evaluated'
+          AND seeded_display_product_id IS NOT NULL
+          AND (
+            -- Explicit operator confirmation of exact inventory product
+            EXISTS (
+              SELECT 1 FROM review_actions ra
+              WHERE ra.rma_item_id = rma_items.id
+                AND ra.action_type IN ('confirm_inventory', 'confirm_product')
+                AND (
+                  ra.new_state->>'confirmedProductId' = rma_items.seeded_display_product_id::text
+                  OR ra.new_state->>'seededDisplayProductId' = rma_items.seeded_display_product_id::text
+                )
+            )
+            -- OR positive multi-cue physical comparison proof with robust JSON guards
+            OR (
+              inventory_match_confidence >= 0.90
+              AND inventory_match_evidence IS NOT NULL
+              AND jsonb_typeof(inventory_match_evidence) = 'object'
+              AND (inventory_match_evidence->'matchingCues') IS NOT NULL
+              AND jsonb_typeof(inventory_match_evidence->'matchingCues') = 'array'
+              AND jsonb_array_length(inventory_match_evidence->'matchingCues') >= 2
+              AND (
+                (inventory_match_evidence->'conflictingCues') IS NULL OR
+                jsonb_typeof(inventory_match_evidence->'conflictingCues') != 'array' OR
+                jsonb_array_length(inventory_match_evidence->'conflictingCues') = 0
+              )
+              AND (
+                (inventory_match_evidence->'unresolvedAlternatives') IS NULL OR
+                jsonb_typeof(inventory_match_evidence->'unresolvedAlternatives') != 'array' OR
+                jsonb_array_length(inventory_match_evidence->'unresolvedAlternatives') = 0
+              )
+            )
+          );
+
+        -- 2. Historical records with a seeded product link that LACK exact product-specific proof
+        -- (including legacy records where only the device model was verified) must NOT be auto-matched.
+        -- Historical associations are safely preserved and marked as requiring review.
+        UPDATE rma_items
+        SET inventory_match_status = 'review_required'
+        WHERE inventory_match_status = 'not_evaluated'
+          AND seeded_display_product_id IS NOT NULL;
+
+        -- 3. In-flight jobs
+        UPDATE rma_items
+        SET inventory_match_status = 'processing'
+        WHERE inventory_match_status = 'not_evaluated'
+          AND status IN ('processing', 'queued');
+
+        -- 4. Failed recognition records
+        UPDATE rma_items
+        SET inventory_match_status = 'error'
+        WHERE inventory_match_status = 'not_evaluated'
+          AND status = 'failed';
       END $$;
     `);
 

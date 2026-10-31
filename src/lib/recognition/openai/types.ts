@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { OpenAiCallTelemetry } from "./telemetry";
 
 export const OcrStructuredOutputSchema = z.object({
   raw_text: z.array(z.string()).describe("All verbatim readable text extracted from the display"),
@@ -19,4 +20,5 @@ export interface OcrExtractionResult {
   durationMs: number;
   rawResponse?: Record<string, unknown>;
   error?: string;
+  telemetry?: OpenAiCallTelemetry;
 }
